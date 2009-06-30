@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /*
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
