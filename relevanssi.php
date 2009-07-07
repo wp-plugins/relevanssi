@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.1
+Version: 1.1.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -449,7 +449,7 @@ function relevanssi_extra_details() {
 	echo '<input type="hidden" name="dowhat" value="add_stopword" />';
 	echo "<ul>\n";
 
-	if (version_compare($wp_version, '2.8dev', '>' )) {	
+	if (version_compare($wp_version, '2.8dev', '>' )) {
 		$src = plugins_url('delete.png', __FILE__);
 	}
 	else {
