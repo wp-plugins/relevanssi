@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.0
+Version: 1.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
