@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.6.5
 Tested up to: 2.8
-Stable tag: 1.0
+Stable tag: 1.1
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -34,6 +34,9 @@ tried. I'd guess 2.0 or 2.2 is the actual limit.
 1. Activate the plugin through the 'Plugins' menu in WordPress.
 1. Go to the plugin settings and build the index following the instructions there.
 
+To update your installation, simply overwrite the old files with the new, activate the new
+version and rebuild the index.
+
 == Frequently Asked Questions ==
 
 = What is tf * idf weighing? =
@@ -54,13 +57,14 @@ inverted document frequency is really low, so they never have much power in matc
 removing those words helps to make the index smaller and searching faster.
 
 == Known issues and To-do's ==
-* For some reason, pages don't work properly in the search results. If the blog is using pretty
-permalinks, the pages will use the basic http://www.example.com/?p=1 style links.
-* When using WP 2.6.5, the plugin causes a white bar to appear on top of the screen. I have no
-idea what causes it, I only know the plugin doesn't. The problem doesn't exist in 2.8.
-* The stop word list management needs small improvements.
+* To-do: The stop word list management needs small improvements.
+* To-do: Log the search queries and provide statistics.
+* 
 
 == Changelog ==
+
+= 1.1 =
+* Fixes the problem with pages in search results.
 
 = 1.0 =
 * First published version.

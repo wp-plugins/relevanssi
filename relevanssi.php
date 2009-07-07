@@ -26,8 +26,6 @@ Author URI: http://www.mikkosaari.fi/
     along with Relevanssi.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-require_once 'RelevanssiSearchResult.php';
-
 register_activation_hook(__FILE__,'relevanssi_install');
 register_deactivation_hook(__FILE__,'unset_relevanssi_options');
 add_action('admin_menu', 'relevanssi_menu');
@@ -179,7 +177,7 @@ function relevanssi_query($posts) {
 		
 		for ($i = $wpSearch_low; $i <= $wpSearch_high; $i++) {
 			$hit = $hits[intval($i)];
-			$posts[] = RelevanssiSearchResult::BuildWPResultFromHit($hit);
+			$posts[] = get_post($hit, OBJECT);
 		}
 	}
 	
@@ -248,8 +246,7 @@ function relevanssi_search($q) {
 	arsort($doc_weight);
 	$i = 0;
 	foreach ($doc_weight as $doc => $weight) {
-		$post = $wpdb->get_row("SELECT * FROM $wpdb->posts WHERE ID=$doc");
-		$hits[intval($i)] = $post;
+		$hits[intval($i)] = $doc;
 		$i++;
 	}
 
@@ -451,8 +448,13 @@ function relevanssi_extra_details() {
 	echo '<form method="post">';
 	echo '<input type="hidden" name="dowhat" value="add_stopword" />';
 	echo "<ul>\n";
-	
-	$src = plugins_url('delete.png', __FILE__);
+
+	if (version_compare($wp_version, '2.8dev', '>' )) {	
+		$src = plugins_url('delete.png', __FILE__);
+	}
+	else {
+		$src = plugins_url('relevanssi/delete.png');
+	}
 	
 	foreach ($words as $word) {
 		printf('<li>%s (%d) <input style="padding: 0; margin: 0" type="image" src="%s" alt="Add to stopwords" name="term" value="%s"/></li>', $word->term, $word->cnt, $src, $word->term);
