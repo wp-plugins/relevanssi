@@ -377,7 +377,7 @@ function relevanssi_kill($where) {
  */
 
 function relevanssi_options() {
-	$options_txt = __('Relevanssi Search Options');
+	$options_txt = __('Relevanssi Search Options', 'relevanssi');
 
 	printf("<div class='wrap'><h2>%s</h2>", $options_txt);
 
@@ -404,7 +404,7 @@ function relevanssi_options() {
 	relevanssi_options_form();
 	
 	relevanssi_extra_details();
-	?></div><?php
+	echo "</div>";
 }
 
 function update_relevanssi_options() {
@@ -442,9 +442,9 @@ function relevanssi_add_stopword($term) {
 function relevanssi_extra_details() {
 	global $wpdb, $relevanssi_table;
 	
-	echo "<h3>" . __("25 most common words in the index") . "</h3>";
+	echo "<h3>" . __("25 most common words in the index", 'relevanssi') . "</h3>";
 	
-	echo "<p>" . __("These words are excellent stopword material. A word that appears in most of the posts in the database is quite pointless when searching. This is also an easy way to create a completely new stopword list, if one isn't available in your language. Click the icon after the word to add the word to the stopword list. The word will also be removed from the index, so rebuilding the index is not necessary.") . "</p>";
+	echo "<p>" . __("These words are excellent stopword material. A word that appears in most of the posts in the database is quite pointless when searching. This is also an easy way to create a completely new stopword list, if one isn't available in your language. Click the icon after the word to add the word to the stopword list. The word will also be removed from the index, so rebuilding the index is not necessary.", 'relevanssi') . "</p>";
 	
 	$words = $wpdb->get_results("SELECT COUNT(DISTINCT(doc)) as cnt, term
 		FROM $relevanssi_table GROUP BY term ORDER BY cnt DESC LIMIT 25");
@@ -461,7 +461,7 @@ function relevanssi_extra_details() {
 	}
 	
 	foreach ($words as $word) {
-		$stop = __('Add to stopwords');
+		$stop = __('Add to stopwords', 'relevanssi');
 		printf('<li>%s (%d) <input style="padding: 0; margin: 0" type="image" src="%s" alt="%s" name="term" value="%s"/></li>', $word->term, $word->cnt, $src, $stop, $word->term);
 	}
 	echo "</ul>\n</form>";
@@ -480,16 +480,16 @@ function relevanssi_options_form() {
 		$admin_search = '';
 	}
 	
-	$title_boost_txt = __('Title boost:');
-	$title_boost_desc = sprintf(__('(this needs to be an integer, default: %d)'), $title_boost_default);
-	$admin_search_txt = __('Use search for admin:');
-	$admin_search_desc = __('(if checked, Relevanssi will be used for searches in the admin interface)');
-	$submit_value = __('Save');
-	$building_the_index = __('Building the index');
-	$index_p1 = __("After installing the plugin, you need to build the index. This generally needs to be done once, you don't have to re-index unless something goes wrong. Indexing is a heavy task and might take more time than your servers allow. If the indexing cannot be finished - for example you get a blank screen or something like that after indexing - you can continue indexing from where you left by clicking 'Continue indexing'. Clicking 'Build the index' will delete the old index, so you can't use that.");
-	$index_p2 = __("So, if you build the index and don't get the 'Indexing complete' in the end, keep on clicking the 'Continue indexing' button until you do. On my blogs, I was able to index ~400 pages on one go, but had to continue indexing twice to index ~950 pages.");
-	$build_index = __("Build the index");
-	$continue_index = __("Continue indexing");
+	$title_boost_txt = __('Title boost:', 'relevanssi');
+	$title_boost_desc = sprintf(__('(this needs to be an integer, default: %d)', 'relevanssi'), $title_boost_default);
+	$admin_search_txt = __('Use search for admin:', 'relevanssi');
+	$admin_search_desc = __('(if checked, Relevanssi will be used for searches in the admin interface)', 'relevanssi');
+	$submit_value = __('Save', 'relevanssi');
+	$building_the_index = __('Building the index', 'relevanssi');
+	$index_p1 = __("After installing the plugin, you need to build the index. This generally needs to be done once, you don't have to re-index unless something goes wrong. Indexing is a heavy task and might take more time than your servers allow. If the indexing cannot be finished - for example you get a blank screen or something like that after indexing - you can continue indexing from where you left by clicking 'Continue indexing'. Clicking 'Build the index' will delete the old index, so you can't use that.", 'relevanssi');
+	$index_p2 = __("So, if you build the index and don't get the 'Indexing complete' in the end, keep on clicking the 'Continue indexing' button until you do. On my blogs, I was able to index ~400 pages on one go, but had to continue indexing twice to index ~950 pages.", 'relevanssi');
+	$build_index = __("Build the index", 'relevanssi');
+	$continue_index = __("Continue indexing", 'relevanssi');
 	
 	echo <<<EOHTML
 	<br />
