@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.6.5
 Tested up to: 2.8
-Stable tag: 1.1.1
+Stable tag: 1.1.3
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -59,9 +59,14 @@ removing those words helps to make the index smaller and searching faster.
 == Known issues and To-do's ==
 * To-do: The stop word list management needs small improvements.
 * To-do: Log the search queries and provide statistics.
-* 
 
 == Changelog ==
+
+= 1.1.3 =
+* Fixed a small bug, made internationalization possible (translations are welcome!).
+
+= 1.1.2 =
+* English stopword file had a problem, which is now fixed.
 
 = 1.1.1 =
 * Fixed a stupid bug introduced in the previous update. Remember always to test your code before sending files to repository!
