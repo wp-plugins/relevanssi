@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.1.1
+Version: 1.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -43,15 +43,23 @@ global $wpSearch_high;
 global $relevanssi_table;
 global $stopword_table;
 global $stopword_list;
+global $title_boost_default;
 
 $wpSearch_low = 0;
 $wpSearch_high = 0;
 $relevanssi_table = $wpdb->prefix . "relevanssi";
 $stopword_table = $wpdb->prefix . "relevanssi_stopwords";
+$title_boost_default = 5;
 
 function unset_relevanssi_options() {
 	delete_option('relevanssi_title_boost');
 	delete_option('relevanssi_admin_search');
+	delete_option('relevanssi_highlight');
+	delete_option('relevanssi_txt_col');
+	delete_option('relevanssi_bg_col');
+	delete_option('relevanssi_css');
+	delete_option('relevanssi_excerpts');
+	delete_option('relevanssi_excerpt_length');
 }
 
 function relevanssi_menu() {
@@ -81,10 +89,16 @@ function relevanssi_add($post) {
 }
 
 function relevanssi_install() {
-	global $wpdb, $relevanssi_table, $stopword_table;
+	global $wpdb, $relevanssi_table, $stopword_table, $title_boost_default;
 	
-	add_option('relevanssi_title_boost', '5');
+	add_option('relevanssi_title_boost', $title_boost_default);
 	add_option('relevanssi_admin_search', 'off');
+	add_option('relevanssi_highlight', 'strong');
+	add_option('relevanssi_txt_col', '#ff0000');
+	add_option('relevanssi_bg_col', '#ffaf75');
+	add_option('relevanssi_css', 'text-decoration: underline; text-color: #ff0000');
+	add_option('relevanssi_excerpts', 'on');
+	add_option('relevanssi_excerpt_length', '450');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -175,9 +189,15 @@ function relevanssi_query($posts) {
 		
 		if ($wpSearch_high > sizeof($hits)) $wpSearch_high = sizeof($hits) - 1;
 		
+		$make_excerpts = get_option('relevanssi_excerpts');
+		
 		for ($i = $wpSearch_low; $i <= $wpSearch_high; $i++) {
 			$hit = $hits[intval($i)];
-			$posts[] = get_post($hit, OBJECT);
+			$post = get_post($hit, OBJECT);
+			if ('on' == $make_excerpts) {			
+				$post->post_excerpt = relevanssi_do_excerpt($post, $q);
+			}
+			$posts[] = $post;
 		}
 	}
 	
@@ -243,14 +263,131 @@ function relevanssi_search($q) {
 		}
 	}
 
-	arsort($doc_weight);
-	$i = 0;
-	foreach ($doc_weight as $doc => $weight) {
-		$hits[intval($i)] = $doc;
-		$i++;
+	$hits = array();
+
+	if (count($doc_weight) > 0) {
+		arsort($doc_weight);
+		$i = 0;
+		foreach ($doc_weight as $doc => $weight) {
+			$hits[intval($i)] = $doc;
+			$i++;
+		}
 	}
 
 	return $hits;
+}
+
+function relevanssi_do_excerpt($post, $query) {
+	$excerpt_length = get_option("relevanssi_excerpt_length");
+//	$type = get_option("relevanssi_excerpt_type");
+	
+	$terms = relevanssi_tokenize($query);
+
+	$content = strip_tags($post->post_content);
+	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
+	
+	$post_length = strlen($content);
+
+	$excerpt = "";
+
+	$passes = 0;
+	if ($post_length < $excerpt_length) {
+		$excerpt = $post->content;
+		$passes = 1;
+	}
+	else {
+		$i = 0;
+		$found = false;
+		do {
+			$passes++;
+			$excerpt = mb_substr($content, $i, $excerpt_length);
+			$low_excerpt = mb_strtolower($excerpt);
+			foreach (array_keys($terms) as $term) {
+				$pos = mb_strpos($low_excerpt, $term); // terms are already lowercase
+				if ($pos !== false) {
+					$found = true;
+					break;
+				}
+			}
+			$i = $i + $excerpt_length;
+		} while ($found == false);
+		
+		// just in case
+		if ("" == $excerpt) {
+			$excerpt = mb_substr($content, 0, $excerpt_length);
+		}
+	}
+	
+	$highlight = get_option('relevanssi_highlight');
+	if ("none" != $highlight) {
+		$excerpt = relevanssi_highlight_terms($excerpt, array_keys($terms));
+	}
+	
+	if ($passes > 1) {
+		$excerpt = "..." . $excerpt;
+		// do not add three dots to the beginning of the post
+	}
+	
+	$excerpt = $excerpt . "...";
+	
+	return $excerpt;
+}
+
+function relevanssi_highlight_terms($excerpt, $terms) {
+	$type = get_option("relevanssi_highlight");
+	if ("none" == $type) {
+		return $excerpt;
+	}
+	
+	switch ($type) {
+		case "strong":
+			$start_emp = "<strong>";
+			$end_emp = "</strong>";
+			break;
+		case "em":
+			$start_emp = "<em>";
+			$end_emp = "</em>";
+			break;
+		case "col":
+			$col = get_option("relevanssi_txt_col");
+			if (!$col) $col = "#ff0000";
+			$start_emp = "<span style='color: $col'>";
+			$end_emp = "</span>";
+			break;
+		case "bgcol":
+			$col = get_option("relevanssi_bg_col");
+			if (!$col) $col = "#ff0000";
+			$start_emp = "<span style='background-color: $col'>";
+			$end_emp = "</span>";
+			break;
+		case "css":
+			$css = get_option("relevanssi_css");
+			if (!$css) $css = "color: #ff0000";
+			$start_emp = "<span style='$css'>";
+			$end_emp = "</span>";
+			break;
+		default:
+			return $excerpt;
+	}
+
+	foreach ($terms as $term) {
+		$pos = 0;
+		$low_excerpt = strtolower($excerpt);
+		while ($pos !== false) {
+			$pos = strpos($low_excerpt, $term, $pos);
+			if ($pos !== false) {
+				$excerpt = substr($excerpt, 0, $pos)
+						 . $start_emp
+						 . substr($excerpt, $pos, strlen($term))
+						 . $end_emp
+						 . substr($excerpt, $pos + strlen($term));
+				$low_excerpt = strtolower($excerpt);
+				$pos = $pos + strlen($start_emp) + strlen($end_emp);
+			}
+		}
+	}
+
+	return $excerpt;
 }
 
 function relevanssi_build_index($extend = false) {
@@ -371,7 +508,9 @@ function relevanssi_kill($where) {
  */
 
 function relevanssi_options() {
-?><div class='wrap'><h2>Relevanssi Options</h2><?php
+	$options_txt = __('Relevanssi Search Options', 'relevanssi');
+
+	printf("<div class='wrap'><h2>%s</h2>", $options_txt);
 
 	if ($_REQUEST['submit']) {
 		update_relevanssi_options();
@@ -396,7 +535,7 @@ function relevanssi_options() {
 	relevanssi_options_form();
 	
 	relevanssi_extra_details();
-	?></div><?php
+	echo "</div>";
 }
 
 function update_relevanssi_options() {
@@ -410,7 +549,25 @@ function update_relevanssi_options() {
 	if (!$_REQUEST['relevanssi_admin_search']) {
 		$_REQUEST['relevanssi_admin_search'] = "off";
 	}
+
+	if (!$_REQUEST['relevanssi_excerpts']) {
+		$_REQUEST['relevanssi_excerpts'] = "off";
+	}
+
+	if ($_REQUEST['relevanssi_excerpt_length']) {
+		$value = intval($_REQUEST['relevanssi_excerpt_length']);
+		if ($value != 0) {
+			update_option('relevanssi_excerpt_length', $value);
+		}
+	}
+
 	update_option('relevanssi_admin_search', $_REQUEST['relevanssi_admin_search']);
+	update_option('relevanssi_excerpts', $_REQUEST['relevanssi_excerpts']);	
+	update_option('relevanssi_highlight', $_REQUEST['relevanssi_highlight']);
+	
+	update_option('relevanssi_txt_col', $_REQUEST['relevanssi_txt_col']);
+	update_option('relevanssi_bg_col', $_REQUEST['relevanssi_bg_col']);
+	update_option('relevanssi_css', $_REQUEST['relevanssi_css']);
 }
 
 function relevanssi_add_stopword($term) {
@@ -434,13 +591,9 @@ function relevanssi_add_stopword($term) {
 function relevanssi_extra_details() {
 	global $wpdb, $relevanssi_table;
 	
-	?><h3>25 most common words in the index</h3>
+	echo "<h3>" . __("25 most common words in the index", 'relevanssi') . "</h3>";
 	
-	<p>These words are excellent stopword material. A word that appears in most of the posts in
-	the database is quite pointless when searching. This is also an easy way to create a
-	completely new stopword list, if one isn't available in your language. Click the icon after the word to add the
-	word to the stopword list. The word will also be removed from the index, so rebuilding the
-	index is not necessary.</p><?php
+	echo "<p>" . __("These words are excellent stopword material. A word that appears in most of the posts in the database is quite pointless when searching. This is also an easy way to create a completely new stopword list, if one isn't available in your language. Click the icon after the word to add the word to the stopword list. The word will also be removed from the index, so rebuilding the index is not necessary.", 'relevanssi') . "</p>";
 	
 	$words = $wpdb->get_results("SELECT COUNT(DISTINCT(doc)) as cnt, term
 		FROM $relevanssi_table GROUP BY term ORDER BY cnt DESC LIMIT 25");
@@ -457,13 +610,16 @@ function relevanssi_extra_details() {
 	}
 	
 	foreach ($words as $word) {
-		printf('<li>%s (%d) <input style="padding: 0; margin: 0" type="image" src="%s" alt="Add to stopwords" name="term" value="%s"/></li>', $word->term, $word->cnt, $src, $word->term);
+		$stop = __('Add to stopwords', 'relevanssi');
+		printf('<li>%s (%d) <input style="padding: 0; margin: 0" type="image" src="%s" alt="%s" name="term" value="%s"/></li>', $word->term, $word->cnt, $src, $stop, $word->term);
 	}
 	echo "</ul>\n</form>";
 }
 
 
 function relevanssi_options_form() {
+	global $title_boost_default;
+	
 	$title_boost = get_option('relevanssi_title_boost');
 	$admin_search = get_option('relevanssi_admin_search');
 	if ('on' == $admin_search) {
@@ -472,40 +628,149 @@ function relevanssi_options_form() {
 	else {
 		$admin_search = '';
 	}
+
+	$excerpts = get_option('relevanssi_excerpts');
+	if ('on' == $excerpts) {
+		$excerpts = 'checked="checked"';
+	}
+	else {
+		$excerpts = '';
+	}
 	
-	?><br />
+	$excerpt_length = get_option('relevanssi_excerpt_length');
+
+	$highlight = get_option('relevanssi_highlight');
+	$highlight_none = "";
+	$highlight_em = "";
+	$highlight_strong = "";
+	$highlight_col = "";
+	$highlight_bgcol = "";
+	$highlight_style = "";
+	switch ($highlight) {
+		case "no":
+			$highlight_none = 'selected="selected"';
+			break;
+		case "em":
+			$highlight_em = 'selected="selected"';
+			break;
+		case "strong":
+			$highlight_strong = 'selected="selected"';
+			break;
+		case "col":
+			$highlight_col = 'selected="selected"';
+			break;
+		case "bgcol":
+			$highlight_bgcol = 'selected="selected"';
+			break;
+		case "css":
+			$highlight_style = 'selected="selected"';
+			break;
+	}
+	
+	$txt_col = get_option('relevanssi_txt_col');
+	$bg_col = get_option('relevanssi_bg_col');
+	$css = get_option('relevanssi_css');
+	
+	$title_boost_txt = __('Title boost:', 'relevanssi');
+	$title_boost_desc = sprintf(__('This needs to be an integer, default: %d', 'relevanssi'), $title_boost_default);
+	$admin_search_txt = __('Use search for admin:', 'relevanssi');
+	$admin_search_desc = __('If checked, Relevanssi will be used for searches in the admin interface', 'relevanssi');
+	$excerpt_txt = __("Create custom search result snippets:", "relevanssi");
+	$excerpt_desc = __("If checked, Relevanssi will create excerpts that contain the search term hits. To make them work, make sure your search result template uses the_excerpt() to display post excerpts.", 'relevanssi');
+	$excerpt_length_txt = __("Length of the snippet in characters:", "relevanssi");
+	$excerpt_length_desc = __("This must be an integer", "relevanssi");
+	$highlight_txt = __("Highlight query terms in search results:", 'relevanssi');
+	$highlight_comment = __("Highlighting isn't available unless you use custom snippets", 'relevanssi');
+	
+	$submit_value = __('Save', 'relevanssi');
+	$building_the_index = __('Building the index', 'relevanssi');
+	$index_p1 = __("After installing the plugin, you need to build the index. This generally needs to be done once, you don't have to re-index unless something goes wrong. Indexing is a heavy task and might take more time than your servers allow. If the indexing cannot be finished - for example you get a blank screen or something like that after indexing - you can continue indexing from where you left by clicking 'Continue indexing'. Clicking 'Build the index' will delete the old index, so you can't use that.", 'relevanssi');
+	$index_p2 = __("So, if you build the index and don't get the 'Indexing complete' in the end, keep on clicking the 'Continue indexing' button until you do. On my blogs, I was able to index ~400 pages on one go, but had to continue indexing twice to index ~950 pages.", 'relevanssi');
+	$build_index = __("Build the index", 'relevanssi');
+	$continue_index = __("Continue indexing", 'relevanssi');
+	$no_highlight_txt = __("No highlighting", 'relevanssi');
+	$txt_col_txt = __("Text color", 'relevanssi');
+	$bg_col_txt = __("Background color", 'relevanssi');
+	$css_txt = __("CSS Style", 'relevanssi');
+	
+	$txt_col_choice_txt = __("Text color for highlights:", "relevanssi");
+	$bg_col_choice_txt = __("Background color for highlights:", "relevanssi");
+	$css_choice_txt = __("CSS style for highlights:", "relevanssi");
+
+	$txt_col_choice_desc = __("Use HTML color codes (#rgb or #rrggbb)", "relevanssi");
+	$bg_col_choice_desc = __("Use HTML color codes (#rgb or #rrggbb)", "relevanssi");
+	$css_choice_desc = __("You can use any CSS styling here, style will be inserted with a &lt;span&gt;", "relevanssi"); 
+
+	echo <<<EOHTML
+	<br />
 	<form method="post">
-	<label for="relevanssi_title_boost">Title boost: 
-	<input type="text" name="relevanssi_title_boost" size="4" value="<?php echo $title_boost ?>" /></label>
-	(this needs to be an integer, default: 5)
+	<label for="relevanssi_title_boost">$title_boost_txt 
+	<input type="text" name="relevanssi_title_boost" size="4" value="$title_boost" /></label>
+	<small>$title_boost_desc</small>
 	<br />
-	<label for="relevanssi_admin_search">Use search for admin: 
-	<input type="checkbox" name="relevanssi_admin_search" <?php echo $admin_search ?>" /></label>
-	(if checked, Relevanssi will be used for searches in the admin interface)
+	<label for="relevanssi_admin_search">$admin_search_txt
+	<input type="checkbox" name="relevanssi_admin_search" $admin_search" /></label>
+	<small>$admin_search_desc</small>
+
+	<br /><br />
+
+	<label for="relevanssi_excerpts">$excerpt_txt
+	<input type="checkbox" name="relevanssi_excerpts" $excerpts /></label><br />
+	<small>$excerpt_desc</small>
+	
+	<br />
+	
+	<label for="relevanssi_excerpt_length">$excerpt_length_txt
+	<input type="text" name="relevanssi_excerpt_length" size="4" value="$excerpt_length" /></label>
+	<small>$excerpt_length_desc</small>
+	
+	<br /><br />
+
+	<label for="relevanssi_highlight">$highlight_txt
+	<select name="relevanssi_highlight">
+	<option value="no" $highlight_none>$no_highlight_txt</option>
+	<option value="em" $highlight_em>&lt;em&gt;</option>
+	<option value="strong" $highlight_strong>&lt;strong&gt;</option>
+	<option value="col" $highlight_col>$txt_col_txt</option>
+	<option value="bgcol" $highlight_bgcol>$bg_col_txt</option>
+	<option value="css" $highlight_style>$css_txt</option>
+	</select></label>
+	<small>$highlight_comment</small>
+	
+	<br />
+	
+	<label for="relevanssi_txt_col">$txt_col_choice_txt
+	<input type="text" name="relevanssi_txt_col" size="7" value="$txt_col" /></label>
+	<small>$txt_col_choice_desc</small>
+
+	<br />
+	
+	<label for="relevanssi_bg_col">$bg_col_choice_txt
+	<input type="text" name="relevanssi_bg_col" size="7" value="$bg_col" /></label>
+	<small>$bg_col_choice_desc</small>
+
+	<br />
+	
+	<label for="relevanssi_css">$css_choice_txt
+	<input type="text" name="relevanssi_css" size="30" value="$css" /></label>
+	<small>$css_choice_desc</small>
 	
 	<br />
 	<br />
 	
-	<input type="submit" name="submit" value="Save" />
+	<input type="submit" name="submit" value="$submit_value" />
 
-	<h3>Building the index</h3>
+	<h3>$building_the_index</h3>
 	
-	<p>After installing the plugin, you need to build the index. This generally needs to be done
-	once, you don't have to re-index unless something goes wrong. Indexing is a heavy task and
-	might take more time than your servers allow. If the indexing cannot be finished - for example
-	you get a blank screen or something like that after indexing - you can continue indexing from
-	where you left by clicking "Continue indexing". Clicking "Build the index" will delete the old
-	index, so you can't use that.</p>
+	<p>$index_p1</p>
 	
-	<p>So, if you build the index and don't get the "Indexing complete" in the end, keep on clicking
-	the "Continue indexing" button until you do. On my blogs, I was able to index ~400 pages on
-	one go, but had to continue indexing twice to index ~950 pages.</p>
+	<p>$index_p2</p>
 
-	<input type="submit" name="index" value="Build the index" />
+	<input type="submit" name="index" value="$build_index" />
 
-	<input type="submit" name="index_extend" value="Continue indexing" />
+	<input type="submit" name="index_extend" value="$continue_index" />
 
 	</form>
-	<?php
+EOHTML;
 }
 ?>
