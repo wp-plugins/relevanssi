@@ -333,7 +333,7 @@ function relevanssi_do_excerpt($post, $query) {
 			$pos = mb_strpos($content, $term);
 			if (false === $pos) {
 				$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
-				$pos = mb_strpos($content, $titlecased));
+				$pos = mb_strpos($content, $titlecased);
 				if (false === $pos) {
 					$pos = mb_strpos($content, mb_strtoupper($term));
 				}
