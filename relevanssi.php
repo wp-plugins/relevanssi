@@ -326,7 +326,19 @@ function relevanssi_do_excerpt($post, $query) {
 	$start = false;
 	$low_content = mb_strtolower($post->post_content);
 	foreach (array_keys($terms) as $term) {
-		$pos = mb_stripos($content, $term); // terms are already lowercase
+		if (function_exists('mb_stripos')) {
+			$pos = mb_stripos($content, $term); // terms are already lowercase
+		}
+		else {
+			$pos = mb_strpos($content, $term);
+			if (false === $pos) {
+				$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
+				$pos = mb_strpos($content, $titlecased));
+				if (false === $pos) {
+					$pos = mb_strpos($content, mb_strtoupper($term));
+				}
+			}
+		}
 		
 		if (false !== $pos) {
 			if ($pos + strlen($term) < $excerpt_length) {
