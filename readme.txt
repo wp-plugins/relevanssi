@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.6.5
 Tested up to: 2.8
-Stable tag: 1.2
+Stable tag: 1.3
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -25,6 +25,9 @@ In general the plugin doesn't affect the display of search results at all - that
 search result template to decide. However, if the option is set, Relevanssi will create custom
 search result snippets that show the part of the document where the search hit was made. Relevanssi
 can also highlight the query terms in the search results.
+
+Relevanssi can keep a log of user queries and display both most popular queries and recent queries
+that got no hits. The logging is a new feature that will be refined later.
 
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
 Katzgrau.
@@ -66,10 +69,16 @@ inverted document frequency is really low, so they never have much power in matc
 removing those words helps to make the index smaller and searching faster.
 
 == Known issues and To-do's ==
+* Known issue: Relevanssi doesn't play nice with widgets that display recent posts. Right now it makes them disappear. Help with this problem would be most welcome. 
 * To-do: The stop word list management needs small improvements.
-* To-do: Log the search queries and provide statistics.
+* To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 
 == Changelog ==
+
+= 1.3 =
+* New query logging feature. Any feedback on query log display features would be welcome: what information you want to see?
+* Added a CSS class option for search term highlighting.
+* Fixed a bug in the search result excerpt generation code that caused endless loops with certain search terms.
 
 = 1.2 =
 * Added new features to display custom search result snippets and highlight the search terms in the results.
