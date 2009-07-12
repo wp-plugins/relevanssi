@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.3.1
+Version: 1.3.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -310,6 +310,16 @@ function relevanssi_search($q) {
 	return $hits;
 }
 
+function relevanssi_the_excerpt() {
+    global $post;
+    if (!post_password_required($post)) {
+	    echo $post->post_excerpt;
+	}
+	else {
+		echo __('There is no excerpt because this is a protected post.');
+	}
+}
+
 function relevanssi_do_excerpt($post, $query) {
 	$excerpt_length = get_option("relevanssi_excerpt_length");
 //	$type = get_option("relevanssi_excerpt_type");
@@ -317,6 +327,7 @@ function relevanssi_do_excerpt($post, $query) {
 	$terms = relevanssi_tokenize($query);
 
 	$content = strip_tags($post->post_content);
+	$content = relevanssi_strip_quicktags($content);
 	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
 	
 	$post_length = strlen($content);
@@ -373,6 +384,16 @@ function relevanssi_do_excerpt($post, $query) {
 	$excerpt = $excerpt . "...";
 
 	return $excerpt;
+}
+
+function relevanssi_strip_quicktags($string) {
+	while (mb_strpos($string, "[") !== false) {
+		$start = mb_strpos($string, "[");
+		$stop = mb_strpos($string, "]", $start);
+		$string = mb_substr($string, 0, $start) . mb_substr($string, $stop + 1);
+	}
+	
+	return $string;
 }
 
 function relevanssi_highlight_terms($excerpt, $terms) {

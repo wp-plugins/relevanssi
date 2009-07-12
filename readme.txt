@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.6.5
 Tested up to: 2.8
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -49,6 +49,11 @@ If you want to use the custom search results, make sure your search results temp
 `the_excerpt()` to display the entries, because the plugin creates the custom snippet by replacing
 the post excerpt.
 
+If you're using a plugin that affects excerpts (like Advanced Excerpt), you may run into some
+problems. For those cases, I've included the function `relevanssi_the_excerpt()`, which you can
+use instead of `the_excerpt()`. It prints out the excerpt, but doesn't apply the excerpt or 
+content filters.
+
 == Frequently Asked Questions ==
 
 = What is tf * idf weighing? =
@@ -69,11 +74,17 @@ inverted document frequency is really low, so they never have much power in matc
 removing those words helps to make the index smaller and searching faster.
 
 == Known issues and To-do's ==
-* Known issue: Relevanssi doesn't play nice with widgets that display recent posts. Right now it makes them disappear. Help with this problem would be most welcome. 
+* Known issue: Relevanssi doesn't play nice with widgets that display recent posts. Right now it makes them disappear. Help with this problem would be most welcome.
+* Known issue: In general, multiple Loops on the search page may cause surprising results, and please make sure the actual search results are the first loop.
+* Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 
 == Changelog ==
+
+= 1.3.2 =
+* Quicktags are now stripped from custom-created excerpts.
+* Added a function `relevanssi_the_excerpt()', which prints out the excerpt without any filters.
 
 = 1.3.1 =
 * Another bug fix release.
