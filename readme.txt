@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.6.5
 Tested up to: 2.8
-Stable tag: 1.2
+Stable tag: 1.3.3
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -26,6 +26,9 @@ search result template to decide. However, if the option is set, Relevanssi will
 search result snippets that show the part of the document where the search hit was made. Relevanssi
 can also highlight the query terms in the search results.
 
+Relevanssi can keep a log of user queries and display both most popular queries and recent queries
+that got no hits. The logging is a new feature that will be refined later.
+
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
 Katzgrau.
 
@@ -45,6 +48,15 @@ version and if the new version has changes in the indexing, rebuild the index.
 If you want to use the custom search results, make sure your search results template uses 
 `the_excerpt()` to display the entries, because the plugin creates the custom snippet by replacing
 the post excerpt.
+
+If you're using a plugin that affects excerpts (like Advanced Excerpt), you may run into some
+problems. For those cases, I've included the function `relevanssi_the_excerpt()`, which you can
+use instead of `the_excerpt()`. It prints out the excerpt, but doesn't apply `wp_trim_excerpt()`
+filters (it does apply `the_content()`, `the_excerpt()`, and `get_the_excerpt()` filters).
+
+To avoid trouble, use the function like this:
+
+`<?php if (function_exists('relevanssi_the_excerpt')) { relevanssi_the_excerpt(); }; ?>`
 
 == Frequently Asked Questions ==
 
@@ -66,10 +78,30 @@ inverted document frequency is really low, so they never have much power in matc
 removing those words helps to make the index smaller and searching faster.
 
 == Known issues and To-do's ==
+* Known issue: Relevanssi doesn't play nice with widgets that display recent posts. Right now it makes them disappear. Help with this problem would be most welcome.
+* Known issue: In general, multiple Loops on the search page may cause surprising results, and please make sure the actual search results are the first loop.
+* Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
 * To-do: The stop word list management needs small improvements.
-* To-do: Log the search queries and provide statistics.
+* To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 
 == Changelog ==
+
+= 1.3.3 =
+* Small bug fixes, removed the error message caused by a query that is all stop words.
+* Content and excerpt filters are now applied to excerpts created by Relevanssi.
+* Default highlight CSS class has a unique name, `search-results` was already used by WordPress.
+
+= 1.3.2 =
+* Quicktags are now stripped from custom-created excerpts.
+* Added a function `relevanssi_the_excerpt()', which prints out the excerpt without triggering `wp_trim_excerpt()` filters.
+
+= 1.3.1 =
+* Another bug fix release.
+
+= 1.3 =
+* New query logging feature. Any feedback on query log display features would be welcome: what information you want to see?
+* Added a CSS class option for search term highlighting.
+* Fixed a bug in the search result excerpt generation code that caused endless loops with certain search terms.
 
 = 1.2 =
 * Added new features to display custom search result snippets and highlight the search terms in the results.

@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.2
+Version: 1.3.3
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -42,6 +42,7 @@ global $wpSearch_low;
 global $wpSearch_high;
 global $relevanssi_table;
 global $stopword_table;
+global $log_table;
 global $stopword_list;
 global $title_boost_default;
 
@@ -49,6 +50,7 @@ $wpSearch_low = 0;
 $wpSearch_high = 0;
 $relevanssi_table = $wpdb->prefix . "relevanssi";
 $stopword_table = $wpdb->prefix . "relevanssi_stopwords";
+$log_table = $wpdb->prefix . "relevanssi_log";
 $title_boost_default = 5;
 
 function unset_relevanssi_options() {
@@ -60,6 +62,7 @@ function unset_relevanssi_options() {
 	delete_option('relevanssi_css');
 	delete_option('relevanssi_excerpts');
 	delete_option('relevanssi_excerpt_length');
+	delete_option('relevanssi_log_queries');
 }
 
 function relevanssi_menu() {
@@ -97,13 +100,16 @@ function relevanssi_install() {
 	add_option('relevanssi_txt_col', '#ff0000');
 	add_option('relevanssi_bg_col', '#ffaf75');
 	add_option('relevanssi_css', 'text-decoration: underline; text-color: #ff0000');
+	add_option('relevanssi_class', 'relevanssi-query-term');
 	add_option('relevanssi_excerpts', 'on');
 	add_option('relevanssi_excerpt_length', '450');
+	add_option('relevanssi_log_queries', 'off');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
 	$relevanssi_table = $wpdb->prefix . "relevanssi";
 	$stopword_table = $wpdb->prefix . "relevanssi_stopwords";
+	$log_table = $wpdb->prefix . "relevanssi_log";
 	
 	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_table'") != $relevanssi_table) {
 		$sql = "CREATE TABLE " . $relevanssi_table . " (id mediumint(9) NOT NULL AUTO_INCREMENT, "
@@ -133,6 +139,17 @@ function relevanssi_install() {
 	if ($wpdb->get_var("SELECT COUNT(*) FROM $stopword_table WHERE 1") < 1) {
 		relevanssi_populate_stopwords();
 	}
+
+
+	if($wpdb->get_var("SHOW TABLES LIKE '$log_table'") != $log_table) {
+		$sql = "CREATE TABLE " . $log_table . " (id mediumint(9) NOT NULL AUTO_INCREMENT, "
+		. "query varchar(200) NOT NULL, "
+		. "hits mediumint(9) NOT NULL, "
+		. "time timestamp NOT NULL, "
+	    . "UNIQUE KEY id (id));";
+
+		dbDelta($sql);
+	}
 }
 
 function relevanssi_populate_stopwords() {
@@ -142,7 +159,7 @@ function relevanssi_populate_stopwords() {
 
 	if (is_array($stopwords) && count($stopwords) > 0) {
 		foreach ($stopwords as $word) {
-			$q = $wpdb->prepare("INSERT INTO $stopword_table (stopword) VALUES (%s)", trim($word));
+			$q = $wpdb->prepare("INSERT IGNORE INTO $stopword_table (stopword) VALUES (%s)", trim($word));
 			$wpdb->query($q);
 		}
 	}
@@ -171,13 +188,17 @@ function relevanssi_query($posts) {
 		if ($admin_search) $search_ok = true; 	// yes, we can search!
 	}
 	
-	if (is_search() && $search_ok) {
+	global $relevanssi_active;
+
+	if (is_search() && $search_ok && !$relevanssi_active) {
 		// this all is basically lifted from Kenny Katzgrau's wpSearch
 		// thanks, Kenny!
 		global $wp;
 		global $wpSearch_low;
 		global $wpSearch_high;
 		global $wp_query;
+
+		$relevanssi_active = true;
 
 		$posts = array();
 
@@ -186,6 +207,11 @@ function relevanssi_query($posts) {
 		$hits = relevanssi_search($q);
 		$wp_query->found_posts = sizeof($hits);
 		$wp_query->max_num_pages = ceil(sizeof($hits) / $wp_query->query_vars["posts_per_page"]);
+
+		$update_log = get_option('relevanssi_log_queries');
+		if ('on' == $update_log) {
+			relevanssi_update_log($q, sizeof($hits));
+		}
 		
 		if ($wpSearch_high > sizeof($hits)) $wpSearch_high = sizeof($hits) - 1;
 		
@@ -202,6 +228,13 @@ function relevanssi_query($posts) {
 	}
 	
 	return $posts;
+}
+
+function relevanssi_update_log($query, $hits) {
+	global $wpdb, $log_table;
+	
+	$q = $wpdb->prepare("INSERT INTO $log_table (query, hits) VALUES (%s, %d)", $query, intval($hits));
+	$wpdb->query($q);
 }
 
 // This function is from Kenny Katzgrau
@@ -222,8 +255,14 @@ function relevanssi_getLimit($limit) {
 // This is my own magic working.
 function relevanssi_search($q) {
 	global $relevanssi_table, $wpdb;
+
+	$hits = array();
 	
 	$terms = relevanssi_tokenize($q);
+	if (count($terms) < 1) {
+		// Tokenizer killed all the search terms.
+		return $hits;
+	}
 	$terms = array_keys($terms); // don't care about tf in query
 
 	$D = $wpdb->get_var("SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table");
@@ -263,8 +302,6 @@ function relevanssi_search($q) {
 		}
 	}
 
-	$hits = array();
-
 	if (count($doc_weight) > 0) {
 		arsort($doc_weight);
 		$i = 0;
@@ -277,60 +314,94 @@ function relevanssi_search($q) {
 	return $hits;
 }
 
+function relevanssi_the_excerpt() {
+    global $post;
+    if (!post_password_required($post)) {
+	    echo $post->post_excerpt;
+	}
+	else {
+		echo __('There is no excerpt because this is a protected post.');
+	}
+}
+
 function relevanssi_do_excerpt($post, $query) {
 	$excerpt_length = get_option("relevanssi_excerpt_length");
 //	$type = get_option("relevanssi_excerpt_type");
 	
 	$terms = relevanssi_tokenize($query);
 
-	$content = strip_tags($post->post_content);
+	$content = apply_filters('the_content', $post->post_content);
+	$content = strip_tags($content);
+	$content = relevanssi_strip_quicktags($content);
 	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
 	
 	$post_length = strlen($content);
 
 	$excerpt = "";
-
-	$passes = 0;
-	if ($post_length < $excerpt_length) {
-		$excerpt = $post->content;
-		$passes = 1;
-	}
-	else {
-		$i = 0;
-		$found = false;
-		do {
-			$passes++;
-			$excerpt = mb_substr($content, $i, $excerpt_length);
-			$low_excerpt = mb_strtolower($excerpt);
-			foreach (array_keys($terms) as $term) {
-				$pos = mb_strpos($low_excerpt, $term); // terms are already lowercase
-				if ($pos !== false) {
-					$found = true;
-					break;
+	
+	$start = false;
+	$low_content = mb_strtolower($post->post_content);
+	foreach (array_keys($terms) as $term) {
+		if (function_exists('mb_stripos')) {
+			$pos = mb_stripos($content, $term); // terms are already lowercase
+		}
+		else {
+			$pos = mb_strpos($content, $term);
+			if (false === $pos) {
+				$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
+				$pos = mb_strpos($content, $titlecased);
+				if (false === $pos) {
+					$pos = mb_strpos($content, mb_strtoupper($term));
 				}
 			}
-			$i = $i + $excerpt_length;
-		} while ($found == false);
+		}
 		
-		// just in case
-		if ("" == $excerpt) {
-			$excerpt = mb_substr($content, 0, $excerpt_length);
+		if (false !== $pos) {
+			if ($pos + strlen($term) < $excerpt_length) {
+				$excerpt = mb_substr($content, 0, $excerpt_length);
+				$start = true;
+				break;
+			}
+			else {
+				$half = floor($excerpt_length/2);
+				$pos = $pos - $half;
+				$excerpt = mb_substr($content, $pos, $excerpt_length);
+				break;
+			}
 		}
 	}
 	
+	if ("" == $excerpt) {
+		$excerpt = mb_substr($content, 0, $excerpt_length);
+		$start = true;
+	}
+
+	$content = apply_filters('get_the_excerpt', $content);
+	$content = apply_filters('the_excerpt', $content);	
+
 	$highlight = get_option('relevanssi_highlight');
 	if ("none" != $highlight) {
 		$excerpt = relevanssi_highlight_terms($excerpt, array_keys($terms));
 	}
 	
-	if ($passes > 1) {
+	if (!$start) {
 		$excerpt = "..." . $excerpt;
 		// do not add three dots to the beginning of the post
 	}
 	
 	$excerpt = $excerpt . "...";
-	
+
 	return $excerpt;
+}
+
+function relevanssi_strip_quicktags($string) {
+	while (mb_strpos($string, "[") !== false) {
+		$start = mb_strpos($string, "[");
+		$stop = mb_strpos($string, "]", $start);
+		$string = mb_substr($string, 0, $start) . mb_substr($string, $stop + 1);
+	}
+	
+	return $string;
 }
 
 function relevanssi_highlight_terms($excerpt, $terms) {
@@ -364,6 +435,12 @@ function relevanssi_highlight_terms($excerpt, $terms) {
 			$css = get_option("relevanssi_css");
 			if (!$css) $css = "color: #ff0000";
 			$start_emp = "<span style='$css'>";
+			$end_emp = "</span>";
+			break;
+		case "class":
+			$css = get_option("relevanssi_class");
+			if (!$css) $css = "relevanssi-query-term";
+			$start_emp = "<span class='$css'>";
 			$end_emp = "</span>";
 			break;
 		default:
@@ -534,7 +611,14 @@ function relevanssi_options() {
 	
 	relevanssi_options_form();
 	
-	relevanssi_extra_details();
+	relevanssi_common_words();
+	
+	if ('on' == get_option('relevanssi_log_queries')) {
+		relevanssi_query_log();
+	}
+	
+	echo "<div style='clear:both'></div>";
+	
 	echo "</div>";
 }
 
@@ -554,6 +638,10 @@ function update_relevanssi_options() {
 		$_REQUEST['relevanssi_excerpts'] = "off";
 	}
 
+	if (!$_REQUEST['relevanssi_log_queries']) {
+		$_REQUEST['relevanssi_log_queries'] = "off";
+	}
+
 	if ($_REQUEST['relevanssi_excerpt_length']) {
 		$value = intval($_REQUEST['relevanssi_excerpt_length']);
 		if ($value != 0) {
@@ -563,11 +651,13 @@ function update_relevanssi_options() {
 
 	update_option('relevanssi_admin_search', $_REQUEST['relevanssi_admin_search']);
 	update_option('relevanssi_excerpts', $_REQUEST['relevanssi_excerpts']);	
+	update_option('relevanssi_log_queries', $_REQUEST['relevanssi_log_queries']);	
 	update_option('relevanssi_highlight', $_REQUEST['relevanssi_highlight']);
 	
 	update_option('relevanssi_txt_col', $_REQUEST['relevanssi_txt_col']);
 	update_option('relevanssi_bg_col', $_REQUEST['relevanssi_bg_col']);
 	update_option('relevanssi_css', $_REQUEST['relevanssi_css']);
+	update_option('relevanssi_class', $_REQUEST['relevanssi_class']);
 }
 
 function relevanssi_add_stopword($term) {
@@ -588,8 +678,10 @@ function relevanssi_add_stopword($term) {
 	}
 }
 
-function relevanssi_extra_details() {
+function relevanssi_common_words() {
 	global $wpdb, $relevanssi_table;
+	
+	echo "<div style='float:left; width: 45%'>";
 	
 	echo "<h3>" . __("25 most common words in the index", 'relevanssi') . "</h3>";
 	
@@ -614,8 +706,42 @@ function relevanssi_extra_details() {
 		printf('<li>%s (%d) <input style="padding: 0; margin: 0" type="image" src="%s" alt="%s" name="term" value="%s"/></li>', $word->term, $word->cnt, $src, $stop, $word->term);
 	}
 	echo "</ul>\n</form>";
+	
+	echo "</div>";
 }
 
+function relevanssi_query_log() {
+	global $log_table, $wpdb;
+
+	echo "<div style='float:right; width: 45%'>";
+	
+	echo "<h3>" . __("25 most popular queries", 'relevanssi') . "</h3>";
+	
+	$queries = $wpdb->get_results("SELECT COUNT(DISTINCT(id)) as cnt, query
+	  FROM $log_table GROUP BY query ORDER BY cnt DESC LIMIT 25");
+	if (count($queries) > 0) {
+		echo "<ul>";
+		foreach ($queries as $query) {
+			echo "<li>" . $query->query . " (" . $query->cnt . ")</li>";
+		}
+		echo "</ul>";
+	}
+
+	echo "<h3>" . __("Recent queries that got 0 hits", 'relevanssi') . "</h3>";
+	
+	$queries = $wpdb->get_results("SELECT DISTINCT(query)
+	  FROM $log_table WHERE hits = 0 ORDER BY time DESC LIMIT 25");
+	if (count($queries) > 0) {
+		echo "<ul>";
+		foreach ($queries as $query) {
+			echo "<li>" . $query->query . "</li>";
+		}
+		echo "</ul>";
+	}
+
+	echo "</div>";
+
+}
 
 function relevanssi_options_form() {
 	global $title_boost_default;
@@ -639,6 +765,14 @@ function relevanssi_options_form() {
 	
 	$excerpt_length = get_option('relevanssi_excerpt_length');
 
+	$log_queries = get_option('relevanssi_log_queries');
+	if ('on' == $log_queries) {
+		$log_queries = 'checked="checked"';
+	}
+	else {
+		$log_queries = '';
+	}
+	
 	$highlight = get_option('relevanssi_highlight');
 	$highlight_none = "";
 	$highlight_em = "";
@@ -665,11 +799,15 @@ function relevanssi_options_form() {
 		case "css":
 			$highlight_style = 'selected="selected"';
 			break;
+		case "class":
+			$highlight_class = 'selected="selected"';
+			break;
 	}
 	
 	$txt_col = get_option('relevanssi_txt_col');
 	$bg_col = get_option('relevanssi_bg_col');
 	$css = get_option('relevanssi_css');
+	$class = get_option('relevanssi_class');
 	
 	$title_boost_txt = __('Title boost:', 'relevanssi');
 	$title_boost_desc = sprintf(__('This needs to be an integer, default: %d', 'relevanssi'), $title_boost_default);
@@ -679,6 +817,8 @@ function relevanssi_options_form() {
 	$excerpt_desc = __("If checked, Relevanssi will create excerpts that contain the search term hits. To make them work, make sure your search result template uses the_excerpt() to display post excerpts.", 'relevanssi');
 	$excerpt_length_txt = __("Length of the snippet in characters:", "relevanssi");
 	$excerpt_length_desc = __("This must be an integer", "relevanssi");
+	$log_queries_txt = __("Keep a log of user queries:", "relevanssi");
+	$log_queries_desc = __("If checked, Relevanssi will log user queries.", 'relevanssi');
 	$highlight_txt = __("Highlight query terms in search results:", 'relevanssi');
 	$highlight_comment = __("Highlighting isn't available unless you use custom snippets", 'relevanssi');
 	
@@ -692,14 +832,17 @@ function relevanssi_options_form() {
 	$txt_col_txt = __("Text color", 'relevanssi');
 	$bg_col_txt = __("Background color", 'relevanssi');
 	$css_txt = __("CSS Style", 'relevanssi');
+	$class_txt = __("CSS Class", 'relevanssi');
 	
 	$txt_col_choice_txt = __("Text color for highlights:", "relevanssi");
 	$bg_col_choice_txt = __("Background color for highlights:", "relevanssi");
 	$css_choice_txt = __("CSS style for highlights:", "relevanssi");
+	$class_choice_txt = __("CSS class for highlights:", "relevanssi");
 
 	$txt_col_choice_desc = __("Use HTML color codes (#rgb or #rrggbb)", "relevanssi");
 	$bg_col_choice_desc = __("Use HTML color codes (#rgb or #rrggbb)", "relevanssi");
 	$css_choice_desc = __("You can use any CSS styling here, style will be inserted with a &lt;span&gt;", "relevanssi"); 
+	$class_choice_desc = __("Name a class here, search results will be wrapped in a &lt;span&gt; with the class", "relevanssi"); 
 
 	echo <<<EOHTML
 	<br />
@@ -711,6 +854,12 @@ function relevanssi_options_form() {
 	<label for="relevanssi_admin_search">$admin_search_txt
 	<input type="checkbox" name="relevanssi_admin_search" $admin_search" /></label>
 	<small>$admin_search_desc</small>
+
+	<br /><br />
+
+	<label for="relevanssi_log_queries">$log_queries_txt
+	<input type="checkbox" name="relevanssi_log_queries" $log_queries" /></label>
+	<small>$log_queries_desc</small>
 
 	<br /><br />
 
@@ -734,6 +883,7 @@ function relevanssi_options_form() {
 	<option value="col" $highlight_col>$txt_col_txt</option>
 	<option value="bgcol" $highlight_bgcol>$bg_col_txt</option>
 	<option value="css" $highlight_style>$css_txt</option>
+	<option value="class" $highlight_class>$class_txt</option>
 	</select></label>
 	<small>$highlight_comment</small>
 	
@@ -754,6 +904,12 @@ function relevanssi_options_form() {
 	<label for="relevanssi_css">$css_choice_txt
 	<input type="text" name="relevanssi_css" size="30" value="$css" /></label>
 	<small>$css_choice_desc</small>
+
+	<br />
+	
+	<label for="relevanssi_css">$class_choice_txt
+	<input type="text" name="relevanssi_class" size="10" value="$class" /></label>
+	<small>$class_choice_desc</small>
 	
 	<br />
 	<br />
