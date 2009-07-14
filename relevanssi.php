@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.3.2
+Version: 1.3.3
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -100,7 +100,7 @@ function relevanssi_install() {
 	add_option('relevanssi_txt_col', '#ff0000');
 	add_option('relevanssi_bg_col', '#ffaf75');
 	add_option('relevanssi_css', 'text-decoration: underline; text-color: #ff0000');
-	add_option('relevanssi_class', 'search-results');
+	add_option('relevanssi_class', 'relevanssi-query-term');
 	add_option('relevanssi_excerpts', 'on');
 	add_option('relevanssi_excerpt_length', '450');
 	add_option('relevanssi_log_queries', 'off');
@@ -159,7 +159,7 @@ function relevanssi_populate_stopwords() {
 
 	if (is_array($stopwords) && count($stopwords) > 0) {
 		foreach ($stopwords as $word) {
-			$q = $wpdb->prepare("INSERT INTO $stopword_table (stopword) VALUES (%s)", trim($word));
+			$q = $wpdb->prepare("INSERT IGNORE INTO $stopword_table (stopword) VALUES (%s)", trim($word));
 			$wpdb->query($q);
 		}
 	}
@@ -255,8 +255,14 @@ function relevanssi_getLimit($limit) {
 // This is my own magic working.
 function relevanssi_search($q) {
 	global $relevanssi_table, $wpdb;
+
+	$hits = array();
 	
 	$terms = relevanssi_tokenize($q);
+	if (count($terms) < 1) {
+		// Tokenizer killed all the search terms.
+		return $hits;
+	}
 	$terms = array_keys($terms); // don't care about tf in query
 
 	$D = $wpdb->get_var("SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table");
@@ -296,8 +302,6 @@ function relevanssi_search($q) {
 		}
 	}
 
-	$hits = array();
-
 	if (count($doc_weight) > 0) {
 		arsort($doc_weight);
 		$i = 0;
@@ -326,7 +330,8 @@ function relevanssi_do_excerpt($post, $query) {
 	
 	$terms = relevanssi_tokenize($query);
 
-	$content = strip_tags($post->post_content);
+	$content = apply_filters('the_content', $post->post_content);
+	$content = strip_tags($content);
 	$content = relevanssi_strip_quicktags($content);
 	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
 	
@@ -370,6 +375,9 @@ function relevanssi_do_excerpt($post, $query) {
 		$excerpt = mb_substr($content, 0, $excerpt_length);
 		$start = true;
 	}
+
+	$content = apply_filters('get_the_excerpt', $content);
+	$content = apply_filters('the_excerpt', $content);	
 
 	$highlight = get_option('relevanssi_highlight');
 	if ("none" != $highlight) {
@@ -431,7 +439,7 @@ function relevanssi_highlight_terms($excerpt, $terms) {
 			break;
 		case "class":
 			$css = get_option("relevanssi_class");
-			if (!$css) $css = "search-results";
+			if (!$css) $css = "relevanssi-query-term";
 			$start_emp = "<span class='$css'>";
 			$end_emp = "</span>";
 			break;

@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.6.5
 Tested up to: 2.8
-Stable tag: 1.3.2
+Stable tag: 1.3.3
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -51,8 +51,12 @@ the post excerpt.
 
 If you're using a plugin that affects excerpts (like Advanced Excerpt), you may run into some
 problems. For those cases, I've included the function `relevanssi_the_excerpt()`, which you can
-use instead of `the_excerpt()`. It prints out the excerpt, but doesn't apply the excerpt or 
-content filters.
+use instead of `the_excerpt()`. It prints out the excerpt, but doesn't apply `wp_trim_excerpt()`
+filters (it does apply `the_content()`, `the_excerpt()`, and `get_the_excerpt()` filters).
+
+To avoid trouble, use the function like this:
+
+`<?php if (function_exists('relevanssi_the_excerpt')) { relevanssi_the_excerpt(); }; ?>`
 
 == Frequently Asked Questions ==
 
@@ -82,9 +86,14 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 1.3.3 =
+* Small bug fixes, removed the error message caused by a query that is all stop words.
+* Content and excerpt filters are now applied to excerpts created by Relevanssi.
+* Default highlight CSS class has a unique name, `search-results` was already used by WordPress.
+
 = 1.3.2 =
 * Quicktags are now stripped from custom-created excerpts.
-* Added a function `relevanssi_the_excerpt()', which prints out the excerpt without any filters.
+* Added a function `relevanssi_the_excerpt()', which prints out the excerpt without triggering `wp_trim_excerpt()` filters.
 
 = 1.3.1 =
 * Another bug fix release.
