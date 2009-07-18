@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.3.3
+Version: 1.4
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -62,7 +62,9 @@ function unset_relevanssi_options() {
 	delete_option('relevanssi_css');
 	delete_option('relevanssi_excerpts');
 	delete_option('relevanssi_excerpt_length');
+	delete_option('relevanssi_excerpt_type');
 	delete_option('relevanssi_log_queries');
+	delete_option('relevanssi_cat');
 }
 
 function relevanssi_menu() {
@@ -103,7 +105,9 @@ function relevanssi_install() {
 	add_option('relevanssi_class', 'relevanssi-query-term');
 	add_option('relevanssi_excerpts', 'on');
 	add_option('relevanssi_excerpt_length', '450');
+	add_option('relevanssi_excerpt_type', 'chars');
 	add_option('relevanssi_log_queries', 'off');
+	add_option('relevanssi_cat', '0');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -203,8 +207,15 @@ function relevanssi_query($posts) {
 		$posts = array();
 
 		$q = $wp->query_vars["s"];
+		$cat = $wp->query_vars["cat"];
+		if (!$cat) {
+			$cat = get_option('relevanssi_cat');
+			if (0 == $cat) {
+				$cat = false;
+			}
+		}
 
-		$hits = relevanssi_search($q);
+		$hits = relevanssi_search($q, $cat);
 		$wp_query->found_posts = sizeof($hits);
 		$wp_query->max_num_pages = ceil(sizeof($hits) / $wp_query->query_vars["posts_per_page"]);
 
@@ -253,12 +264,28 @@ function relevanssi_getLimit($limit) {
 }
 
 // This is my own magic working.
-function relevanssi_search($q) {
+function relevanssi_search($q, $cat = false) {
 	global $relevanssi_table, $wpdb;
 
 	$hits = array();
 	
-	$terms = relevanssi_tokenize($q);
+	if ($cat) {
+		$cats = explode(",", $cat);
+		$term_tax_ids = array();
+		foreach ($cats as $cat) {
+			$cat = $wpdb->escape($cat);
+			$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->term_taxonomy
+				WHERE term_id=$cat");
+			if ($term_tax_id) {
+				$term_tax_ids[] = $term_tax_id;
+			}
+		}
+		
+		$cat = implode(",", $term_tax_ids);
+	}
+
+	$remove_stopwords = false;
+	$terms = relevanssi_tokenize($q, $remove_stopwords);
 	if (count($terms) < 1) {
 		// Tokenizer killed all the search terms.
 		return $hits;
@@ -270,19 +297,41 @@ function relevanssi_search($q) {
 	$total_hits = 0;
 	foreach ($terms as $term) {
 		$term = $wpdb->escape(like_escape($term));
-		$matches = $wpdb->get_results("SELECT doc, term, tf, title FROM $relevanssi_table
-		WHERE term = '$term'");
+		$query = "SELECT doc, term, tf, title FROM $relevanssi_table WHERE term = '$term'";
+		if ($cat) {
+			$query .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
+			    WHERE term_taxonomy_id IN ($cat))";
+		}
+
+		$matches = $wpdb->get_results($query);
 		if (count($matches) < 1) {
-			$matches = $wpdb->get_results("SELECT doc, term, tf, title FROM $relevanssi_table
-			WHERE term LIKE '$term%' OR term LIKE '%$term'");
+			$query = "SELECT doc, term, tf, title FROM $relevanssi_table
+			WHERE (term LIKE '$term%' OR term LIKE '%$term')";
+			if ($cat) {
+				$query .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
+				    WHERE term_taxonomy_id IN ($cat))";
+			}
+			
+			$matches = $wpdb->get_results($query);
 		}
 		$total_hits += count($matches);
-		
-		$df = $wpdb->get_var("SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table
-		WHERE term = '$term'");
+
+		$query = "SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table WHERE term = '$term'";
+		if ($cat) {
+			$query .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
+			    WHERE term_taxonomy_id IN ($cat))";
+		}
+
+		$df = $wpdb->get_var($query);
+
 		if ($df < 1) {
-			$df = $wpdb->get_var("SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table
-			WHERE term LIKE '%$term' OR term LIKE '$term%'");
+			$query = "SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table
+				WHERE (term LIKE '%$term' OR term LIKE '$term%')";
+			if ($cat) {
+				$query .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
+				    WHERE term_taxonomy_id IN ($cat))";
+			}
+			$df = $wpdb->get_var($query);
 		}
 		
 		$title_boost = intval(get_option('relevanssi_title_boost'));
@@ -300,6 +349,7 @@ function relevanssi_search($q) {
 				$doc_weight[$match->doc] = $weight;
 			}
 		}
+
 	}
 
 	if (count($doc_weight) > 0) {
@@ -317,7 +367,7 @@ function relevanssi_search($q) {
 function relevanssi_the_excerpt() {
     global $post;
     if (!post_password_required($post)) {
-	    echo $post->post_excerpt;
+	    echo "<p>" . $post->post_excerpt . "</p>";
 	}
 	else {
 		echo __('There is no excerpt because this is a protected post.');
@@ -326,56 +376,97 @@ function relevanssi_the_excerpt() {
 
 function relevanssi_do_excerpt($post, $query) {
 	$excerpt_length = get_option("relevanssi_excerpt_length");
-//	$type = get_option("relevanssi_excerpt_type");
-	
-	$terms = relevanssi_tokenize($query);
+	$type = get_option("relevanssi_excerpt_type");
+
+	$remove_stopwords = true;
+	$terms = relevanssi_tokenize($query, $remove_stopwords);
 
 	$content = apply_filters('the_content', $post->post_content);
-	$content = strip_tags($content);
-	$content = relevanssi_strip_quicktags($content);
+	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
+	$content = strip_tags($content); // this removes the tags, but leaves the content
+	$content = strip_shortcodes($content);
 	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
 	
-	$post_length = strlen($content);
-
 	$excerpt = "";
 	
-	$start = false;
-	$low_content = mb_strtolower($post->post_content);
-	foreach (array_keys($terms) as $term) {
-		if (function_exists('mb_stripos')) {
-			$pos = mb_stripos($content, $term); // terms are already lowercase
-		}
-		else {
-			$pos = mb_strpos($content, $term);
-			if (false === $pos) {
-				$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
-				$pos = mb_strpos($content, $titlecased);
+	if ("chars" == $type) {
+		$post_length = strlen($content);
+			
+		$start = false;
+		foreach (array_keys($terms) as $term) {
+			if (function_exists('mb_stripos')) {
+				$pos = mb_stripos($content, $term);
+			}
+			else {
+				$pos = mb_strpos($content, $term);
 				if (false === $pos) {
-					$pos = mb_strpos($content, mb_strtoupper($term));
+					$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
+					$pos = mb_strpos($content, $titlecased);
+					if (false === $pos) {
+						$pos = mb_strpos($content, mb_strtoupper($term));
+					}
+				}
+			}
+			
+			if (false !== $pos) {
+				if ($pos + strlen($term) < $excerpt_length) {
+					$excerpt = mb_substr($content, 0, $excerpt_length);
+					$start = true;
+					break;
+				}
+				else {
+					$half = floor($excerpt_length/2);
+					$pos = $pos - $half;
+					$excerpt = mb_substr($content, $pos, $excerpt_length);
+					break;
 				}
 			}
 		}
 		
-		if (false !== $pos) {
-			if ($pos + strlen($term) < $excerpt_length) {
-				$excerpt = mb_substr($content, 0, $excerpt_length);
-				$start = true;
-				break;
+		if ("" == $excerpt) {
+			$excerpt = mb_substr($content, 0, $excerpt_length);
+			$start = true;
+		}
+	}
+	else {
+		$words = explode(' ', $content);
+		
+		$i = 0;
+		while ($i < count($words)) {
+			if ($i + $excerpt_length > count($words)) {
+				$i = count($words) - $excerpt_length;
 			}
-			else {
-				$half = floor($excerpt_length/2);
-				$pos = $pos - $half;
-				$excerpt = mb_substr($content, $pos, $excerpt_length);
-				break;
+			$excerpt_slice = array_slice($words, $i, $excerpt_length);
+			$excerpt_slice = implode(' ', $excerpt_slice);
+
+			foreach (array_keys($terms) as $term) {
+				if (function_exists('mb_stripos')) {
+					$pos = mb_stripos($excerpt_slice, $term);
+				}
+				else {
+					$pos = mb_strpos($excerpt_slice, $term);
+					if (false === $pos) {
+						$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
+						$pos = mb_strpos($excerpt_slice, $titlecased);
+						if (false === $pos) {
+							$pos = mb_strpos($excerpt_slice, mb_strtoupper($term));
+						}
+					}
+				}
+				
+				if (false !== $pos) {
+					if (0 == $i) $start = true;
+					$excerpt = $excerpt_slice;
+					break;
+				}
 			}
+			
+			if ("" != $excerpt) break;
+			
+			$i += $excerpt_length;
 		}
 	}
 	
-	if ("" == $excerpt) {
-		$excerpt = mb_substr($content, 0, $excerpt_length);
-		$start = true;
-	}
-
 	$content = apply_filters('get_the_excerpt', $content);
 	$content = apply_filters('the_excerpt', $content);	
 
@@ -394,14 +485,23 @@ function relevanssi_do_excerpt($post, $query) {
 	return $excerpt;
 }
 
-function relevanssi_strip_quicktags($string) {
-	while (mb_strpos($string, "[") !== false) {
-		$start = mb_strpos($string, "[");
-		$stop = mb_strpos($string, "]", $start);
-		$string = mb_substr($string, 0, $start) . mb_substr($string, $stop + 1);
-	}
-	
-	return $string;
+// found here: http://forums.digitalpoint.com/showthread.php?t=1106745
+function relevanssi_strip_invisibles($text) {
+    $text = preg_replace(
+        array(
+            '@<style[^>]*?>.*?</style>@siu',
+            '@<script[^>]*?.*?</script>@siu',
+            '@<object[^>]*?.*?</object>@siu',
+            '@<embed[^>]*?.*?</embed>@siu',
+            '@<applet[^>]*?.*?</applet>@siu',
+            '@<noscript[^>]*?.*?</noscript>@siu',
+            '@<noembed[^>]*?.*?</noembed>@siu',
+        ),
+        array(
+            ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+        ),
+        $text );
+    return $text;
 }
 
 function relevanssi_highlight_terms($excerpt, $terms) {
@@ -449,17 +549,17 @@ function relevanssi_highlight_terms($excerpt, $terms) {
 
 	foreach ($terms as $term) {
 		$pos = 0;
-		$low_excerpt = strtolower($excerpt);
+		$low_excerpt = mb_strtolower($excerpt);
 		while ($pos !== false) {
-			$pos = strpos($low_excerpt, $term, $pos);
+			$pos = mb_strpos($low_excerpt, $term, $pos);
 			if ($pos !== false) {
-				$excerpt = substr($excerpt, 0, $pos)
+				$excerpt = mb_substr($excerpt, 0, $pos)
 						 . $start_emp
-						 . substr($excerpt, $pos, strlen($term))
+						 . mb_substr($excerpt, $pos, mb_strlen($term))
 						 . $end_emp
-						 . substr($excerpt, $pos + strlen($term));
-				$low_excerpt = strtolower($excerpt);
-				$pos = $pos + strlen($start_emp) + strlen($end_emp);
+						 . mb_substr($excerpt, $pos + mb_strlen($term));
+				$low_excerpt = mb_strtolower($excerpt);
+				$pos = $pos + mb_strlen($start_emp) + mb_strlen($end_emp);
 			}
 		}
 	}
@@ -520,7 +620,13 @@ function relevanssi_index_doc($post, $remove_first = false) {
 
 	$n = 0;	
 	$titles = relevanssi_tokenize($post->post_title);
+	
+	$contents = relevanssi_strip_invisibles($post->post_content);
+	$contents = strip_tags($contents);
+	$contents = strip_shortcodes($contents);
+	
 	$contents = relevanssi_tokenize($post->post_content);
+	
 	if (count($titles) > 0) {
 		foreach ($titles as $title => $count) {
 			if (strlen($title) < 2) continue;
@@ -543,12 +649,20 @@ function relevanssi_index_doc($post, $remove_first = false) {
 	return $n;
 }
 
-function relevanssi_tokenize($str) {
+function relevanssi_tokenize($str, $remove_stops = true) {
 	$stopword_list = relevanssi_fetch_stopwords();
-	
-	$t = strtok(strtolower(relevanssi_remove_punct($str)), "\n\t ");
+
+	$str = strtolower(relevanssi_remove_punct($str));
+	$t = strtok($str, "\n\t ");
 	while ($t !== false) {
-		if (!in_array($t, $stopword_list)) {
+		$accept = true;
+		if (in_array($t, $stopword_list)) {
+			$accept = false;
+		}
+		if ($remove_stops == false) {
+			$accept = true;
+		}
+		if ($accept) {
 			if (!isset($tokens[$t])) {
 				$tokens[$t] = 1;
 			}
@@ -558,13 +672,13 @@ function relevanssi_tokenize($str) {
 		}
 		$t = strtok("\n\t ");
 	}
+
 	return $tokens;
 }
 
 function relevanssi_remove_punct($a) {
 		$a = strip_tags($a);
 		$a = str_replace("—", " ", $a);
-        $a = preg_replace('/[[:digit:]]+/', ' ', $a);
         $a = preg_replace('/[[:punct:]]+/', ' ', $a);
         $a = preg_replace('/[[:space:]]+/', ' ', $a);
 		$a = trim($a);
@@ -651,6 +765,7 @@ function update_relevanssi_options() {
 
 	update_option('relevanssi_admin_search', $_REQUEST['relevanssi_admin_search']);
 	update_option('relevanssi_excerpts', $_REQUEST['relevanssi_excerpts']);	
+	update_option('relevanssi_excerpt_type', $_REQUEST['relevanssi_excerpt_type']);	
 	update_option('relevanssi_log_queries', $_REQUEST['relevanssi_log_queries']);	
 	update_option('relevanssi_highlight', $_REQUEST['relevanssi_highlight']);
 	
@@ -658,6 +773,7 @@ function update_relevanssi_options() {
 	update_option('relevanssi_bg_col', $_REQUEST['relevanssi_bg_col']);
 	update_option('relevanssi_css', $_REQUEST['relevanssi_css']);
 	update_option('relevanssi_class', $_REQUEST['relevanssi_class']);
+	update_option('relevanssi_cat', $_REQUEST['relevanssi_cat']);
 }
 
 function relevanssi_add_stopword($term) {
@@ -764,6 +880,15 @@ function relevanssi_options_form() {
 	}
 	
 	$excerpt_length = get_option('relevanssi_excerpt_length');
+	$excerpt_type = get_option('relevanssi_excerpt_type');
+	switch ($excerpt_type) {
+		case "chars":
+			$excerpt_chars = 'selected="selected"';
+			break;
+		case "words":
+			$excerpt_words = 'selected="selected"';
+			break;
+	}
 
 	$log_queries = get_option('relevanssi_log_queries');
 	if ('on' == $log_queries) {
@@ -809,13 +934,17 @@ function relevanssi_options_form() {
 	$css = get_option('relevanssi_css');
 	$class = get_option('relevanssi_class');
 	
+	$cat = get_option('relevanssi_cat');
+	
 	$title_boost_txt = __('Title boost:', 'relevanssi');
 	$title_boost_desc = sprintf(__('This needs to be an integer, default: %d', 'relevanssi'), $title_boost_default);
 	$admin_search_txt = __('Use search for admin:', 'relevanssi');
 	$admin_search_desc = __('If checked, Relevanssi will be used for searches in the admin interface', 'relevanssi');
+	$cat_txt = __('Restrict search to these categories and tags:', 'relevanssi');
+	$cat_desc = __("Enter a comma-separated list of category and tag IDs to restrict search to those categories or tags. You can also use <code>&lt;input type='hidden' name='cat' value='list of cats and tags' /&gt;</code> in your search form. The input field will overrun this setting.", 'relevanssi');
 	$excerpt_txt = __("Create custom search result snippets:", "relevanssi");
 	$excerpt_desc = __("If checked, Relevanssi will create excerpts that contain the search term hits. To make them work, make sure your search result template uses the_excerpt() to display post excerpts.", 'relevanssi');
-	$excerpt_length_txt = __("Length of the snippet in characters:", "relevanssi");
+	$excerpt_length_txt = __("Length of the snippet:", "relevanssi");
 	$excerpt_length_desc = __("This must be an integer", "relevanssi");
 	$log_queries_txt = __("Keep a log of user queries:", "relevanssi");
 	$log_queries_desc = __("If checked, Relevanssi will log user queries.", 'relevanssi');
@@ -857,6 +986,12 @@ function relevanssi_options_form() {
 
 	<br /><br />
 
+	<label for="relevanssi_cat">$cat_txt
+	<input type="text" name="relevanssi_cat" size="20" value="$cat" /></label><br />
+	<small>$cat_desc</small>
+
+	<br /><br />
+
 	<label for="relevanssi_log_queries">$log_queries_txt
 	<input type="checkbox" name="relevanssi_log_queries" $log_queries" /></label>
 	<small>$log_queries_desc</small>
@@ -871,6 +1006,10 @@ function relevanssi_options_form() {
 	
 	<label for="relevanssi_excerpt_length">$excerpt_length_txt
 	<input type="text" name="relevanssi_excerpt_length" size="4" value="$excerpt_length" /></label>
+	<select name="relevanssi_excerpt_type">
+	<option value="chars" $excerpt_chars">characters</option>
+	<option value="words" $excerpt_words">words</option>
+	</select><br />
 	<small>$excerpt_length_desc</small>
 	
 	<br /><br />

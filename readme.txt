@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.6.5
-Tested up to: 2.8
-Stable tag: 1.3.3
+Tested up to: 2.8.1
+Stable tag: 1.4
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -29,11 +29,17 @@ can also highlight the query terms in the search results.
 Relevanssi can keep a log of user queries and display both most popular queries and recent queries
 that got no hits. The logging is a new feature that will be refined later.
 
+Relevanssi supports the hidden input field `cat` to restrict searches to certain categories (or
+tags, since those are pretty much the same). Just add a hidden input field named `cat` in your
+search form and list the desired category or tag IDs in the `value` field. You can also set the
+description from general plugin settings (and then override it in individual search forms with
+the special field).
+
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
 Katzgrau.
 
 The plugin might work with WordPress versions prior to 2.6.5 - that's just oldest release I've
-tried. I'd guess 2.0 or 2.2 is the actual limit.
+tried. I do know the plugin uses a function introduced in 2.5.
 
 == Installation ==
 
@@ -83,8 +89,18 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
+* To-do: Category and tag exclusion from search results.
 
 == Changelog ==
+
+= 1.4 =
+* Added an option to restrict searches to certain categories or tags, either by plugin option or hidden input field in the search form.
+* The contents of `<script>` and other such tags are now removed from excerpts.
+* When indexing, HTML tags and `[quicktags]` are removed.
+* Digits are no longer removed from terms. Re-index database to get them indexed.
+* Wrapped the output of `relevanssi_the_excerpt()` in <p> tags.
+* Stopwords are no longer removed from search queries.
+* Search result snippet length can now be determined in characters or whole words.
 
 = 1.3.3 =
 * Small bug fixes, removed the error message caused by a query that is all stop words.
