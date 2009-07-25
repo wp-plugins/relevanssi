@@ -2,9 +2,9 @@
 Contributors: msaari
 Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
-Requires at least: 2.6.5
-Tested up to: 2.8
-Stable tag: 1.2
+Requires at least: 2.5
+Tested up to: 2.8.1
+Stable tag: 1.4.1
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -26,11 +26,21 @@ search result template to decide. However, if the option is set, Relevanssi will
 search result snippets that show the part of the document where the search hit was made. Relevanssi
 can also highlight the query terms in the search results.
 
+Relevanssi can keep a log of user queries and display both most popular queries and recent queries
+that got no hits. The logging is a new feature that will be refined later.
+
+Relevanssi supports the hidden input field `cat` to restrict searches to certain categories (or
+tags, since those are pretty much the same). Just add a hidden input field named `cat` in your
+search form and list the desired category or tag IDs in the `value` field. You can also set the
+description from general plugin settings (and then override it in individual search forms with
+the special field).
+
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
 Katzgrau.
 
-The plugin might work with WordPress versions prior to 2.6.5 - that's just oldest release I've
-tried. I'd guess 2.0 or 2.2 is the actual limit.
+I know the plugin works with WP 2.5, but it loses some non-essential functionality (mostly
+because `strip_shortcodes()` isn't supported. Compatibility with older versions of WP hasn't
+been tested.
 
 == Installation ==
 
@@ -45,6 +55,17 @@ version and if the new version has changes in the indexing, rebuild the index.
 If you want to use the custom search results, make sure your search results template uses 
 `the_excerpt()` to display the entries, because the plugin creates the custom snippet by replacing
 the post excerpt.
+
+If you're using a plugin that affects excerpts (like Advanced Excerpt), you may run into some
+problems. For those cases, I've included the function `relevanssi_the_excerpt()`, which you can
+use instead of `the_excerpt()`. It prints out the excerpt, but doesn't apply `wp_trim_excerpt()`
+filters (it does apply `the_content()`, `the_excerpt()`, and `get_the_excerpt()` filters).
+
+To avoid trouble, use the function like this:
+
+`<?php if (function_exists('relevanssi_the_excerpt')) { relevanssi_the_excerpt(); }; ?>`
+
+Translations: [French](http://www.li-an.fr/blog/plugins-wordpress-mes-traductions-en-francais/)
 
 == Frequently Asked Questions ==
 
@@ -66,10 +87,46 @@ inverted document frequency is really low, so they never have much power in matc
 removing those words helps to make the index smaller and searching faster.
 
 == Known issues and To-do's ==
+* Known issue: Relevanssi doesn't play nice with widgets that display recent posts. Right now it makes them disappear. Help with this problem would be most welcome.
+* Known issue: In general, multiple Loops on the search page may cause surprising results, and please make sure the actual search results are the first loop.
+* Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
 * To-do: The stop word list management needs small improvements.
-* To-do: Log the search queries and provide statistics.
+* To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 
 == Changelog ==
+
+= 1.4.1 =
+* Fixed a bug that caused empty search snippets when using word-based snippets.
+* Improved support for WP 2.5.
+* Added an option to exclude categories and tags from search results.
+* Added an option to index only posts or pages.
+* Added French stopwords.
+
+= 1.4 =
+* Added an option to restrict searches to certain categories or tags, either by plugin option or hidden input field in the search form.
+* The contents of `<script>` and other such tags are now removed from excerpts.
+* When indexing, HTML tags and `[quicktags]` are removed.
+* Digits are no longer removed from terms. Re-index database to get them indexed.
+* Wrapped the output of `relevanssi_the_excerpt()` in <p> tags.
+* Stopwords are no longer removed from search queries.
+* Search result snippet length can now be determined in characters or whole words.
+
+= 1.3.3 =
+* Small bug fixes, removed the error message caused by a query that is all stop words.
+* Content and excerpt filters are now applied to excerpts created by Relevanssi.
+* Default highlight CSS class has a unique name, `search-results` was already used by WordPress.
+
+= 1.3.2 =
+* Quicktags are now stripped from custom-created excerpts.
+* Added a function `relevanssi_the_excerpt()', which prints out the excerpt without triggering `wp_trim_excerpt()` filters.
+
+= 1.3.1 =
+* Another bug fix release.
+
+= 1.3 =
+* New query logging feature. Any feedback on query log display features would be welcome: what information you want to see?
+* Added a CSS class option for search term highlighting.
+* Fixed a bug in the search result excerpt generation code that caused endless loops with certain search terms.
 
 = 1.2 =
 * Added new features to display custom search result snippets and highlight the search terms in the results.
