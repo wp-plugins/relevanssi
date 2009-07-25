@@ -2,9 +2,9 @@
 Contributors: msaari
 Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
-Requires at least: 2.6.5
+Requires at least: 2.5
 Tested up to: 2.8.1
-Stable tag: 1.4
+Stable tag: 1.4.1
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -38,8 +38,9 @@ the special field).
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
 Katzgrau.
 
-The plugin might work with WordPress versions prior to 2.6.5 - that's just oldest release I've
-tried. I do know the plugin uses a function introduced in 2.5.
+I know the plugin works with WP 2.5, but it loses some non-essential functionality (mostly
+because `strip_shortcodes()` isn't supported. Compatibility with older versions of WP hasn't
+been tested.
 
 == Installation ==
 
@@ -63,6 +64,8 @@ filters (it does apply `the_content()`, `the_excerpt()`, and `get_the_excerpt()`
 To avoid trouble, use the function like this:
 
 `<?php if (function_exists('relevanssi_the_excerpt')) { relevanssi_the_excerpt(); }; ?>`
+
+Translations: [French](http://www.li-an.fr/blog/plugins-wordpress-mes-traductions-en-francais/)
 
 == Frequently Asked Questions ==
 
@@ -89,9 +92,15 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
-* To-do: Category and tag exclusion from search results.
 
 == Changelog ==
+
+= 1.4.1 =
+* Fixed a bug that caused empty search snippets when using word-based snippets.
+* Improved support for WP 2.5.
+* Added an option to exclude categories and tags from search results.
+* Added an option to index only posts or pages.
+* Added French stopwords.
 
 = 1.4 =
 * Added an option to restrict searches to certain categories or tags, either by plugin option or hidden input field in the search form.
