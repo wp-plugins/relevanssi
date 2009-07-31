@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.5
 Tested up to: 2.8.1
-Stable tag: 1.4.1
+Stable tag: 1.4.2
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -16,7 +16,8 @@ search will find all documents that match even one term, ranking highest those d
 all search terms.
 
 Relevanssi does some fuzzy matching too, so if user searches for something that doesn't produce
-any results, Relevanssi will look for similar terms.
+any results, Relevanssi will look for similar terms. Strict phrases using quotation marks
+(like "search phrase") are supported.
 
 The matching is based on basic tf * idf weighing, with some extra features added like a boost for
 words that appear in titles.
@@ -94,6 +95,11 @@ removing those words helps to make the index smaller and searching faster.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 
 == Changelog ==
+
+= 1.4.2 =
+* Users can search for specific phrases by wrapping the phase with "quotes".
+* Fixed a bug that caused broken HTML in some cases of highlighted search results (search term matches in highlighting HTML tags were being highlighted).
+* Improved punctuation removal. This change requires reindexing the whole database.
 
 = 1.4.1 =
 * Fixed a bug that caused empty search snippets when using word-based snippets.

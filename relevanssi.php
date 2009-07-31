@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.4.1
+Version: 1.4.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -213,7 +213,7 @@ function relevanssi_query($posts) {
 
 		$posts = array();
 
-		$q = $wp->query_vars["s"];
+		$q = stripslashes($wp->query_vars["s"]);
 		$cat = $wp->query_vars["cat"];
 		if (!$cat) {
 			$cat = get_option('relevanssi_cat');
@@ -314,6 +314,8 @@ function relevanssi_search($q, $cat = false, $excat = false) {
 	}
 
 	$remove_stopwords = false;
+	$phrases = relevanssi_recognize_phrases($q);
+	
 	$terms = relevanssi_tokenize($q, $remove_stopwords);
 	if (count($terms) < 1) {
 		// Tokenizer killed all the search terms.
@@ -338,6 +340,10 @@ function relevanssi_search($q, $cat = false, $excat = false) {
 			    WHERE term_taxonomy_id IN ($excat))";
 		}
 
+		if ($phrases) {
+			$query .= " AND doc IN ($phrases)";
+		}
+
 		$matches = $wpdb->get_results($query);
 		if (count($matches) < 1) {
 			$query = "SELECT doc, term, tf, title FROM $relevanssi_table
@@ -350,6 +356,10 @@ function relevanssi_search($q, $cat = false, $excat = false) {
 			if ($excat) {
 				$query .= " AND doc NOT IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 				    WHERE term_taxonomy_id IN ($excat))";
+			}
+
+			if ($phrases) {
+				$query .= " AND doc IN ($phrases)";
 			}
 			
 			$matches = $wpdb->get_results($query);
@@ -367,6 +377,10 @@ function relevanssi_search($q, $cat = false, $excat = false) {
 			    WHERE term_taxonomy_id IN ($excat))";
 		}
 
+		if ($phrases) {
+			$query .= " AND doc IN ($phrases)";
+		}
+
 
 		$df = $wpdb->get_var($query);
 
@@ -381,6 +395,11 @@ function relevanssi_search($q, $cat = false, $excat = false) {
 				$query .= " AND doc NOT IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 				    WHERE term_taxonomy_id IN ($excat))";
 			}
+			
+			if ($phrases) {
+				$query .= " AND doc IN ($phrases)";
+			}
+			
 			$df = $wpdb->get_var($query);
 		}
 		
@@ -414,6 +433,81 @@ function relevanssi_search($q, $cat = false, $excat = false) {
 	return $hits;
 }
 
+/* If no phrase hits are made, this function returns false
+ * If phrase matches are found, the function presents a comma-separated list of doc id's.
+ * If phrase matches are found, but no matching documents, function returns -1.
+ */
+function relevanssi_recognize_phrases($q) {
+	global $wpdb;
+	
+	$pos = mb_strpos($q, '"');
+	
+	$phrases = array();
+	while ($pos !== false) {
+		$start = $pos;
+		$end = strpos($q, '"', $start + 1);
+		
+		if ($end === false) {
+			// just one " in the query
+			$pos = $end;
+			continue;
+		}
+		$phrase = substr($q, $start + 1, $end-$start - 1);
+		$phrases[] = $phrase;
+		$pos = $end;
+	}
+
+	if (count($phrases) > 0) {
+		$phrase_matches = array();
+		foreach ($phrases as $phrase) {
+			$phrase = $wpdb->escape($phrase);
+			$query = "SELECT ID,post_content FROM $wpdb->posts
+				WHERE post_content LIKE '%$phrase%'
+				AND post_status = 'publish'";
+			$docs = $wpdb->get_results($query);
+			if (is_array($docs)) {
+				foreach ($docs as $doc) {
+					if (!isset($phrase_matches[$phrase])) {
+						$phrase_matches[$phrase] = array();
+					}
+					$phrase_matches[$phrase][] = $doc->ID;
+				}
+			}
+		}
+		
+		if (count($phrase_matches) < 1) {
+			$phrases = "-1";
+		}
+		else {
+			// Complicated mess, but necessary...
+			$i = 0;
+			$phms = array();
+			foreach ($phrase_matches as $phm) {
+				$phms[$i++] = $phm;
+			}
+			
+			$phrases = $phms[0];
+			if ($i > 1) {
+				for ($i = 1; $i < count($phms); $i++) {
+					$phrases =  array_intersect($phrases, $phms[$i]);
+				}
+			}
+			
+			if (count($phrases) < 1) {
+				$phrases = "-1";
+			}
+			else {
+				$phrases = implode(",", $phrases);
+			}
+		}
+	}
+	else {
+		$phrases = false;
+	}
+	
+	return $phrases;
+}
+
 function relevanssi_the_excerpt() {
     global $post;
     if (!post_password_required($post)) {
@@ -428,7 +522,7 @@ function relevanssi_do_excerpt($post, $query) {
 	$excerpt_length = get_option("relevanssi_excerpt_length");
 	$type = get_option("relevanssi_excerpt_type");
 
-	$remove_stopwords = true;
+	$remove_stopwords = false;
 	$terms = relevanssi_tokenize($query, $remove_stopwords);
 
 	$content = apply_filters('the_content', $post->post_content);
@@ -605,6 +699,9 @@ function relevanssi_highlight_terms($excerpt, $terms) {
 		default:
 			return $excerpt;
 	}
+	
+	$start_emp_token = "*[/";
+	$end_emp_token = "\]*";
 
 	foreach ($terms as $term) {
 		$pos = 0;
@@ -613,15 +710,19 @@ function relevanssi_highlight_terms($excerpt, $terms) {
 			$pos = mb_strpos($low_excerpt, $term, $pos);
 			if ($pos !== false) {
 				$excerpt = mb_substr($excerpt, 0, $pos)
-						 . $start_emp
+						 . $start_emp_token
 						 . mb_substr($excerpt, $pos, mb_strlen($term))
-						 . $end_emp
+						 . $end_emp_token
 						 . mb_substr($excerpt, $pos + mb_strlen($term));
 				$low_excerpt = mb_strtolower($excerpt);
-				$pos = $pos + mb_strlen($start_emp) + mb_strlen($end_emp);
+				$pos = $pos + mb_strlen($start_emp_token) + mb_strlen($end_emp_token);
 			}
 		}
 	}
+
+	$excerpt = str_replace($start_emp_token, $start_emp, $excerpt);
+	$excerpt = str_replace($end_emp_token, $end_emp, $excerpt);
+	$excerpt = str_replace($end_emp . $start_emp, "", $excerpt);
 
 	return $excerpt;
 }
@@ -753,8 +854,15 @@ function relevanssi_tokenize($str, $remove_stops = true) {
 
 function relevanssi_remove_punct($a) {
 		$a = strip_tags($a);
+
+		$a = str_replace("'", '', $a);
+		$a = str_replace("´", '', $a);
+		$a = str_replace("’", '', $a);
+
 		$a = str_replace("—", " ", $a);
         $a = preg_replace('/[[:punct:]]+/', ' ', $a);
+		$a = str_replace("”", " ", $a);
+
         $a = preg_replace('/[[:space:]]+/', ' ', $a);
 		$a = trim($a);
         return $a;
