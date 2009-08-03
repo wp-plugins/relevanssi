@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.4.2
+Version: 1.4.3
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -70,6 +70,7 @@ function unset_relevanssi_options() {
 	delete_option('relevanssi_excat');
 	delete_option('relevanssi_cat');
 	delete_option('relevanssi_index_type');
+	delete_option('revelanssi_index_fields');
 }
 
 function relevanssi_menu() {
@@ -115,6 +116,7 @@ function relevanssi_install() {
 	add_option('relevanssi_cat', '0');
 	add_option('relevanssi_excat', '0');
 	add_option('relevanssi_index_type', 'both');
+	add_option('relevanssi_index_fields', '');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -757,10 +759,12 @@ function relevanssi_build_index($extend = false) {
 		FROM $wpdb->posts WHERE post_status='publish' AND
 		ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table)" . $restriction;
 	}
+
+	$custom_fields = relevanssi_get_custom_fields();
 	
 	$content = $wpdb->get_results($q);
 	foreach ($content as $post) {
-		$n += relevanssi_index_doc($post, false);
+		$n += relevanssi_index_doc($post, false, $custom_fields);
 		// n calculates the number of insert queries
 	}
 	
@@ -774,7 +778,7 @@ function relevanssi_remove_doc($id) {
 	$wpdb->query($q);
 }
 
-function relevanssi_index_doc($post, $remove_first = false) {
+function relevanssi_index_doc($post, $remove_first = false, $custom_fields = false) {
 	global $wpdb, $relevanssi_table;
 
 	if (!is_object($post)) {
@@ -793,6 +797,17 @@ function relevanssi_index_doc($post, $remove_first = false) {
 
 	$n = 0;	
 	$titles = relevanssi_tokenize($post->post_title);
+	
+	if ($custom_fields) {
+		foreach ($custom_fields as $field) {
+			$values = get_post_meta($post->ID, $field, false);
+			if ("" == $values) continue;
+			foreach ($values as $value) {
+				// Custom field values are simply tacked to the end of the post content
+				$post->post_content .= ' ' . $value;
+			}
+		}
+	}
 	
 	$contents = relevanssi_strip_invisibles($post->post_content);
 	$contents = strip_tags($contents);
@@ -823,6 +838,20 @@ function relevanssi_index_doc($post, $remove_first = false) {
 		}
 	}
 	return $n;
+}
+
+function relevanssi_get_custom_fields() {
+	$custom_fields = get_option("relevanssi_index_fields");
+	if ($custom_fields) {
+		$custom_fields = explode(",", $custom_fields);
+		for ($i = 0; $i < count($custom_fields); $i++) {
+			$custom_fields[$i] = trim($custom_fields[$i]);
+		}
+	}
+	else {
+		$custom_fields = false;
+	}
+	return $custom_fields;
 }
 
 function relevanssi_tokenize($str, $remove_stops = true) {
@@ -892,11 +921,13 @@ function relevanssi_options() {
 
 	if ($_REQUEST['index']) {
 		update_option('relevanssi_index_type', $_REQUEST['relevanssi_index_type']);
+		update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
 		relevanssi_build_index();
 	}
 
 	if ($_REQUEST['index_extend']) {
 		update_option('relevanssi_index_type', $_REQUEST['relevanssi_index_type']);
+		update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
 		relevanssi_build_index(true);
 	}
 	
@@ -961,6 +992,7 @@ function update_relevanssi_options() {
 	update_option('relevanssi_cat', $_REQUEST['relevanssi_cat']);
 	update_option('relevanssi_excat', $_REQUEST['relevanssi_excat']);
 	update_option('relevanssi_index_type', $_REQUEST['relevanssi_index_type']);
+	update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
 }
 
 function relevanssi_add_stopword($term) {
@@ -1138,6 +1170,8 @@ function relevanssi_options_form() {
 			break;
 	}
 	
+	$index_fields = get_option('relevanssi_index_fields');
+	
 	$txt_col = get_option('relevanssi_txt_col');
 	$bg_col = get_option('relevanssi_bg_col');
 	$css = get_option('relevanssi_css');
@@ -1189,6 +1223,9 @@ function relevanssi_options_form() {
 	$index_both_txt = __("Everything", "relevanssi");
 	$index_posts_txt = __("Just posts", "relevanssi");
 	$index_pages_txt = __("Just pages", "relevanssi");
+
+	$index_fields_txt = __("Custom fields to index:", "relevanssi");
+	$index_fields_desc = __("A comma-separated list of custom field names to include in the index.", "relevanssi");
 
 	echo <<<EOHTML
 	<br />
@@ -1291,6 +1328,12 @@ function relevanssi_options_form() {
 	<option value="pages" $index_type_pages>$index_pages_txt</option>
 	</select></label>
 	<small>$index_type_comment</small>
+
+	<br /><br />
+
+	<label for="relevanssi_index_fields">$index_fields_txt
+	<input type="text" name="relevanssi_index_fields" size="30" value="$index_fields" /></label><br />
+	<small>$index_fields_desc</small>
 
 	<br /><br />
 
