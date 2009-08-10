@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.4.3
+Version: 1.4.4
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -71,6 +71,7 @@ function unset_relevanssi_options() {
 	delete_option('relevanssi_cat');
 	delete_option('relevanssi_index_type');
 	delete_option('revelanssi_index_fields');
+	delete_option('relevanssi_exclude_posts'); //added by OdditY
 }
 
 function relevanssi_menu() {
@@ -117,6 +118,7 @@ function relevanssi_install() {
 	add_option('relevanssi_excat', '0');
 	add_option('relevanssi_index_type', 'both');
 	add_option('relevanssi_index_fields', '');
+	add_option('relevanssi_exclude_posts', ''); //added by OdditY
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -231,7 +233,16 @@ function relevanssi_query($posts) {
 			}
 		}
 
-		$hits = relevanssi_search($q, $cat, $excat);
+		$expids = get_option("relevanssi_exclude_posts");
+
+		if (is_admin()) {
+			// in admin search, search everything
+			$cat = null;
+			$excat = null;
+			$expids = null;
+		}
+
+		$hits = relevanssi_search($q, $cat, $excat, $expids);
 		$wp_query->found_posts = sizeof($hits);
 		$wp_query->max_num_pages = ceil(sizeof($hits) / $wp_query->query_vars["posts_per_page"]);
 
@@ -280,7 +291,7 @@ function relevanssi_getLimit($limit) {
 }
 
 // This is my own magic working.
-function relevanssi_search($q, $cat = false, $excat = false) {
+function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 	global $relevanssi_table, $wpdb;
 
 	$hits = array();
@@ -315,6 +326,18 @@ function relevanssi_search($q, $cat = false, $excat = false) {
 		$excat = implode(",", $term_tax_ids);
 	}
 
+	//Added by OdditY:
+	//Exclude Post_IDs (Pages) for non-admin search ->
+	if ($expost) {
+		if ($expost != "") {
+			$aexpids = explode(",",$expost);
+			foreach ($aexpids as $exid){
+				$postex .= " AND doc !='$exid'";
+			}
+		}	
+	}
+	// <- OdditY End
+
 	$remove_stopwords = false;
 	$phrases = relevanssi_recognize_phrases($q);
 	
@@ -332,6 +355,11 @@ function relevanssi_search($q, $cat = false, $excat = false) {
 		$term = $wpdb->escape(like_escape($term));
 		$query = "SELECT doc, term, tf, title FROM $relevanssi_table WHERE term = '$term'";
 
+		if ($expost) { //added by OdditY
+			$query .= $postex;
+		}
+
+
 		if ($cat) {
 			$query .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 			    WHERE term_taxonomy_id IN ($cat))";
@@ -345,11 +373,16 @@ function relevanssi_search($q, $cat = false, $excat = false) {
 		if ($phrases) {
 			$query .= " AND doc IN ($phrases)";
 		}
-
+		
 		$matches = $wpdb->get_results($query);
 		if (count($matches) < 1) {
 			$query = "SELECT doc, term, tf, title FROM $relevanssi_table
 			WHERE (term LIKE '$term%' OR term LIKE '%$term')";
+			
+			if ($expost) { //added by OdditY
+				$query .= $postex;
+			}
+			
 			if ($cat) {
 				$query .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 				    WHERE term_taxonomy_id IN ($cat))";
@@ -369,6 +402,12 @@ function relevanssi_search($q, $cat = false, $excat = false) {
 		$total_hits += count($matches);
 
 		$query = "SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table WHERE term = '$term'";
+		
+		if ($expost) { //added by OdditY
+			$query .= $postex;
+		}
+		
+		
 		if ($cat) {
 			$query .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 			    WHERE term_taxonomy_id IN ($cat))";
@@ -389,6 +428,11 @@ function relevanssi_search($q, $cat = false, $excat = false) {
 		if ($df < 1) {
 			$query = "SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table
 				WHERE (term LIKE '%$term' OR term LIKE '$term%')";
+				
+			if ($expost) { //added by OdditY
+				$query .= $postex;
+			}
+				
 			if ($cat) {
 				$query .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 				    WHERE term_taxonomy_id IN ($cat))";
@@ -744,7 +788,7 @@ function relevanssi_build_index($extend = false) {
 		default:
 			$restriction = "";
 	}
-	
+
 	$n = 0;
 	
 	if (!$extend) {
@@ -861,8 +905,10 @@ function relevanssi_tokenize($str, $remove_stops = true) {
 	$t = strtok($str, "\n\t ");
 	while ($t !== false) {
 		$accept = true;
-		if (in_array($t, $stopword_list)) {
-			$accept = false;
+		if (count($stopword_list) > 0) {	//added by OdditY -> got warning when stopwords table was empty
+			if (in_array($t, $stopword_list)) {
+				$accept = false;
+			}
 		}
 		if ($remove_stops == false) {
 			$accept = true;
@@ -993,6 +1039,7 @@ function update_relevanssi_options() {
 	update_option('relevanssi_excat', $_REQUEST['relevanssi_excat']);
 	update_option('relevanssi_index_type', $_REQUEST['relevanssi_index_type']);
 	update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
+	update_option('relevanssi_exclude_posts', $_REQUEST['relevanssi_expst']); //added by OdditY
 }
 
 function relevanssi_add_stopword($term) {
@@ -1179,15 +1226,18 @@ function relevanssi_options_form() {
 	
 	$cat = get_option('relevanssi_cat');
 	$excat = get_option('relevanssi_excat');
+	$expst = get_option('relevanssi_exclude_posts');
 	
 	$title_boost_txt = __('Title boost:', 'relevanssi');
-	$title_boost_desc = sprintf(__('This needs to be an integer, default: %d', 'relevanssi'), $title_boost_default);
+	$title_boost_desc = sprintf(__('This needs to be an integer, default: %d. 0 means titles are ignored, 1 means no boost.', 'relevanssi'), $title_boost_default);
 	$admin_search_txt = __('Use search for admin:', 'relevanssi');
 	$admin_search_desc = __('If checked, Relevanssi will be used for searches in the admin interface', 'relevanssi');
 	$cat_txt = __('Restrict search to these categories and tags:', 'relevanssi');
 	$cat_desc = __("Enter a comma-separated list of category and tag IDs to restrict search to those categories or tags. You can also use <code>&lt;input type='hidden' name='cat' value='list of cats and tags' /&gt;</code> in your search form. The input field will overrun this setting.", 'relevanssi');
 	$excat_txt = __('Exclude these categories and tags from search:', 'relevanssi');
 	$excat_desc = __("Enter a comma-separated list of category and tag IDs that are excluded from search results. This only works here, you can't use the input field option (WordPress doesn't pass custom parameters there).", 'relevanssi');
+	$expst_txt = __('Exclude these posts/pages from search:', 'relevanssi');
+	$expst_desc = __("Enter a comma-separated list of post/page IDs that are excluded from search results. This only works here, you can't use the input field option (WordPress doesn't pass custom parameters there).", 'relevanssi');
 	$excerpt_txt = __("Create custom search result snippets:", "relevanssi");
 	$excerpt_desc = __("If checked, Relevanssi will create excerpts that contain the search term hits. To make them work, make sure your search result template uses the_excerpt() to display post excerpts.", 'relevanssi');
 	$excerpt_length_txt = __("Length of the snippet:", "relevanssi");
@@ -1249,6 +1299,12 @@ function relevanssi_options_form() {
 	<label for="relevanssi_excat">$excat_txt
 	<input type="text" name="relevanssi_excat" size="20" value="$excat" /></label><br />
 	<small>$excat_desc</small>
+
+	<br />
+
+	<label for="relevanssi_excat">$expst_txt
+	<input type="text" name="relevanssi_expst" size="20" value="$expst" /></label><br />
+	<small>$expst_desc</small>
 
 	<br /><br />
 

@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.5
 Tested up to: 2.8.2
-Stable tag: 1.4.3
+Stable tag: 1.4.4
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -95,6 +95,9 @@ removing those words helps to make the index smaller and searching faster.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 
 == Changelog ==
+
+= 1.4.4 =
+* Added an option to exclude posts or pages from search results. This feature was requested and provided by Cristian Damm.
 
 = 1.4.3 =
 * Indexing of custom fields is now possible. Just add a list of custom field names you want to include in the index on the settings page and re-index.
