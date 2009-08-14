@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.4.4
+Version: 1.5
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -37,6 +37,9 @@ add_action('delete_post', 'relevanssi_delete');
 add_action('publish_post', 'relevanssi_publish');
 add_action('publish_page', 'relevanssi_publish');
 add_action('future_publish_post', 'relevanssi_publish');
+add_action('comment_post', 'relevanssi_comment_index'); 	//added by OdditY
+add_action('edit_comment', 'relevanssi_comment_edit'); 		//added by OdditY 
+add_action('delete_comment', 'relevanssi_comment_remove'); 	//added by OdditY
 
 $plugin_dir = basename(dirname(__FILE__));
 load_plugin_textdomain( 'relevanssi', 'wp-content/plugins/' . $plugin_dir, $plugin_dir);
@@ -48,6 +51,8 @@ global $stopword_table;
 global $log_table;
 global $stopword_list;
 global $title_boost_default;
+global $tag_boost_default;
+global $comment_boost_default;
 
 $wpSearch_low = 0;
 $wpSearch_high = 0;
@@ -55,9 +60,13 @@ $relevanssi_table = $wpdb->prefix . "relevanssi";
 $stopword_table = $wpdb->prefix . "relevanssi_stopwords";
 $log_table = $wpdb->prefix . "relevanssi_log";
 $title_boost_default = 5;
+$tag_boost_default = 0.75;
+$comment_boost_default = 0.75;
 
 function unset_relevanssi_options() {
 	delete_option('relevanssi_title_boost');
+	delete_option('relevanssi_tag_boost');
+	delete_option('relevanssi_comment_boost');
 	delete_option('relevanssi_admin_search');
 	delete_option('relevanssi_highlight');
 	delete_option('relevanssi_txt_col');
@@ -71,7 +80,13 @@ function unset_relevanssi_options() {
 	delete_option('relevanssi_cat');
 	delete_option('relevanssi_index_type');
 	delete_option('revelanssi_index_fields');
-	delete_option('relevanssi_exclude_posts'); //added by OdditY
+	delete_option('relevanssi_exclude_posts'); 	//added by OdditY
+	delete_option('relevanssi_include_tags'); 	//added by OdditY	
+	delete_option('relevanssi_hilite_title'); 	//added by OdditY 
+	delete_option('relevanssi_index_comments');	//added by OdditY
+	delete_option('relevanssi_show_matches');
+	delete_option('relevanssi_show_matches_text');
+	delete_option('relevanssi_fuzzy');
 }
 
 function relevanssi_menu() {
@@ -101,9 +116,12 @@ function relevanssi_add($post) {
 }
 
 function relevanssi_install() {
-	global $wpdb, $relevanssi_table, $stopword_table, $title_boost_default;
+	global $wpdb, $relevanssi_table, $stopword_table, $title_boost_default,
+	$tag_boost_default, $comment_boost_default;
 	
 	add_option('relevanssi_title_boost', $title_boost_default);
+	add_option('relevanssi_tag_boost', $tag_boost_default);
+	add_option('relevanssi_comment_boost', $comment_boost_default);
 	add_option('relevanssi_admin_search', 'off');
 	add_option('relevanssi_highlight', 'strong');
 	add_option('relevanssi_txt_col', '#ff0000');
@@ -118,7 +136,13 @@ function relevanssi_install() {
 	add_option('relevanssi_excat', '0');
 	add_option('relevanssi_index_type', 'both');
 	add_option('relevanssi_index_fields', '');
-	add_option('relevanssi_exclude_posts', ''); //added by OdditY
+	add_option('relevanssi_exclude_posts', ''); 		//added by OdditY
+	add_option('relevanssi_include_tags', 'on');		//added by OdditY	
+	add_option('relevanssi_hilite_title', ''); 			//added by OdditY	
+	add_option('relevanssi_index_comments', 'none');	//added by OdditY
+	add_option('relevanssi_show_matches', '');
+	add_option('relevanssi_show_matches_txt', '(Search hits: %body% in body, %title% in title, %tags% in tags, %comments% in comments. Score: %score%)');
+	add_option('relevanssi_fuzzy', 'sometimes');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -166,6 +190,54 @@ function relevanssi_install() {
 		dbDelta($sql);
 	}
 }
+
+
+//Added by OdditY -> 
+function relevanssi_comment_edit($comID) {
+	relevanssi_comment_index($comID,$action="update");
+}
+
+function relevanssi_comment_remove($comID) {
+	relevanssi_comment_index($comID,$action="remove");
+}
+
+function relevanssi_comment_index($comID,$action="add") {
+	global $wpdb;
+	$comtype = get_option("relevanssi_index_comments");
+	switch ($comtype) {
+		case "all": 
+			// all (incl. customs, track-&pingbacks)
+			break;
+		case "normal": 
+			// normal (excl. customs, track-&pingbacks)
+			$restriction=" AND comment_type='' ";
+			break;
+		default:
+			// none (don't index)
+			return ;
+	}
+	switch ($action) {
+		case "update": 
+			//(update) comment status changed:
+			$cpostID = $wpdb->get_var("SELECT comment_post_ID FROM $wpdb->comments WHERE comment_ID='$comID'".$restriction);
+			break;
+		case "remove": 
+			//(remove) approved comment will be deleted (if not approved, its not in index):
+			$cpostID = $wpdb->get_var("SELECT comment_post_ID FROM $wpdb->comments WHERE comment_ID='$comID' AND comment_approved='1'".$restriction);
+			if($cpostID!=NULL) {
+				//empty comment_content & reindex, then let WP delete the empty comment
+				$wpdb->query("UPDATE $wpdb->comments SET comment_content='' WHERE comment_ID='$comID'");
+			}				
+			break;
+		default:
+			// (add) new comment:
+			$cpostID = $wpdb->get_var("SELECT comment_post_ID FROM $wpdb->comments WHERE comment_ID='$comID' AND comment_approved='1'".$restriction);
+			break;
+	}
+	if($cpostID!=NULL) relevanssi_publish($cpostID);	
+}
+//Added by OdditY END <-
+
 
 function relevanssi_populate_stopwords() {
 	global $wpdb, $stopword_table;
@@ -242,7 +314,8 @@ function relevanssi_query($posts) {
 			$expids = null;
 		}
 
-		$hits = relevanssi_search($q, $cat, $excat, $expids);
+		$return = relevanssi_search($q, $cat, $excat, $expids);
+		$hits = $return[0];
 		$wp_query->found_posts = sizeof($hits);
 		$wp_query->max_num_pages = ceil(sizeof($hits) / $wp_query->query_vars["posts_per_page"]);
 
@@ -258,14 +331,44 @@ function relevanssi_query($posts) {
 		for ($i = $wpSearch_low; $i <= $wpSearch_high; $i++) {
 			$hit = $hits[intval($i)];
 			$post = get_post($hit, OBJECT);
+			
+			//Added by OdditY - Highlight Result Title too -> 
+			if("on" == get_option('relevanssi_hilite_title')){
+				$post->post_title = strip_tags($post->post_title);
+				if ("none" != $highlight) {
+					$t = explode(" ", $q);				
+					$post->post_title = relevanssi_highlight_terms($post->post_title, $t);
+				}
+			}
+			// OdditY end <-			
+			
 			if ('on' == $make_excerpts) {			
 				$post->post_excerpt = relevanssi_do_excerpt($post, $q);
+				if ('on' == get_option('relevanssi_show_matches')) {
+					$post->post_excerpt .= relevanssi_show_matches($return, $hit);
+				}
 			}
 			$posts[] = $post;
 		}
 	}
 	
 	return $posts;
+}
+
+function relevanssi_show_matches($data, $hit) {
+	$body = $data[1][$hit];
+	$title = $data[2][$hit];
+	$tag = $data[3][$hit];
+	$comment = $data[4][$hit];
+	$score = round($data[5][$hit], 2);
+	
+	$text = get_option('relevanssi_show_matches_text');
+	$replace_these = array("%body%", "%title%", "%tags%", "%comments%", "%score%");
+	$replacements = array($body, $title, $tags, $comments, $score);
+	
+	$result = " " . str_replace($replace_these, $replacements, $text);
+	
+	return $result;
 }
 
 function relevanssi_update_log($query, $hits) {
@@ -351,14 +454,30 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 	$D = $wpdb->get_var("SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table");
 	
 	$total_hits = 0;
+		
+	$title_matches = array();
+	$tag_matches = array();
+	$comment_matches = array();
+	$body_matches = array();
+	$scores = array();
+
+	$fuzzy = get_option('relevanssi_fuzzy');
+
 	foreach ($terms as $term) {
 		$term = $wpdb->escape(like_escape($term));
-		$query = "SELECT doc, term, tf, title FROM $relevanssi_table WHERE term = '$term'";
+		
+		if ("always" == $fuzzy) {
+			$term_cond = "(term LIKE '%$term' OR term LIKE '$term%') ";
+		}
+		else {
+			$term_cond = " term = '$term' ";
+		}
+		
+		$query = "SELECT doc, term, tf, title FROM $relevanssi_table WHERE $term_cond";
 
 		if ($expost) { //added by OdditY
 			$query .= $postex;
 		}
-
 
 		if ($cat) {
 			$query .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
@@ -375,7 +494,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 		}
 		
 		$matches = $wpdb->get_results($query);
-		if (count($matches) < 1) {
+		if (count($matches) < 1 && "sometimes" == $fuzzy) {
 			$query = "SELECT doc, term, tf, title FROM $relevanssi_table
 			WHERE (term LIKE '$term%' OR term LIKE '%$term')";
 			
@@ -399,9 +518,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 			
 			$matches = $wpdb->get_results($query);
 		}
+		
 		$total_hits += count($matches);
 
-		$query = "SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table WHERE term = '$term'";
+		$query = "SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table WHERE $term_cond";
 		
 		if ($expost) { //added by OdditY
 			$query .= $postex;
@@ -425,7 +545,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 
 		$df = $wpdb->get_var($query);
 
-		if ($df < 1) {
+		if ($df < 1 && "sometimes" == $fuzzy) {
 			$query = "SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table
 				WHERE (term LIKE '%$term' OR term LIKE '$term%')";
 				
@@ -449,13 +569,29 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 			$df = $wpdb->get_var($query);
 		}
 		
-		$title_boost = intval(get_option('relevanssi_title_boost'));
+		$title_boost = floatval(get_option('relevanssi_title_boost'));
+		$tag_boost = floatval(get_option('relevanssi_tag_boost'));
+		$comment_boost = floatval(get_option('relevanssi_comment_boost'));
+		
 		foreach ($matches as $match) {
 			$tf = $match->tf;
 			$idf = log($D / (1 + $df));
 			$weight = $tf * $idf;
-			if ($match->title) {
-				$weight = $weight * $title_boost;
+			switch ($match->title) {
+				case "1":
+					$weight = $weight * $title_boost;
+					isset($title_matches[$match->doc]) ? $title_matches[$match->doc] += $match->tf : $title_matches[$match->doc] = $match->tf;
+					break;
+				case "2":
+					$weight = $weight * $tag_boost;
+					isset($tag_matches[$match->doc]) ? $tag_matches[$match->doc] += $match->tf : $tag_matches[$match->doc] = $match->tf;
+					break;
+				case "3":
+					$weight = $weight * $comment_boost;
+					isset($comment_matches[$match->doc]) ? $comment_matches[$match->doc] += $match->tf : $comment_matches[$match->doc] = $match->tf;
+					break;
+				default:
+					isset($body_matches[$match->doc]) ? $body_matches[$match->doc] += $match->tf : $body_matches[$match->doc] = $match->tf;
 			}
 			if (isset($doc_weight[$match->doc])) {
 				$doc_weight[$match->doc] += $weight;
@@ -463,8 +599,9 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 			else {
 				$doc_weight[$match->doc] = $weight;
 			}
+			
+			isset($scores[$match->doc]) ? $scores[$match->doc] += $weight : $scores[$match->doc] = $weight;
 		}
-
 	}
 
 	if (count($doc_weight) > 0) {
@@ -476,7 +613,9 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 		}
 	}
 
-	return $hits;
+	$return = array($hits, $body_matches, $title_matches, $tag_matches, $comment_matches, $scores);
+
+	return $return;
 }
 
 /* If no phrase hits are made, this function returns false
@@ -491,14 +630,15 @@ function relevanssi_recognize_phrases($q) {
 	$phrases = array();
 	while ($pos !== false) {
 		$start = $pos;
-		$end = strpos($q, '"', $start + 1);
+		$end = mb_strpos($q, '"', $start + 1);
 		
 		if ($end === false) {
 			// just one " in the query
 			$pos = $end;
 			continue;
 		}
-		$phrase = substr($q, $start + 1, $end-$start - 1);
+		$phrase = mb_substr($q, $start + 1, $end-$start - 1);
+		
 		$phrases[] = $phrase;
 		$pos = $end;
 	}
@@ -748,7 +888,8 @@ function relevanssi_highlight_terms($excerpt, $terms) {
 	
 	$start_emp_token = "*[/";
 	$end_emp_token = "\]*";
-
+	mb_internal_encoding("UTF-8");
+	
 	foreach ($terms as $term) {
 		$pos = 0;
 		$low_excerpt = mb_strtolower($excerpt);
@@ -772,6 +913,44 @@ function relevanssi_highlight_terms($excerpt, $terms) {
 
 	return $excerpt;
 }
+
+function relevanssi_get_comments($postID) {	
+	global $wpdb;
+
+	$comtype = get_option("relevanssi_index_comments");
+	switch ($comtype) {
+		case "all": 
+			// all (incl. customs, track- & pingbacks)
+			break;
+		case "normal": 
+			// normal (excl. customs, track- & pingbacks)
+			$restriction=" AND comment_type='' ";
+			break;
+		default:
+			// none (don't index)
+			return "";
+	}
+
+	$to = 20;
+	$from = 0;
+
+	while ( true ) {
+		$sql = "SELECT 	comment_content
+				FROM 	$wpdb->comments
+				WHERE 	comment_post_ID = '$postID'
+				AND 	comment_approved = '1' 
+				".$restriction."
+				LIMIT 	$from, $to";		
+		$comments = $wpdb->get_results($sql);
+		if (sizeof($comments) == 0) break;
+		foreach($comments as $comment) {
+			$comment_string .= $comment->comment_content . ' ';
+		}
+		$from += $to;
+	}
+	return $comment_string;
+}
+
 
 function relevanssi_build_index($extend = false) {
 	global $wpdb, $relevanssi_table;
@@ -842,6 +1021,47 @@ function relevanssi_index_doc($post, $remove_first = false, $custom_fields = fal
 	$n = 0;	
 	$titles = relevanssi_tokenize($post->post_title);
 	
+
+	//Added by OdditY - INDEX COMMENTS of the POST ->
+	if ("none" != get_option("relevanssi_index_comments")) {
+		$pcoms = relevanssi_get_comments($post->ID);
+		if( $pcoms != "" ){
+			$pcoms = relevanssi_strip_invisibles($pcoms);
+			$pcoms = strip_tags($pcoms);
+			$pcoms = relevanssi_tokenize($pcoms);		
+			if (count($pcoms) > 0) {
+				foreach ($pcoms as $pcom => $count) {
+					if (strlen($pcom) < 2) continue;
+					$n++;
+					$wpdb->query("INSERT INTO $relevanssi_table (doc, term, tf, title)
+					VALUES ($post->ID, '$pcom', $count, 3)");
+				}
+			}				
+		}
+	} //Added by OdditY END <-
+
+
+	//Added by OdditY - INDEX TAGs of the POST ->
+	if ("on" == get_option("relevanssi_include_tags")) {
+		$ptagobj = get_the_terms($post->ID,'post_tag');
+		if($ptagobj !== FALSE) { 
+			foreach($ptagobj as $ptag) {
+				$tagstr .= $ptag->name . ' ';
+			}		
+			$tagstr = trim($tagstr);
+			$ptags = relevanssi_tokenize($tagstr);		
+			if (count($ptags) > 0) {
+				foreach ($ptags as $ptag => $count) {
+					if (strlen($ptag) < 2) continue;
+					$n++;
+					$wpdb->query("INSERT INTO $relevanssi_table (doc, term, tf, title)
+					VALUES ($post->ID, '$ptag', $count, 2)");
+				}
+			}	
+		}
+	} // Added by OdditY END <- 
+
+
 	if ($custom_fields) {
 		foreach ($custom_fields as $field) {
 			$values = get_post_meta($post->ID, $field, false);
@@ -881,6 +1101,7 @@ function relevanssi_index_doc($post, $remove_first = false, $custom_fields = fal
 			VALUES ($post->ID, '$content', $count, 0)");
 		}
 	}
+	
 	return $n;
 }
 
@@ -899,9 +1120,11 @@ function relevanssi_get_custom_fields() {
 }
 
 function relevanssi_tokenize($str, $remove_stops = true) {
-	$stopword_list = relevanssi_fetch_stopwords();
+	mb_internal_encoding("UTF-8");
 
-	$str = strtolower(relevanssi_remove_punct($str));
+	$stopword_list = relevanssi_fetch_stopwords();
+	$str = mb_strtolower(relevanssi_remove_punct($str));
+
 	$t = strtok($str, "\n\t ");
 	while ($t !== false) {
 		$accept = true;
@@ -935,7 +1158,7 @@ function relevanssi_remove_punct($a) {
 		$a = str_replace("’", '', $a);
 
 		$a = str_replace("—", " ", $a);
-        $a = preg_replace('/[[:punct:]]+/', ' ', $a);
+        $a = mb_ereg_replace('[[:punct:]]+', ' ', $a);
 		$a = str_replace("”", " ", $a);
 
         $a = preg_replace('/[[:space:]]+/', ' ', $a);
@@ -968,12 +1191,12 @@ function relevanssi_options() {
 	if ($_REQUEST['index']) {
 		update_option('relevanssi_index_type', $_REQUEST['relevanssi_index_type']);
 		update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
+		update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']);
+		update_option('relevanssi_inctags', $_REQUEST['relevanssi_inctags']);
 		relevanssi_build_index();
 	}
 
 	if ($_REQUEST['index_extend']) {
-		update_option('relevanssi_index_type', $_REQUEST['relevanssi_index_type']);
-		update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
 		relevanssi_build_index(true);
 	}
 	
@@ -1000,10 +1223,18 @@ function relevanssi_options() {
 
 function update_relevanssi_options() {
 	if ($_REQUEST['relevanssi_title_boost']) {
-		$boost = intval($_REQUEST['relevanssi_title_boost']);
-		if ($boost != 0) {
-			update_option('relevanssi_title_boost', $boost);
-		}
+		$boost = floatval($_REQUEST['relevanssi_title_boost']);
+		update_option('relevanssi_title_boost', $boost);
+	}
+
+	if ($_REQUEST['relevanssi_tag_boost']) {
+		$boost = floatval($_REQUEST['relevanssi_tag_boost']);
+		update_option('relevanssi_tag_boost', $boost);
+	}
+
+	if ($_REQUEST['relevanssi_comment_boost']) {
+		$boost = floatval($_REQUEST['relevanssi_comment_boost']);
+		update_option('relevanssi_comment_boost', $boost);
 	}
 	
 	if (!$_REQUEST['relevanssi_admin_search']) {
@@ -1039,7 +1270,14 @@ function update_relevanssi_options() {
 	update_option('relevanssi_excat', $_REQUEST['relevanssi_excat']);
 	update_option('relevanssi_index_type', $_REQUEST['relevanssi_index_type']);
 	update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
-	update_option('relevanssi_exclude_posts', $_REQUEST['relevanssi_expst']); //added by OdditY
+	update_option('relevanssi_exclude_posts', $_REQUEST['relevanssi_expst']); 			//added by OdditY
+	update_option('relevanssi_include_tags', $_REQUEST['relevanssi_inctags']); 			//added by OdditY	
+	update_option('relevanssi_hilite_title', $_REQUEST['relevanssi_hilite_title']); 	//added by OdditY	
+	update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']); //added by OdditY	
+
+	update_option('relevanssi_show_matches', $_REQUEST['relevanssi_show_matches']);
+	update_option('relevanssi_show_matches_text', $_REQUEST['relevanssi_show_matches_text']);
+	update_option('relevanssi_fuzzy', $_REQUEST['relevanssi_fuzzy']);
 }
 
 function relevanssi_add_stopword($term) {
@@ -1132,9 +1370,11 @@ function relevanssi_query_log() {
 }
 
 function relevanssi_options_form() {
-	global $title_boost_default;
+	global $title_boost_default, $tag_boost_default, $comment_boost_default;
 	
 	$title_boost = get_option('relevanssi_title_boost');
+	$tag_boost = get_option('relevanssi_tag_boost');
+	$comment_boost = get_option('relevanssi_comment_boost');
 	$admin_search = get_option('relevanssi_admin_search');
 	if ('on' == $admin_search) {
 		$admin_search = 'checked="checked"';
@@ -1162,13 +1402,7 @@ function relevanssi_options_form() {
 			break;
 	}
 
-	$log_queries = get_option('relevanssi_log_queries');
-	if ('on' == $log_queries) {
-		$log_queries = 'checked="checked"';
-	}
-	else {
-		$log_queries = '';
-	}
+	$log_queries = ('on' == get_option('relevanssi_log_queries') ? 'checked="checked"' : '');
 	
 	$highlight = get_option('relevanssi_highlight');
 	$highlight_none = "";
@@ -1226,32 +1460,77 @@ function relevanssi_options_form() {
 	
 	$cat = get_option('relevanssi_cat');
 	$excat = get_option('relevanssi_excat');
-	$expst = get_option('relevanssi_exclude_posts');
+	
+	$fuzzy_sometimes = ('sometimes' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
+	$fuzzy_always = ('always' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
+	$fuzzy_never = ('never' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
+	
+	//Added by OdditY ->
+	$expst = get_option('relevanssi_exclude_posts'); 
+	$inctags = ('on' == get_option('relevanssi_include_tags') ? 'checked="checked"' : ''); 
+	$hititle = ('on' == get_option('relevanssi_hilite_title') ? 'checked="checked"' : ''); 
+	$incom_type = get_option('relevanssi_index_comments');
+	$incom_type_all = "";
+	$incom_type_normal = "";
+	$incom_type_none = "";
+	switch ($incom_type) {
+		case "all":
+			$incom_type_all = 'selected="selected"';
+			break;
+		case "normal":
+			$incom_type_normal = 'selected="selected"';
+			break;
+		case "none":
+			$incom_type_none = 'selected="selected"';
+			break;
+	}//added by OdditY END <-
+	
+	$show_matches = ('on' == get_option('relevanssi_show_matches') ? 'checked="checked"' : '');
+	$show_matches_text = get_option('relevanssi_show_matches_text');
 	
 	$title_boost_txt = __('Title boost:', 'relevanssi');
-	$title_boost_desc = sprintf(__('This needs to be an integer, default: %d. 0 means titles are ignored, 1 means no boost.', 'relevanssi'), $title_boost_default);
+	$title_boost_desc = sprintf(__('Default: %d. 0 means titles are ignored, 1 means no boost, more than 1 gives extra value.', 'relevanssi'), $title_boost_default);
+	$tag_boost_txt = __('Tag boost:', 'relevanssi');
+	$tag_boost_desc = sprintf(__('Default: %d. 0 means tags are ignored, 1 means no boost, more than 1 gives extra value.', 'relevanssi'), $tag_boost_default);
+	$comment_boost_txt = __('Comment boost:', 'relevanssi');
+	$comment_boost_desc = sprintf(__('Default: %d. 0 means comments are ignored, 1 means no boost, more than 1 gives extra value.', 'relevanssi'), $comment_boost_default);
 	$admin_search_txt = __('Use search for admin:', 'relevanssi');
 	$admin_search_desc = __('If checked, Relevanssi will be used for searches in the admin interface', 'relevanssi');
 	$cat_txt = __('Restrict search to these categories and tags:', 'relevanssi');
 	$cat_desc = __("Enter a comma-separated list of category and tag IDs to restrict search to those categories or tags. You can also use <code>&lt;input type='hidden' name='cat' value='list of cats and tags' /&gt;</code> in your search form. The input field will overrun this setting.", 'relevanssi');
 	$excat_txt = __('Exclude these categories and tags from search:', 'relevanssi');
 	$excat_desc = __("Enter a comma-separated list of category and tag IDs that are excluded from search results. This only works here, you can't use the input field option (WordPress doesn't pass custom parameters there).", 'relevanssi');
+
+	//Added by OdditY ->
 	$expst_txt = __('Exclude these posts/pages from search:', 'relevanssi');
 	$expst_desc = __("Enter a comma-separated list of post/page IDs that are excluded from search results. This only works here, you can't use the input field option (WordPress doesn't pass custom parameters there).", 'relevanssi');
+	$inctags_txt = __('Index and search your posts\' tags:', 'relevanssi');
+	$inctags_desc = __("If checked, Relevanssi will also index and search the tags of your posts. Remember to rebuild the index if you change this option!", 'relevanssi');
+	$incom_type_txt = __("Index and search these comments:", "relevanssi");
+	$incom_type_desc = __("Relevanssi will index and search ALL (all comments including track- &amp; pingbacks and custom comment types), NONE (no comments) or NORMAL (manually posted comments on your blog).<br />Remember to rebuild the index if you change this option!", 'relevanssi');
+	$incom_all_txt = __("all", "relevanssi");
+	$incom_normal_txt = __("normal", "relevanssi");
+	$incom_none_txt = __("none", "relevanssi");
+	//added by OdditY END <-
+	
 	$excerpt_txt = __("Create custom search result snippets:", "relevanssi");
 	$excerpt_desc = __("If checked, Relevanssi will create excerpts that contain the search term hits. To make them work, make sure your search result template uses the_excerpt() to display post excerpts.", 'relevanssi');
 	$excerpt_length_txt = __("Length of the snippet:", "relevanssi");
-	$excerpt_length_desc = __("This must be an integer", "relevanssi");
+	$excerpt_length_desc = __("This must be an integer.", "relevanssi");
+	$words = __("words", "relevanssi");
+	$chars = __("characters", "relevanssi");
 	$log_queries_txt = __("Keep a log of user queries:", "relevanssi");
 	$log_queries_desc = __("If checked, Relevanssi will log user queries.", 'relevanssi');
 	$highlight_txt = __("Highlight query terms in search results:", 'relevanssi');
 	$highlight_comment = __("Highlighting isn't available unless you use custom snippets", 'relevanssi');
+	$hititle_txt = __("Highlight query terms in result titles too:", 'relevanssi');
+	$hititle_desc = __("", 'relevanssi');	
 	
 	$submit_value = __('Save', 'relevanssi');
-	$building_the_index = __('Building the index', 'relevanssi');
+	$building_the_index = __('Building the index and indexing options', 'relevanssi');
 	$index_p1 = __("After installing the plugin, you need to build the index. This generally needs to be done once, you don't have to re-index unless something goes wrong. Indexing is a heavy task and might take more time than your servers allow. If the indexing cannot be finished - for example you get a blank screen or something like that after indexing - you can continue indexing from where you left by clicking 'Continue indexing'. Clicking 'Build the index' will delete the old index, so you can't use that.", 'relevanssi');
 	$index_p2 = __("So, if you build the index and don't get the 'Indexing complete' in the end, keep on clicking the 'Continue indexing' button until you do. On my blogs, I was able to index ~400 pages on one go, but had to continue indexing twice to index ~950 pages.", 'relevanssi');
-	$build_index = __("Build the index", 'relevanssi');
+	$build_index = __("Save indexing options and build the index", 'relevanssi');
 	$continue_index = __("Continue indexing", 'relevanssi');
 	$no_highlight_txt = __("No highlighting", 'relevanssi');
 	$txt_col_txt = __("Text color", 'relevanssi');
@@ -1277,6 +1556,17 @@ function relevanssi_options_form() {
 	$index_fields_txt = __("Custom fields to index:", "relevanssi");
 	$index_fields_desc = __("A comma-separated list of custom field names to include in the index.", "relevanssi");
 
+	$show_matches_txt = __("Show breakdown of search hits in excerpts:", "relevanssi");
+	$show_matches_desc = __("Check this to show more information on where the search hits were made. Requires custom snippets to work.", "relevanssi");
+	$show_matches_text_txt = __("The breakdown format:", "relevanssi");
+	$show_matches_text_desc = __("Use %body%, %title%, %tags%, %comments% and %score% to display the number of hits and the document weight.", "relevanssi");
+	
+	$fuzzy_txt = __("When to use fuzzy matching?", "relevanssi");
+	$fuzzy_sometimes_txt = __("When straight search gets no hits", "relevanssi");
+	$fuzzy_always_txt = __("Always", "relevanssi");
+	$fuzzy_never_txt = __("Don't use fuzzy search", "relevanssi");
+	$fuzzy_desc = __("Straight search matches just the term. Fuzzy search matches everything that begins or ends with the search term.", "relevanssi");
+	
 	echo <<<EOHTML
 	<br />
 	<form method="post">
@@ -1284,9 +1574,27 @@ function relevanssi_options_form() {
 	<input type="text" name="relevanssi_title_boost" size="4" value="$title_boost" /></label>
 	<small>$title_boost_desc</small>
 	<br />
+	<label for="relevanssi_tag_boost">$tag_boost_txt 
+	<input type="text" name="relevanssi_tag_boost" size="4" value="$tag_boost" /></label>
+	<small>$tag_boost_desc</small>
+	<br />
+	<label for="relevanssi_comment_boost">$comment_boost_txt 
+	<input type="text" name="relevanssi_comment_boost" size="4" value="$comment_boost" /></label>
+	<small>$comment_boost_desc</small>
+	<br /><br />
 	<label for="relevanssi_admin_search">$admin_search_txt
-	<input type="checkbox" name="relevanssi_admin_search" $admin_search" /></label>
+	<input type="checkbox" name="relevanssi_admin_search" $admin_search /></label>
 	<small>$admin_search_desc</small>
+
+	<br /><br />
+
+	<label for="relevanssi_fuzzy">$fuzzy_txt
+	<select name="relevanssi_fuzzy">
+	<option value="sometimes" $fuzzy_sometimes">$fuzzy_sometimes_txt</option>
+	<option value="always" $fuzzy_always">$fuzzy_always_txt</option>
+	<option value="never" $fuzzy_never">$fuzzy_never_txt</option>
+	</select><br />
+	<small>$fuzzy_desc</small>
 
 	<br /><br />
 
@@ -1309,7 +1617,7 @@ function relevanssi_options_form() {
 	<br /><br />
 
 	<label for="relevanssi_log_queries">$log_queries_txt
-	<input type="checkbox" name="relevanssi_log_queries" $log_queries" /></label>
+	<input type="checkbox" name="relevanssi_log_queries" $log_queries /></label>
 	<small>$log_queries_desc</small>
 
 	<br /><br />
@@ -1323,11 +1631,23 @@ function relevanssi_options_form() {
 	<label for="relevanssi_excerpt_length">$excerpt_length_txt
 	<input type="text" name="relevanssi_excerpt_length" size="4" value="$excerpt_length" /></label>
 	<select name="relevanssi_excerpt_type">
-	<option value="chars" $excerpt_chars">characters</option>
-	<option value="words" $excerpt_words">words</option>
+	<option value="chars" $excerpt_chars">$chars</option>
+	<option value="words" $excerpt_words">$words</option>
 	</select><br />
 	<small>$excerpt_length_desc</small>
-	
+
+	<br />
+
+	<label for="relevanssi_show_matches">$show_matches_txt
+	<input type="checkbox" name="relevanssi_show_matches" $show_matches /></label>
+	<small>$show_matches_desc</small>
+
+	<br />
+
+	<label for="relevanssi_show_matches_text">$show_matches_text_txt
+	<input type="text" name="relevanssi_show_matches_text" value="$show_matches_text" size="20" /></label>
+	<small>$show_matches_text_desc</small>
+
 	<br /><br />
 
 	<label for="relevanssi_highlight">$highlight_txt
@@ -1342,6 +1662,12 @@ function relevanssi_options_form() {
 	</select></label>
 	<small>$highlight_comment</small>
 	
+	<br />
+
+	<label for="relevanssi_hilite_title">$hititle_txt
+	<input type="checkbox" name="relevanssi_hilite_title" $hititle /></label>
+	<small>$hititle_desc</small>
+
 	<br />
 	
 	<label for="relevanssi_txt_col">$txt_col_choice_txt
@@ -1384,6 +1710,22 @@ function relevanssi_options_form() {
 	<option value="pages" $index_type_pages>$index_pages_txt</option>
 	</select></label>
 	<small>$index_type_comment</small>
+
+	<br /><br />
+
+	<label for="relevanssi_inctags">$inctags_txt
+	<input type="checkbox" name="relevanssi_inctags" $inctags /></label><br />
+	<small>$inctags_desc</small>
+
+	<br />
+	
+	<label for="relevanssi_index_comments">$incom_type_txt
+	<select name="relevanssi_index_comments">
+	<option value="none" $incom_type_none>$incom_none_txt</option>
+	<option value="normal" $incom_type_normal>$incom_normal_txt</option>
+	<option value="all" $incom_type_all>$incom_all_txt</option>
+	</select></label><br />
+	<small>$incom_type_desc</small>
 
 	<br /><br />
 

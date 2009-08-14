@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.5
-Tested up to: 2.8.2
-Stable tag: 1.4.4
+Tested up to: 2.8.4
+Stable tag: 1.5
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -94,7 +94,19 @@ removing those words helps to make the index smaller and searching faster.
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 
+== Thanks ==
+* Cristian Damm for tag indexing, comment indexing, post/page exclusion and general helpfulness.
+* Marcus Dalgren for UTF-8 fixing.
+
 == Changelog ==
+
+= 1.5 =
+* Comments can now be indexed and searched (thanks to Cristian Damm).
+* Tags can also be indexed (thanks to Cristian Damm).
+* Search term hits in the titles can be highlighted in search results (thanks to Cristian Damm).
+* When using custom excerpts, it's possible to add extra information on where the hits were made.
+* Fuzzy matching is now user-adjustable.
+* UTF-8 support is now better (thanks to Marcus Dalgren).
 
 = 1.4.4 =
 * Added an option to exclude posts or pages from search results. This feature was requested and provided by Cristian Damm.
