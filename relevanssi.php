@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.5
+Version: 1.5.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -40,6 +40,7 @@ add_action('future_publish_post', 'relevanssi_publish');
 add_action('comment_post', 'relevanssi_comment_index'); 	//added by OdditY
 add_action('edit_comment', 'relevanssi_comment_edit'); 		//added by OdditY 
 add_action('delete_comment', 'relevanssi_comment_remove'); 	//added by OdditY
+add_action('init', 'relevanssi_init');
 
 $plugin_dir = basename(dirname(__FILE__));
 load_plugin_textdomain( 'relevanssi', 'wp-content/plugins/' . $plugin_dir, $plugin_dir);
@@ -87,6 +88,7 @@ function unset_relevanssi_options() {
 	delete_option('relevanssi_show_matches');
 	delete_option('relevanssi_show_matches_text');
 	delete_option('relevanssi_fuzzy');
+	delete_option('relevanssi_indexed');
 }
 
 function relevanssi_menu() {
@@ -98,7 +100,19 @@ function relevanssi_menu() {
 		'relevanssi_options'
 	);
 }
-	
+
+function relevanssi_init() {
+	if (!get_option('relevanssi_indexed') && !$_POST['index']) {
+		function relevanssi_warning() {
+			echo "<div id='relevanssi-warning' class='updated fade'><p><strong>"
+			   . sprintf(__('Relevanssi needs attention: Remember to build the index (you can do it at <a href="%1$s">the settings page</a>), otherwise searching won\'t work.'), "options-general.php?page=relevanssi/relevanssi.php")
+			   . "</strong>"."</p></div>";
+		}
+		add_action('admin_notices', 'relevanssi_warning');
+		return;
+	}
+}
+
 function relevanssi_edit($post) {
 	relevanssi_add($post);
 }
@@ -143,6 +157,7 @@ function relevanssi_install() {
 	add_option('relevanssi_show_matches', '');
 	add_option('relevanssi_show_matches_txt', '(Search hits: %body% in body, %title% in title, %tags% in tags, %comments% in comments. Score: %score%)');
 	add_option('relevanssi_fuzzy', 'sometimes');
+	add_option('relevanssi_indexed', '');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -722,12 +737,10 @@ function relevanssi_do_excerpt($post, $query) {
 	$excerpt = "";
 	
 	if ("chars" == $type) {
-		$post_length = strlen($content);
-			
 		$start = false;
 		foreach (array_keys($terms) as $term) {
 			if (function_exists('mb_stripos')) {
-				$pos = mb_stripos($content, $term);
+				$pos = ("" == $content) ? false : mb_stripos($content, $term);
 			}
 			else {
 				$pos = mb_strpos($content, $term);
@@ -773,7 +786,8 @@ function relevanssi_do_excerpt($post, $query) {
 
 			foreach (array_keys($terms) as $term) {
 				if (function_exists('mb_stripos')) {
-					$pos = mb_stripos($excerpt_slice, $term);
+					$pos = ("" == $excerpt_slice) ? false : mb_stripos($excerpt_slice, $term);
+					// To avoid "empty haystack" warnings
 				}
 				else {
 					$pos = mb_strpos($excerpt_slice, $term);
@@ -975,6 +989,7 @@ function relevanssi_build_index($extend = false) {
 		$wpdb->query("TRUNCATE TABLE $relevanssi_table");
 		$q = "SELECT ID, post_content, post_title
 		FROM $wpdb->posts WHERE post_status='publish'" . $restriction;
+		update_option('relevanssi_index', '');
 	}
 	else {
 		// extending, so no truncate and skip the posts already in the index
@@ -992,6 +1007,7 @@ function relevanssi_build_index($extend = false) {
 	}
 	
 	echo '<div id="message" class="update fade"><p>' . __("Indexing complete!", "relevanssi") . '</p></div>';
+	update_option('relevanssi_indexed', 'done');
 }
 
 function relevanssi_remove_doc($id) {
@@ -1500,7 +1516,8 @@ function relevanssi_options_form() {
 	$cat_desc = __("Enter a comma-separated list of category and tag IDs to restrict search to those categories or tags. You can also use <code>&lt;input type='hidden' name='cat' value='list of cats and tags' /&gt;</code> in your search form. The input field will overrun this setting.", 'relevanssi');
 	$excat_txt = __('Exclude these categories and tags from search:', 'relevanssi');
 	$excat_desc = __("Enter a comma-separated list of category and tag IDs that are excluded from search results. This only works here, you can't use the input field option (WordPress doesn't pass custom parameters there).", 'relevanssi');
-
+	$exclusions = __("Exclusions and restrictions", "relevanssi");
+	
 	//Added by OdditY ->
 	$expst_txt = __('Exclude these posts/pages from search:', 'relevanssi');
 	$expst_desc = __("Enter a comma-separated list of post/page IDs that are excluded from search results. This only works here, you can't use the input field option (WordPress doesn't pass custom parameters there).", 'relevanssi');
@@ -1513,6 +1530,7 @@ function relevanssi_options_form() {
 	$incom_none_txt = __("none", "relevanssi");
 	//added by OdditY END <-
 	
+	$excerpts_title = __("Custom excerpts/snippets", "relevanssi");
 	$excerpt_txt = __("Create custom search result snippets:", "relevanssi");
 	$excerpt_desc = __("If checked, Relevanssi will create excerpts that contain the search term hits. To make them work, make sure your search result template uses the_excerpt() to display post excerpts.", 'relevanssi');
 	$excerpt_length_txt = __("Length of the snippet:", "relevanssi");
@@ -1521,12 +1539,15 @@ function relevanssi_options_form() {
 	$chars = __("characters", "relevanssi");
 	$log_queries_txt = __("Keep a log of user queries:", "relevanssi");
 	$log_queries_desc = __("If checked, Relevanssi will log user queries.", 'relevanssi');
+	$highlighting = __("Search hit highlighting", "relevanssi");
+	$highlight_instr_1 = __("First, choose the type of highlighting used:", "relevanssi");
+	$highlight_instr_2 = __("Then adjust the settings for your chosen type:", "relevanssi");
 	$highlight_txt = __("Highlight query terms in search results:", 'relevanssi');
 	$highlight_comment = __("Highlighting isn't available unless you use custom snippets", 'relevanssi');
 	$hititle_txt = __("Highlight query terms in result titles too:", 'relevanssi');
 	$hititle_desc = __("", 'relevanssi');	
 	
-	$submit_value = __('Save', 'relevanssi');
+	$submit_value = __('Save the options', 'relevanssi');
 	$building_the_index = __('Building the index and indexing options', 'relevanssi');
 	$index_p1 = __("After installing the plugin, you need to build the index. This generally needs to be done once, you don't have to re-index unless something goes wrong. Indexing is a heavy task and might take more time than your servers allow. If the indexing cannot be finished - for example you get a blank screen or something like that after indexing - you can continue indexing from where you left by clicking 'Continue indexing'. Clicking 'Build the index' will delete the old index, so you can't use that.", 'relevanssi');
 	$index_p2 = __("So, if you build the index and don't get the 'Indexing complete' in the end, keep on clicking the 'Continue indexing' button until you do. On my blogs, I was able to index ~400 pages on one go, but had to continue indexing twice to index ~950 pages.", 'relevanssi');
@@ -1598,6 +1619,12 @@ function relevanssi_options_form() {
 
 	<br /><br />
 
+	<label for="relevanssi_log_queries">$log_queries_txt
+	<input type="checkbox" name="relevanssi_log_queries" $log_queries /></label>
+	<small>$log_queries_desc</small>
+
+	<h3>$exclusions</h3>
+	
 	<label for="relevanssi_cat">$cat_txt
 	<input type="text" name="relevanssi_cat" size="20" value="$cat" /></label><br />
 	<small>$cat_desc</small>
@@ -1614,14 +1641,8 @@ function relevanssi_options_form() {
 	<input type="text" name="relevanssi_expst" size="20" value="$expst" /></label><br />
 	<small>$expst_desc</small>
 
-	<br /><br />
-
-	<label for="relevanssi_log_queries">$log_queries_txt
-	<input type="checkbox" name="relevanssi_log_queries" $log_queries /></label>
-	<small>$log_queries_desc</small>
-
-	<br /><br />
-
+	<h3>$excerpts_title</h3>
+	
 	<label for="relevanssi_excerpts">$excerpt_txt
 	<input type="checkbox" name="relevanssi_excerpts" $excerpts /></label><br />
 	<small>$excerpt_desc</small>
@@ -1648,8 +1669,11 @@ function relevanssi_options_form() {
 	<input type="text" name="relevanssi_show_matches_text" value="$show_matches_text" size="20" /></label>
 	<small>$show_matches_text_desc</small>
 
-	<br /><br />
+	<h3>$highlighting</h3>
 
+	$highlight_instr_1<br />
+
+	<div style="margin-left: 2em">
 	<label for="relevanssi_highlight">$highlight_txt
 	<select name="relevanssi_highlight">
 	<option value="no" $highlight_none>$no_highlight_txt</option>
@@ -1668,7 +1692,12 @@ function relevanssi_options_form() {
 	<input type="checkbox" name="relevanssi_hilite_title" $hititle /></label>
 	<small>$hititle_desc</small>
 
-	<br />
+	<br /><br />
+	</div>
+	
+	$highlight_instr_2<br />
+
+	<div style="margin-left: 2em">
 	
 	<label for="relevanssi_txt_col">$txt_col_choice_txt
 	<input type="text" name="relevanssi_txt_col" size="7" value="$txt_col" /></label>
@@ -1691,6 +1720,8 @@ function relevanssi_options_form() {
 	<label for="relevanssi_css">$class_choice_txt
 	<input type="text" name="relevanssi_class" size="10" value="$class" /></label>
 	<small>$class_choice_desc</small>
+
+	</div>
 	
 	<br />
 	<br />
