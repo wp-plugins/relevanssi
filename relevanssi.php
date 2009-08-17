@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.5.1
+Version: 1.5.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -379,7 +379,7 @@ function relevanssi_show_matches($data, $hit) {
 	
 	$text = get_option('relevanssi_show_matches_text');
 	$replace_these = array("%body%", "%title%", "%tags%", "%comments%", "%score%");
-	$replacements = array($body, $title, $tags, $comments, $score);
+	$replacements = array($body, $title, $tag, $comment, $score);
 	
 	$result = " " . str_replace($replace_these, $replacements, $text);
 	
