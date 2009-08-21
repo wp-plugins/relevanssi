@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.5.2
+Version: 1.5.3
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -27,7 +27,6 @@ Author URI: http://www.mikkosaari.fi/
 */
 
 register_activation_hook(__FILE__,'relevanssi_install');
-register_deactivation_hook(__FILE__,'unset_relevanssi_options');
 add_action('admin_menu', 'relevanssi_menu');
 add_filter('posts_where', 'relevanssi_kill');
 add_filter('the_posts', 'relevanssi_query');
@@ -63,33 +62,6 @@ $log_table = $wpdb->prefix . "relevanssi_log";
 $title_boost_default = 5;
 $tag_boost_default = 0.75;
 $comment_boost_default = 0.75;
-
-function unset_relevanssi_options() {
-	delete_option('relevanssi_title_boost');
-	delete_option('relevanssi_tag_boost');
-	delete_option('relevanssi_comment_boost');
-	delete_option('relevanssi_admin_search');
-	delete_option('relevanssi_highlight');
-	delete_option('relevanssi_txt_col');
-	delete_option('relevanssi_bg_col');
-	delete_option('relevanssi_css');
-	delete_option('relevanssi_excerpts');
-	delete_option('relevanssi_excerpt_length');
-	delete_option('relevanssi_excerpt_type');
-	delete_option('relevanssi_log_queries');
-	delete_option('relevanssi_excat');
-	delete_option('relevanssi_cat');
-	delete_option('relevanssi_index_type');
-	delete_option('revelanssi_index_fields');
-	delete_option('relevanssi_exclude_posts'); 	//added by OdditY
-	delete_option('relevanssi_include_tags'); 	//added by OdditY	
-	delete_option('relevanssi_hilite_title'); 	//added by OdditY 
-	delete_option('relevanssi_index_comments');	//added by OdditY
-	delete_option('relevanssi_show_matches');
-	delete_option('relevanssi_show_matches_text');
-	delete_option('relevanssi_fuzzy');
-	delete_option('relevanssi_indexed');
-}
 
 function relevanssi_menu() {
 	add_options_page(
@@ -206,6 +178,54 @@ function relevanssi_install() {
 	}
 }
 
+if (function_exists('register_uninstall_hook')) {
+	register_uninstall_hook(__FILE__, 'relevanssi_uninstall');
+	// this doesn't seem to work
+}
+
+function relevanssi_uninstall() {
+	global $wpdb, $relevanssi_table, $log_table, $stopword_table;
+
+	delete_option('relevanssi_title_boost');
+	delete_option('relevanssi_tag_boost');
+	delete_option('relevanssi_comment_boost');
+	delete_option('relevanssi_admin_search');
+	delete_option('relevanssi_highlight');
+	delete_option('relevanssi_txt_col');
+	delete_option('relevanssi_bg_col');
+	delete_option('relevanssi_css');
+	delete_option('relevanssi_excerpts');
+	delete_option('relevanssi_excerpt_length');
+	delete_option('relevanssi_excerpt_type');
+	delete_option('relevanssi_log_queries');
+	delete_option('relevanssi_excat');
+	delete_option('relevanssi_cat');
+	delete_option('relevanssi_index_type');
+	delete_option('revelanssi_index_fields');
+	delete_option('relevanssi_exclude_posts'); 	//added by OdditY
+	delete_option('relevanssi_include_tags'); 	//added by OdditY	
+	delete_option('relevanssi_hilite_title'); 	//added by OdditY 
+	delete_option('relevanssi_index_comments');	//added by OdditY
+	delete_option('relevanssi_show_matches');
+	delete_option('relevanssi_show_matches_text');
+	delete_option('relevanssi_fuzzy');
+	delete_option('relevanssi_indexed');
+	
+	$sql = "DROP TABLE $stopword_table";
+	$wpdb->query($sql);
+
+	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_table'") == $relevanssi_table) {
+		$sql = "DROP TABLE $relevanssi_table";
+		$wpdb->query($sql);
+	}
+
+	if($wpdb->get_var("SHOW TABLES LIKE '$log_table'") == $log_table) {
+		$sql = "DROP TABLE $log_table";
+		$wpdb->query($sql);
+	}
+	
+	echo '<div id="message" class="update fade"><p>' . __("Data wiped clean, you can now delete the plugin.", "relevanssi") . '</p></div>';
+}
 
 //Added by OdditY -> 
 function relevanssi_comment_edit($comID) {
@@ -1220,6 +1240,10 @@ function relevanssi_options() {
 		relevanssi_search($_REQUEST['q']);
 	}
 	
+	if ($_REQUEST['uninstall']) {
+		relevanssi_uninstall();
+	}
+	
 	if ("add_stopword" == $_REQUEST['dowhat']) {
 		relevanssi_add_stopword($_REQUEST['term']);
 	}
@@ -1588,6 +1612,10 @@ function relevanssi_options_form() {
 	$fuzzy_never_txt = __("Don't use fuzzy search", "relevanssi");
 	$fuzzy_desc = __("Straight search matches just the term. Fuzzy search matches everything that begins or ends with the search term.", "relevanssi");
 	
+	$uninstall_title = __("Uninstall", "relevanssi");
+	$uninstall_txt = __("If you want to uninstall the plugin, start by clicking the button below to wipe clean the options and tables created by the plugin, then remove it from the plugins list.", "relevanssi");	
+	$uninstall_button = __("Remove plugin data", "relevanssi");
+
 	echo <<<EOHTML
 	<br />
 	<form method="post">
@@ -1769,6 +1797,12 @@ function relevanssi_options_form() {
 	<input type="submit" name="index" value="$build_index" />
 
 	<input type="submit" name="index_extend" value="$continue_index" />
+
+	<h3>$uninstall_title</h3>
+	
+	<p>$uninstall_txt</p>
+	
+	<input type="submit" name="uninstall" value="$uninstall_button" />
 
 	</form>
 EOHTML;

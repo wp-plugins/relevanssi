@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.5
 Tested up to: 2.8.4
-Stable tag: 1.5.2
+Stable tag: 1.5.3
 
 Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
 
@@ -66,7 +66,9 @@ To avoid trouble, use the function like this:
 
 `<?php if (function_exists('relevanssi_the_excerpt')) { relevanssi_the_excerpt(); }; ?>`
 
-Translations: [French](http://www.li-an.fr/blog/plugins-wordpress-mes-traductions-en-francais/)
+To uninstall the plugin, first click the "Remove plugin data" button on the plugin settins page
+to remove options and database tables, then remove the plugin using the normal WordPress
+plugin management tools.
 
 == Frequently Asked Questions ==
 
@@ -100,6 +102,9 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 1.5.3 =
+* Added a way to uninstall the plugin.
+* A French translation is now included (thanks to Jean-Michel Meyer).
 
 = 1.5.2 =
 * Fixed a small typo in the code, tag and comment hit count didn't work in the breakdown. If you don't use the breakdown feature, updating is not necessary.
