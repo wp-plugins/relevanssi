@@ -4,9 +4,9 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance
 Requires at least: 2.5
 Tested up to: 2.8.4
-Stable tag: 1.5.3
+Stable tag: 1.6
 
-Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results based on relevance.
+Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
 == Description ==
 
@@ -36,12 +36,16 @@ search form and list the desired category or tag IDs in the `value` field. You c
 description from general plugin settings (and then override it in individual search forms with
 the special field).
 
+In addition of post and page content, Relevanssi can index comments and pingbacks. It can
+also expand shortcodes in post content before indexing, so that everything the user sees on
+the entry page will be included in the index.
+
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
 Katzgrau.
 
-I know the plugin works with WP 2.5, but it loses some non-essential functionality (mostly
-because `strip_shortcodes()` isn't supported. Compatibility with older versions of WP hasn't
-been tested.
+I know the plugin works with WP 2.5, but it loses some non-essential functionality. The
+shortcode stuff doesn't work with WP 2.5, which doesn't support shortcodes. Compatibility
+with older versions of WP hasn't been tested.
 
 == Installation ==
 
@@ -101,6 +105,10 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 1.6 =
+* Relevanssi is now able to expand shortcodes before indexing to include shortcode content to the index.
+* Fixed a bug related to indexing, where tag stripping didn't work quite as expected.
 
 = 1.5.3 =
 * Added a way to uninstall the plugin.

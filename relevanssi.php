@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.5.3
+Version: 1.6
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -130,6 +130,7 @@ function relevanssi_install() {
 	add_option('relevanssi_show_matches_txt', '(Search hits: %body% in body, %title% in title, %tags% in tags, %comments% in comments. Score: %score%)');
 	add_option('relevanssi_fuzzy', 'sometimes');
 	add_option('relevanssi_indexed', '');
+	add_option('relevanssi_expand_shortcodes', 'on');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -210,6 +211,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_show_matches_text');
 	delete_option('relevanssi_fuzzy');
 	delete_option('relevanssi_indexed');
+	delete_option('relevanssi_expand_shortcodes');
 	
 	$sql = "DROP TABLE $stopword_table";
 	$wpdb->query($sql);
@@ -433,8 +435,18 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 	global $relevanssi_table, $wpdb;
 
 	$hits = array();
-	
-	if ($cat) {
+
+	if ("custom" == $cat) {
+		$custom_field = "custom";
+		$post_ids = array();
+		$results = $wpdb->get_results("SELECT post_id FROM $wpdb->postmeta WHERE meta_key='$custom_field'");
+		foreach ($results as $row) {
+			$post_ids[] = $row->post_id;
+		}
+		$custom_cat = implode(",", $post_ids);
+		$cat = "";
+	}
+	else if ($cat) {
 		$cats = explode(",", $cat);
 		$term_tax_ids = array();
 		foreach ($cats as $t_cat) {
@@ -527,7 +539,11 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 		if ($phrases) {
 			$query .= " AND doc IN ($phrases)";
 		}
-		
+
+		if ($custom_cat) {
+			$query .= " AND doc IN ($custom_cat)";
+		}
+
 		$matches = $wpdb->get_results($query);
 		if (count($matches) < 1 && "sometimes" == $fuzzy) {
 			$query = "SELECT doc, term, tf, title FROM $relevanssi_table
@@ -549,6 +565,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 
 			if ($phrases) {
 				$query .= " AND doc IN ($phrases)";
+			}
+
+			if ($custom_cat) {
+				$query .= " AND doc IN ($custom_cat)";
 			}
 			
 			$matches = $wpdb->get_results($query);
@@ -577,6 +597,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 			$query .= " AND doc IN ($phrases)";
 		}
 
+		if ($custom_cat) {
+			$query .= " AND doc IN ($custom_cat)";
+		}
+
 
 		$df = $wpdb->get_var($query);
 
@@ -599,6 +623,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 			
 			if ($phrases) {
 				$query .= " AND doc IN ($phrases)";
+			}
+
+			if ($custom_cat) {
+				$query .= " AND doc IN ($custom_cat)";
 			}
 			
 			$df = $wpdb->get_var($query);
@@ -748,10 +776,18 @@ function relevanssi_do_excerpt($post, $query) {
 
 	$content = apply_filters('the_content', $post->post_content);
 	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
-	$content = strip_tags($content); // this removes the tags, but leaves the content
-	if (function_exists("strip_shortcodes")) {
-		$content = strip_shortcodes($content);
+	if ('on' == get_option('relevanssi_expand_shortcodes')) {
+		if (function_exists("do_shortcodes")) {
+			$content = do_shortcodes($content);
+		}
 	}
+	else {
+		if (function_exists("strip_shortcodes")) {
+			$content = strip_shortcodes($content);
+		}
+	}
+	$content = strip_tags($content); // this removes the tags, but leaves the content
+	
 	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
 	
 	$excerpt = "";
@@ -1110,13 +1146,21 @@ function relevanssi_index_doc($post, $remove_first = false, $custom_fields = fal
 	}
 	
 	$contents = relevanssi_strip_invisibles($post->post_content);
-	$contents = strip_tags($contents);
-	if (function_exists("strip_shortcodes")) {
-		// WP 2.5 doesn't have the function
-		$contents = strip_shortcodes($contents);
+	
+	if ('on' == get_option('relevanssi_expand_shortcodes')) {
+		if (function_exists("do_shortcode")) {
+			$contents = do_shortcode($contents);
+		}
+	}
+	else {
+		if (function_exists("strip_shortcodes")) {
+			// WP 2.5 doesn't have the function
+			$contents = strip_shortcodes($contents);
+		}
 	}
 	
-	$contents = relevanssi_tokenize($post->post_content);
+	$contents = strip_tags($contents);
+	$contents = relevanssi_tokenize($contents);
 	
 	if (count($titles) > 0) {
 		foreach ($titles as $title => $count) {
@@ -1229,6 +1273,7 @@ function relevanssi_options() {
 		update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
 		update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']);
 		update_option('relevanssi_inctags', $_REQUEST['relevanssi_inctags']);
+		update_option('relevanssi_expand_shortcodes', $_REQUEST['relevanssi_expand_shortcodes']);
 		relevanssi_build_index();
 	}
 
@@ -1289,6 +1334,10 @@ function update_relevanssi_options() {
 		$_REQUEST['relevanssi_log_queries'] = "off";
 	}
 
+	if (!$_REQUEST['relevanssi_expand_shortcodes']) {
+		$_REQUEST['relevanssi_expand_shortcodes'] = "off";
+	}
+
 	if ($_REQUEST['relevanssi_excerpt_length']) {
 		$value = intval($_REQUEST['relevanssi_excerpt_length']);
 		if ($value != 0) {
@@ -1318,6 +1367,7 @@ function update_relevanssi_options() {
 	update_option('relevanssi_show_matches', $_REQUEST['relevanssi_show_matches']);
 	update_option('relevanssi_show_matches_text', $_REQUEST['relevanssi_show_matches_text']);
 	update_option('relevanssi_fuzzy', $_REQUEST['relevanssi_fuzzy']);
+	update_option('relevanssi_expand_shortcodes', $_REQUEST['relevanssi_expand_shortcodes']);
 }
 
 function relevanssi_add_stopword($term) {
@@ -1504,6 +1554,9 @@ function relevanssi_options_form() {
 	$fuzzy_sometimes = ('sometimes' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
 	$fuzzy_always = ('always' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
 	$fuzzy_never = ('never' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
+
+	$expand_shortcodes = ('on' == get_option('relevanssi_expand_shortcodes') ? 'checked="checked"' : '');
+
 	
 	//Added by OdditY ->
 	$expst = get_option('relevanssi_exclude_posts'); 
@@ -1611,6 +1664,9 @@ function relevanssi_options_form() {
 	$fuzzy_always_txt = __("Always", "relevanssi");
 	$fuzzy_never_txt = __("Don't use fuzzy search", "relevanssi");
 	$fuzzy_desc = __("Straight search matches just the term. Fuzzy search matches everything that begins or ends with the search term.", "relevanssi");
+	
+	$expand_shortcodes_txt = __("Expand shortcodes in post content:", "relevanssi");
+	$expand_shortcodes_desc = __("If checked, Relevanssi will expand shortcodes in post content before indexing. Otherwise shortcodes will be stripped. If you use shortcodes to include dynamic content, Relevanssi will not keep the index updated, the index will reflect the status of the shortcode content at the moment of indexing.", "relevanssi");
 	
 	$uninstall_title = __("Uninstall", "relevanssi");
 	$uninstall_txt = __("If you want to uninstall the plugin, start by clicking the button below to wipe clean the options and tables created by the plugin, then remove it from the plugins list.", "relevanssi");	
@@ -1769,6 +1825,12 @@ function relevanssi_options_form() {
 	<option value="pages" $index_type_pages>$index_pages_txt</option>
 	</select></label>
 	<small>$index_type_comment</small>
+
+	<br /><br />
+
+	<label for="relevanssi_expand_shortcodes">$expand_shortcodes_txt
+	<input type="checkbox" name="relevanssi_expand_shortcodes" $expand_shortcodes /></label><br />
+	<small>$expand_shortcodes_desc</small>
 
 	<br /><br />
 
