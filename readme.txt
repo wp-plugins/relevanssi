@@ -1,10 +1,10 @@
 === Relevanssi ===
 Contributors: msaari
 Donate link: http://www.mikkosaari.fi/relevanssi/
-Tags: search, relevance
+Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 2.8.4
-Stable tag: 1.6
+Tested up to: 2.9.1
+Stable tag: 1.7
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -36,9 +36,9 @@ search form and list the desired category or tag IDs in the `value` field. You c
 description from general plugin settings (and then override it in individual search forms with
 the special field).
 
-In addition of post and page content, Relevanssi can index comments and pingbacks. It can
-also expand shortcodes in post content before indexing, so that everything the user sees on
-the entry page will be included in the index.
+In addition of post and page content (including tags and categories), Relevanssi can index
+comments and pingbacks. It can also expand shortcodes in post content before indexing, so
+that everything the user sees on the entry page will be included in the index.
 
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
 Katzgrau.
@@ -94,8 +94,7 @@ inverted document frequency is really low, so they never have much power in matc
 removing those words helps to make the index smaller and searching faster.
 
 == Known issues and To-do's ==
-* Known issue: Relevanssi doesn't play nice with widgets that display recent posts. Right now it makes them disappear. Help with this problem would be most welcome.
-* Known issue: In general, multiple Loops on the search page may cause surprising results, and please make sure the actual search results are the first loop.
+* Known issue: In general, multiple Loops on the search page may cause surprising results. Please make sure the actual search results are the first loop.
 * Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
@@ -105,6 +104,10 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 1.7 =
+* Major bug fix: Relevanssi doesn't kill other post loops on the search result page anymore. Please let me know if Relevanssi feels too slow after the update.
+* Post categories can now be indexed.
 
 = 1.6 =
 * Relevanssi is now able to expand shortcodes before indexing to include shortcode content to the index.
