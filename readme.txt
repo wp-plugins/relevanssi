@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 2.9.1
-Stable tag: 1.7
+Tested up to: 2.9.2
+Stable tag: 1.7.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -22,18 +22,17 @@ any results, Relevanssi will look for similar terms. Strict phrases using quotat
 The matching is based on basic tf * idf weighing, with some extra features added like a boost for
 words that appear in titles.
 
-In general the plugin doesn't affect the display of search results at all - that is left for the 
-search result template to decide. However, if the option is set, Relevanssi will create custom
-search result snippets that show the part of the document where the search hit was made. Relevanssi
-can also highlight the query terms in the search results.
+Relevanssi can create custom search result snippets that show the part of the document where the
+search hit was made. Relevanssi can also highlight the query terms in the search results.
 
 Relevanssi can keep a log of user queries and display both most popular queries and recent queries
-that got no hits. The logging is a new feature that will be refined later.
+that got no hits.
 
 Relevanssi supports the hidden input field `cat` to restrict searches to certain categories (or
 tags, since those are pretty much the same). Just add a hidden input field named `cat` in your
-search form and list the desired category or tag IDs in the `value` field. You can also set the
-description from general plugin settings (and then override it in individual search forms with
+search form and list the desired category or tag IDs in the `value` field - positive numbers
+include those categories and tags, negative numbers exclude them. You can also set the
+restriction from general plugin settings (and then override it in individual search forms with
 the special field).
 
 In addition of post and page content (including tags and categories), Relevanssi can index
@@ -42,10 +41,6 @@ that everything the user sees on the entry page will be included in the index.
 
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
 Katzgrau.
-
-I know the plugin works with WP 2.5, but it loses some non-essential functionality. The
-shortcode stuff doesn't work with WP 2.5, which doesn't support shortcodes. Compatibility
-with older versions of WP hasn't been tested.
 
 == Installation ==
 
@@ -96,6 +91,7 @@ removing those words helps to make the index smaller and searching faster.
 == Known issues and To-do's ==
 * Known issue: In general, multiple Loops on the search page may cause surprising results. Please make sure the actual search results are the first loop.
 * Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
+* Known issue: I know the plugin works with WP 2.5, but it loses some non-essential functionality. The shortcode stuff doesn't work with WP 2.5, which doesn't support shortcodes. Compatibility with older versions of WP hasn't been tested.
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 
@@ -104,6 +100,9 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 1.7.1 =
+* Small fix: the hidden variable cat now accepts negative category and tag ids. Negative categories and tags are excluded in search. Mixing inclusion and exclusion is possible.
 
 = 1.7 =
 * Major bug fix: Relevanssi doesn't kill other post loops on the search result page anymore. Please let me know if Relevanssi feels too slow after the update.
@@ -153,7 +152,7 @@ removing those words helps to make the index smaller and searching faster.
 = 1.4 =
 * Added an option to restrict searches to certain categories or tags, either by plugin option or hidden input field in the search form.
 * The contents of `<script>` and other such tags are now removed from excerpts.
-* When indexing, HTML tags and `[quicktags]` are removed.
+* When indexing, HTML tags and `[shortcodes]` are removed.
 * Digits are no longer removed from terms. Re-index database to get them indexed.
 * Wrapped the output of `relevanssi_the_excerpt()` in <p> tags.
 * Stopwords are no longer removed from search queries.

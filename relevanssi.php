@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.7
+Version: 1.7.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -449,17 +449,25 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 	}
 	else if ($cat) {
 		$cats = explode(",", $cat);
-		$term_tax_ids = array();
+		$inc_term_tax_ids = array();
+		$ex_term_tax_ids = array();
 		foreach ($cats as $t_cat) {
+			$exclude = false;
+			if ($t_cat < 0) {
+				// Negative category, ie. exclusion
+				$exclude = true;
+				$t_cat = substr($t_cat, 1); // strip the - sign.
+			}
 			$t_cat = $wpdb->escape($t_cat);
 			$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->term_taxonomy
 				WHERE term_id=$t_cat");
 			if ($term_tax_id) {
-				$term_tax_ids[] = $term_tax_id;
+				$exclude ? $ex_term_tax_ids[] = $term_tax_id : $inc_term_tax_ids[] = $term_tax_id;
 			}
 		}
 		
-		$cat = implode(",", $term_tax_ids);
+		$cat = implode(",", $inc_term_tax_ids);
+		$excat_temp = implode(",", $ex_term_tax_ids);
 	}
 
 	if ($excat) {
@@ -475,6 +483,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 		}
 		
 		$excat = implode(",", $term_tax_ids);
+	}
+
+	if ($excat_temp) {
+		$excat .= $excat_temp;
 	}
 
 	//Added by OdditY:
