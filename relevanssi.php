@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.6
+Version: 1.7.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -28,7 +28,6 @@ Author URI: http://www.mikkosaari.fi/
 
 register_activation_hook(__FILE__,'relevanssi_install');
 add_action('admin_menu', 'relevanssi_menu');
-add_filter('posts_where', 'relevanssi_kill');
 add_filter('the_posts', 'relevanssi_query');
 add_filter('post_limits', 'relevanssi_getLimit');
 //add_action('edit_post', 'relevanssi_edit'); // not necessary, publish_post does the job
@@ -126,6 +125,7 @@ function relevanssi_install() {
 	add_option('relevanssi_include_tags', 'on');		//added by OdditY	
 	add_option('relevanssi_hilite_title', ''); 			//added by OdditY	
 	add_option('relevanssi_index_comments', 'none');	//added by OdditY
+	add_option('relevanssi_include_cats', '');
 	add_option('relevanssi_show_matches', '');
 	add_option('relevanssi_show_matches_txt', '(Search hits: %body% in body, %title% in title, %tags% in tags, %comments% in comments. Score: %score%)');
 	add_option('relevanssi_fuzzy', 'sometimes');
@@ -207,6 +207,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_include_tags'); 	//added by OdditY	
 	delete_option('relevanssi_hilite_title'); 	//added by OdditY 
 	delete_option('relevanssi_index_comments');	//added by OdditY
+	delete_option('relevanssi_include_cats');
 	delete_option('relevanssi_show_matches');
 	delete_option('relevanssi_show_matches_text');
 	delete_option('relevanssi_fuzzy');
@@ -448,17 +449,25 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 	}
 	else if ($cat) {
 		$cats = explode(",", $cat);
-		$term_tax_ids = array();
+		$inc_term_tax_ids = array();
+		$ex_term_tax_ids = array();
 		foreach ($cats as $t_cat) {
+			$exclude = false;
+			if ($t_cat < 0) {
+				// Negative category, ie. exclusion
+				$exclude = true;
+				$t_cat = substr($t_cat, 1); // strip the - sign.
+			}
 			$t_cat = $wpdb->escape($t_cat);
 			$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->term_taxonomy
 				WHERE term_id=$t_cat");
 			if ($term_tax_id) {
-				$term_tax_ids[] = $term_tax_id;
+				$exclude ? $ex_term_tax_ids[] = $term_tax_id : $inc_term_tax_ids[] = $term_tax_id;
 			}
 		}
 		
-		$cat = implode(",", $term_tax_ids);
+		$cat = implode(",", $inc_term_tax_ids);
+		$excat_temp = implode(",", $ex_term_tax_ids);
 	}
 
 	if ($excat) {
@@ -474,6 +483,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 		}
 		
 		$excat = implode(",", $term_tax_ids);
+	}
+
+	if ($excat_temp) {
+		$excat .= $excat_temp;
 	}
 
 	//Added by OdditY:
@@ -1133,6 +1146,23 @@ function relevanssi_index_doc($post, $remove_first = false, $custom_fields = fal
 		}
 	} // Added by OdditY END <- 
 
+	// index categories
+	if ("on" == get_option("relevanssi_include_cats")) {
+		$post_categories = get_the_category($post->ID);
+		if (is_array($post_categories)) {
+			foreach ($post_categories as $p_cat) {
+				$cat_name = apply_filters("single_cat_title", $p_cat->cat_name);
+				$cat_tokens = relevanssi_tokenize($cat_name);
+				foreach ($cat_tokens as $pcat => $count) {
+					if (strlen($pcat) < 2) continue;
+					$n++;
+					$wpdb->query("INSERT INTO $relevanssi_table (doc, term, tf, title)
+					VALUES ($post->ID, '$pcat', $count, 4)");
+				}
+			}
+		}
+	}
+
 
 	if ($custom_fields) {
 		foreach ($custom_fields as $field) {
@@ -1246,15 +1276,6 @@ function relevanssi_remove_punct($a) {
         return $a;
 }
 
-// This function is from Kenny Katzgrau
-function relevanssi_kill($where) {
-	if (is_search() && !is_admin()) {	
-		$where = "AND (0 = 1)";
-	}
-	return $where;
-}
-
-
 /*****
  * Interface functions
  */
@@ -1273,6 +1294,7 @@ function relevanssi_options() {
 		update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
 		update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']);
 		update_option('relevanssi_inctags', $_REQUEST['relevanssi_inctags']);
+		update_option('relevanssi_inccats', $_REQUEST['relevanssi_inccats']);
 		update_option('relevanssi_expand_shortcodes', $_REQUEST['relevanssi_expand_shortcodes']);
 		relevanssi_build_index();
 	}
@@ -1363,6 +1385,7 @@ function update_relevanssi_options() {
 	update_option('relevanssi_include_tags', $_REQUEST['relevanssi_inctags']); 			//added by OdditY	
 	update_option('relevanssi_hilite_title', $_REQUEST['relevanssi_hilite_title']); 	//added by OdditY	
 	update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']); //added by OdditY	
+	update_option('relevanssi_include_cats', $_REQUEST['relevanssi_inccats']);
 
 	update_option('relevanssi_show_matches', $_REQUEST['relevanssi_show_matches']);
 	update_option('relevanssi_show_matches_text', $_REQUEST['relevanssi_show_matches_text']);
@@ -1578,6 +1601,8 @@ function relevanssi_options_form() {
 			break;
 	}//added by OdditY END <-
 	
+	$inccats = ('on' == get_option('relevanssi_include_cats') ? 'checked="checked"' : ''); 
+	
 	$show_matches = ('on' == get_option('relevanssi_show_matches') ? 'checked="checked"' : '');
 	$show_matches_text = get_option('relevanssi_show_matches_text');
 	
@@ -1606,6 +1631,9 @@ function relevanssi_options_form() {
 	$incom_normal_txt = __("normal", "relevanssi");
 	$incom_none_txt = __("none", "relevanssi");
 	//added by OdditY END <-
+
+	$inccats_txt = __('Index and search your posts\' categories:', 'relevanssi');
+	$inccats_desc = __("If checked, Relevanssi will also index and search the categories of your posts. Category titles will pass through 'single_cat_title' filter. Remember to rebuild the index if you change this option!", 'relevanssi');
 	
 	$excerpts_title = __("Custom excerpts/snippets", "relevanssi");
 	$excerpt_txt = __("Create custom search result snippets:", "relevanssi");
@@ -1674,6 +1702,39 @@ function relevanssi_options_form() {
 
 	echo <<<EOHTML
 	<br />
+	
+<div style="float: right; border: thin solid #111; padding: 10px; width: 200px">
+<h3>Support Relevanssi!</h3>
+<p>How valuable is the improved search for your WordPress site? Relevanssi is and will
+be free, but consider supporting the author if Relevanssi made your web site better.</p>
+
+<p>Relevanssi is written by <strong>Mikko Saari</strong>, a Finnish WordPress nerd, SEO grunt and board
+game geek. Any money received will be used for the good of Mikko, his wife and two
+hungry kids.</p>
+
+<div style="text-align:center">
+<form action="https://www.paypal.com/cgi-bin/webscr" method="post">
+<input type="hidden" name="cmd" value="_donations">
+<input type="hidden" name="business" value="msaari@iki.fi">
+<input type="hidden" name="lc" value="US">
+<input type="hidden" name="item_name" value="Relevanssi">
+<input type="hidden" name="currency_code" value="EUR">
+<input type="hidden" name="bn" value="PP-DonationsBF:btn_donateCC_LG.gif:NonHostedGuest">
+<input type="image" src="https://www.paypal.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="PayPal - The safer, easier way to pay online!">
+<img alt="" border="0" src="https://www.paypal.com/en_US/i/scr/pixel.gif" width="1" height="1">
+</form>
+</div>
+
+<p>If you don't like donating money, please consider blogging about Relevanssi with a link
+to the <a href="http://www.mikkosaari.fi/relevanssi/">plugin page</a>. Your users won't know
+you're using Relevanssi, all they see is better search results. Please let them know what
+makes the search better - you'll help them and you'll help me.</p>
+
+<p>Whatever you do, thanks for using Relevanssi!</p>
+
+<p>&mdash; Mikko</p>
+</div>
+	
 	<form method="post">
 	<label for="relevanssi_title_boost">$title_boost_txt 
 	<input type="text" name="relevanssi_title_boost" size="4" value="$title_boost" /></label>
@@ -1837,6 +1898,12 @@ function relevanssi_options_form() {
 	<label for="relevanssi_inctags">$inctags_txt
 	<input type="checkbox" name="relevanssi_inctags" $inctags /></label><br />
 	<small>$inctags_desc</small>
+
+	<br />
+
+	<label for="relevanssi_inccats">$inccats_txt
+	<input type="checkbox" name="relevanssi_inccats" $inccats /></label><br />
+	<small>$inccats_desc</small>
 
 	<br />
 	
