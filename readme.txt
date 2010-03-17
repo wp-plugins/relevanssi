@@ -101,6 +101,10 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 1.7.2 =
+* Small bug fix: public posts that are changed to private are now removed from index (password protected posts remain in index).
+* An Italian translation is now included (thanks to Alessandro Fiorotto).
+
 = 1.7.1 =
 * Small fix: the hidden variable cat now accepts negative category and tag ids. Negative categories and tags are excluded in search. Mixing inclusion and exclusion is possible.
 

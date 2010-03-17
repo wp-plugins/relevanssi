@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.7.1
+Version: 1.7.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -30,7 +30,8 @@ register_activation_hook(__FILE__,'relevanssi_install');
 add_action('admin_menu', 'relevanssi_menu');
 add_filter('the_posts', 'relevanssi_query');
 add_filter('post_limits', 'relevanssi_getLimit');
-//add_action('edit_post', 'relevanssi_edit'); // not necessary, publish_post does the job
+add_action('edit_post', 'relevanssi_edit');
+add_action('edit_page', 'relevanssi_edit');
 add_action('delete_post', 'relevanssi_delete');
 add_action('publish_post', 'relevanssi_publish');
 add_action('publish_page', 'relevanssi_publish');
@@ -85,7 +86,14 @@ function relevanssi_init() {
 }
 
 function relevanssi_edit($post) {
-	relevanssi_add($post);
+	// Check if the post is public
+	global $wpdb;
+	$post_status = $wpdb->get_var("SELECT post_status FROM $wpdb->posts WHERE ID=$post");
+	if ($post_status != 'publish') {
+		// The post isn't public anymore, remove it from index
+		relevanssi_remove_doc($post);
+	}
+	// No need to do anything else, because if the post is public, it'll trigger publish_post.
 }
 
 function relevanssi_delete($post) {
