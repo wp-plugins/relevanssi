@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.7.2
+Version: 1.7.3
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -156,10 +156,10 @@ function relevanssi_install() {
 
 		dbDelta($sql);
 		
-		$sql = "ALTER TABLE $relevanssi_table ADD INDEX 'docs' ('doc')";
+		$sql = "ALTER TABLE $relevanssi_table ADD INDEX (doc)";
 		$wpdb->query($sql);
 
-		$sql = "ALTER TABLE $relevanssi_table ADD INDEX 'terms' ('term')";
+		$sql = "ALTER TABLE $relevanssi_table ADD INDEX (term)";
 		$wpdb->query($sql);
 	}
 

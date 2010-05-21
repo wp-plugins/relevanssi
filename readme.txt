@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 2.9.2
-Stable tag: 1.7.2
+Stable tag: 1.7.3
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -100,6 +100,9 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 1.7.3 =
+* Small bug fix: code that created database indexes was broken. Say "ALTER TABLE `wp_relevanssi` ADD INDEX (doc)" and "ALTER TABLE `wp_relevanssi` ADD INDEX (term)" to your MySQL db to fix this for an existing installation.
 
 = 1.7.2 =
 * Small bug fix: public posts that are changed to private are now removed from index (password protected posts remain in index).
