@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 2.9.2
-Stable tag: 1.7.3
+Tested up to: 3.0
+Stable tag: 1.8
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -100,6 +100,11 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 1.8 =
+* Fixed lots of error notices that popped up when E_NOTICE was on. Sorry about those.
+* Custom post types can now be indexed if wanted. Default behaviour is to index all post types (posts, pages and custom types).
+* Custom taxonomies can also be indexed in addition to standard post tags. Default behaviour is to index nothing. If somebody knows a way to list all custom taxonomies, that information would be appreciated.
 
 = 1.7.3 =
 * Small bug fix: code that created database indexes was broken. Say "ALTER TABLE `wp_relevanssi` ADD INDEX (doc)" and "ALTER TABLE `wp_relevanssi` ADD INDEX (term)" to your MySQL db to fix this for an existing installation.
