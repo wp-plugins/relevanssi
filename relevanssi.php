@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.8
+Version: 1.8.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -82,11 +82,22 @@ function relevanssi_init() {
 		function relevanssi_warning() {
 			echo "<div id='relevanssi-warning' class='updated fade'><p><strong>"
 			   . sprintf(__('Relevanssi needs attention: Remember to build the index (you can do it at <a href="%1$s">the settings page</a>), otherwise searching won\'t work.'), "options-general.php?page=relevanssi/relevanssi.php")
-			   . "</strong>"."</p></div>";
+			   . "</strong></p></div>";
 		}
 		add_action('admin_notices', 'relevanssi_warning');
-		return;
 	}
+	
+	if (!function_exists('mb_internal_encoding')) {
+		function relevanssi_mb_warning() {
+			echo "<div id='relevanssi-warning' class='updated fade'><p><strong>"
+			   . "Multibyte string functions are not available. Relevanssi won't work without them."
+			   . "Please install (or ask your host to install) the mbstring extension."
+			   . "</strong></p></div>";
+		}
+		add_action('admin_notices', 'relevanssi_mb_warning');
+	}
+	
+	return;
 }
 
 function relevanssi_edit($post) {
@@ -362,6 +373,11 @@ function relevanssi_query($posts) {
 			}
 		}
 
+		$post_type = false;
+		if (isset($wp->query_vars["post_type"])) {
+			$post_type = $wp->query_vars["post_type"];
+		}
+
 		$expids = get_option("relevanssi_exclude_posts");
 
 		if (is_admin()) {
@@ -371,7 +387,7 @@ function relevanssi_query($posts) {
 			$expids = null;
 		}
 
-		$return = relevanssi_search($q, $cat, $excat, $expids);
+		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type);
 		$hits = $return[0];
 		$wp_query->found_posts = sizeof($hits);
 		$wp_query->max_num_pages = ceil(sizeof($hits) / $wp_query->query_vars["posts_per_page"]);
@@ -388,6 +404,10 @@ function relevanssi_query($posts) {
 		for ($i = $wpSearch_low; $i <= $wpSearch_high; $i++) {
 			$hit = $hits[intval($i)];
 			$post = get_post($hit, OBJECT);
+			if ($post == NULL) {
+				// apparently sometimes you can get a null object
+				continue;
+			}
 			
 			//Added by OdditY - Highlight Result Title too -> 
 			if("on" == get_option('relevanssi_hilite_title')){
@@ -408,7 +428,7 @@ function relevanssi_query($posts) {
 			$posts[] = $post;
 		}
 	}
-	
+
 	return $posts;
 }
 
@@ -451,7 +471,7 @@ function relevanssi_getLimit($limit) {
 }
 
 // This is my own magic working.
-function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
+function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post_type = NULL) {
 	global $relevanssi_table, $wpdb;
 
 	$hits = array();
@@ -508,6 +528,17 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 
 	if (isset($excat_temp)) {
 		$excat .= $excat_temp;
+	}
+
+	if ($post_type) {
+		$post_type = mysql_real_escape_string($post_type);
+		$post_types = explode(',', $post_type);
+		$pt_array = array();
+		foreach ($post_types as $pt) {
+			$pt = "'" . trim($pt) . "'";
+			array_push($pt_array, $pt);
+		}
+		$post_type = implode(",", $pt_array);
 	}
 
 	//Added by OdditY:
@@ -569,6 +600,11 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 			$query .= " AND doc NOT IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 			    WHERE term_taxonomy_id IN ($excat))";
 		}
+		
+		if ($post_type) {
+			$query .= " AND doc IN (SELECT DISTINCT(ID) FROM $wpdb->posts
+				WHERE post_type IN ($post_type))";
+		}
 
 		if ($phrases) {
 			$query .= " AND doc IN ($phrases)";
@@ -597,6 +633,11 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 				    WHERE term_taxonomy_id IN ($excat))";
 			}
 
+			if ($post_type) {
+				$query .= " AND doc IN (SELECT DISTINCT(ID) FROM $wpdb->posts
+					WHERE post_type IN ($post_type))";
+			}
+
 			if ($phrases) {
 				$query .= " AND doc IN ($phrases)";
 			}
@@ -616,7 +657,6 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 			$query .= $postex;
 		}
 		
-		
 		if ($cat) {
 			$query .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 			    WHERE term_taxonomy_id IN ($cat))";
@@ -625,6 +665,11 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 		if ($excat) {
 			$query .= " AND doc NOT IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 			    WHERE term_taxonomy_id IN ($excat))";
+		}
+
+		if ($post_type) {
+			$query .= " AND doc IN (SELECT DISTINCT(ID) FROM $wpdb->posts
+				WHERE post_type IN ($post_type))";
 		}
 
 		if ($phrases) {
@@ -653,6 +698,11 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL) {
 			if ($excat) {
 				$query .= " AND doc NOT IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 				    WHERE term_taxonomy_id IN ($excat))";
+			}
+
+			if ($post_type) {
+				$query .= " AND doc IN (SELECT DISTINCT(ID) FROM $wpdb->posts
+					WHERE post_type IN ($post_type))";
 			}
 			
 			if ($phrases) {
@@ -1060,6 +1110,7 @@ function relevanssi_build_index($extend = false) {
 	global $wpdb, $relevanssi_table;
 	
 	$type = get_option("relevanssi_index_type");
+	$allow_custom_types = true;
 	switch ($type) {
 		case "posts":
 			$restriction = " AND (post_type = 'post'";
@@ -1067,12 +1118,23 @@ function relevanssi_build_index($extend = false) {
 		case "pages":
 			$restriction = " AND (post_type = 'page'";
 			break;
-		case "both":
+		case "public":
+			if (function_exists('get_post_types')) {
+				$custom_types = implode(',', get_post_types(array('exclude_from_search' => false)));
+				$allow_custom_types = false;
+			}
+			$restriction = "";
+			break;
+		case "both": 								// really should be "everything"
+			$restriction = "";
+			$allow_custom_types = false;
+			break;
 		default:
 			$restriction = "";
 	}
 
-	$custom_types = get_option("relevanssi_custom_types");
+	if ($allow_custom_types) $custom_types = get_option("relevanssi_custom_types");
+	
 	if ("" != $custom_types) {
 		$types = explode(",", $custom_types);
 		if ("" == $restriction) {
@@ -1352,7 +1414,7 @@ function relevanssi_remove_punct($a) {
 		$a = str_replace("’", '', $a);
 
 		$a = str_replace("—", " ", $a);
-        $a = mb_ereg_replace('[[:punct:]]+', ' ', $a);
+        $a = mb_ereg_replace('/[[:punct:]]+/', ' ', $a);
 		$a = str_replace("”", " ", $a);
 
         $a = preg_replace('/[[:space:]]+/', ' ', $a);
@@ -1379,8 +1441,8 @@ function relevanssi_options() {
 		if (isset($_REQUEST['relevanssi_custom_taxonomies'])) update_option('relevanssi_custom_taxonomies', $_REQUEST['relevanssi_custom_taxonomies']);
 		if (isset($_REQUEST['relevanssi_index_fields'])) update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
 		if (isset($_REQUEST['relevanssi_index_comments'])) update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']);
-		if (isset($_REQUEST['relevanssi_inctags'])) update_option('relevanssi_inctags', $_REQUEST['relevanssi_inctags']);
-		if (isset($_REQUEST['relevanssi_inccats'])) update_option('relevanssi_inccats', $_REQUEST['relevanssi_inccats']);
+		if (isset($_REQUEST['relevanssi_inctags'])) update_option('relevanssi_include_tags', $_REQUEST['relevanssi_inctags']);
+		if (isset($_REQUEST['relevanssi_inccats'])) update_option('relevanssi_include_cats', $_REQUEST['relevanssi_inccats']);
 		if (isset($_REQUEST['relevanssi_expand_shortcodes'])) update_option('relevanssi_expand_shortcodes', $_REQUEST['relevanssi_expand_shortcodes']);
 		relevanssi_build_index();
 	}
@@ -1646,6 +1708,7 @@ function relevanssi_options_form() {
 	$index_type = get_option('relevanssi_index_type');
 	$index_type_posts = "";
 	$index_type_pages = "";
+	$index_type_public = "";
 	$index_type_both = "";
 	switch ($index_type) {
 		case "posts":
@@ -1653,6 +1716,9 @@ function relevanssi_options_form() {
 			break;
 		case "pages":
 			$index_type_pages = 'selected="selected"';
+			break;
+		case "public":
+			$index_type_public = 'selected="selected"';
 			break;
 		case "both":
 			$index_type_both = 'selected="selected"';
@@ -1704,37 +1770,56 @@ function relevanssi_options_form() {
 	$show_matches_text = get_option('relevanssi_show_matches_text');
 	
 	$title_boost_txt = __('Title boost:', 'relevanssi');
-	$title_boost_desc = sprintf(__('Default: %d. 0 means titles are ignored, 1 means no boost, more than 1 gives extra value.', 'relevanssi'), $title_boost_default);
+	$title_boost_desc = sprintf(__('Default: %d. 0 means titles are ignored, 1 means no boost, more
+		than 1 gives extra value.', 'relevanssi'), $title_boost_default);
 	$tag_boost_txt = __('Tag boost:', 'relevanssi');
-	$tag_boost_desc = sprintf(__('Default: %d. 0 means tags are ignored, 1 means no boost, more than 1 gives extra value.', 'relevanssi'), $tag_boost_default);
+	$tag_boost_desc = sprintf(__('Default: %d. 0 means tags are ignored, 1 means no boost, more
+		than 1 gives extra value.', 'relevanssi'), $tag_boost_default);
 	$comment_boost_txt = __('Comment boost:', 'relevanssi');
-	$comment_boost_desc = sprintf(__('Default: %d. 0 means comments are ignored, 1 means no boost, more than 1 gives extra value.', 'relevanssi'), $comment_boost_default);
+	$comment_boost_desc = sprintf(__('Default: %d. 0 means comments are ignored, 1 means no boost,
+		more than 1 gives extra value.', 'relevanssi'), $comment_boost_default);
 	$admin_search_txt = __('Use search for admin:', 'relevanssi');
-	$admin_search_desc = __('If checked, Relevanssi will be used for searches in the admin interface', 'relevanssi');
+	$admin_search_desc = __('If checked, Relevanssi will be used for searches in the admin
+		interface', 'relevanssi');
 	$cat_txt = __('Restrict search to these categories and tags:', 'relevanssi');
-	$cat_desc = __("Enter a comma-separated list of category and tag IDs to restrict search to those categories or tags. You can also use <code>&lt;input type='hidden' name='cat' value='list of cats and tags' /&gt;</code> in your search form. The input field will overrun this setting.", 'relevanssi');
+	$cat_desc = __("Enter a comma-separated list of category and tag IDs to restrict search to
+		those categories or tags. You can also use <code>&lt;input type='hidden' name='cat'
+		value='list of cats and tags' /&gt;</code> in your search form. The input field will
+		overrun this setting.", 'relevanssi');
 	$excat_txt = __('Exclude these categories and tags from search:', 'relevanssi');
-	$excat_desc = __("Enter a comma-separated list of category and tag IDs that are excluded from search results. This only works here, you can't use the input field option (WordPress doesn't pass custom parameters there).", 'relevanssi');
+	$excat_desc = __("Enter a comma-separated list of category and tag IDs that are excluded from
+		search results. This only works here, you can't use the input field option (WordPress
+		doesn't pass custom parameters there).", 'relevanssi');
 	$exclusions = __("Exclusions and restrictions", "relevanssi");
 	
 	//Added by OdditY ->
 	$expst_txt = __('Exclude these posts/pages from search:', 'relevanssi');
-	$expst_desc = __("Enter a comma-separated list of post/page IDs that are excluded from search results. This only works here, you can't use the input field option (WordPress doesn't pass custom parameters there).", 'relevanssi');
+	$expst_desc = __("Enter a comma-separated list of post/page IDs that are excluded from search
+		results. This only works here, you can't use the input field option (WordPress doesn't pass
+		custom parameters there).", 'relevanssi');
 	$inctags_txt = __('Index and search your posts\' tags:', 'relevanssi');
-	$inctags_desc = __("If checked, Relevanssi will also index and search the tags of your posts. Remember to rebuild the index if you change this option!", 'relevanssi');
+	$inctags_desc = __("If checked, Relevanssi will also index and search the tags of your posts.
+		Remember to rebuild the index if you change this option!", 'relevanssi');
 	$incom_type_txt = __("Index and search these comments:", "relevanssi");
-	$incom_type_desc = __("Relevanssi will index and search ALL (all comments including track- &amp; pingbacks and custom comment types), NONE (no comments) or NORMAL (manually posted comments on your blog).<br />Remember to rebuild the index if you change this option!", 'relevanssi');
+	$incom_type_desc = __("Relevanssi will index and search ALL (all comments including track-
+		&amp; pingbacks and custom comment types), NONE (no comments) or NORMAL (manually posted
+		comments on your blog).<br />Remember to rebuild the index if you change this option!",
+		'relevanssi');
 	$incom_all_txt = __("all", "relevanssi");
 	$incom_normal_txt = __("normal", "relevanssi");
 	$incom_none_txt = __("none", "relevanssi");
 	//added by OdditY END <-
 
 	$inccats_txt = __('Index and search your posts\' categories:', 'relevanssi');
-	$inccats_desc = __("If checked, Relevanssi will also index and search the categories of your posts. Category titles will pass through 'single_cat_title' filter. Remember to rebuild the index if you change this option!", 'relevanssi');
+	$inccats_desc = __("If checked, Relevanssi will also index and search the categories of your
+		posts. Category titles will pass through 'single_cat_title' filter. Remember to rebuild the
+		index if you change this option!", 'relevanssi');
 	
 	$excerpts_title = __("Custom excerpts/snippets", "relevanssi");
 	$excerpt_txt = __("Create custom search result snippets:", "relevanssi");
-	$excerpt_desc = __("If checked, Relevanssi will create excerpts that contain the search term hits. To make them work, make sure your search result template uses the_excerpt() to display post excerpts.", 'relevanssi');
+	$excerpt_desc = __("If checked, Relevanssi will create excerpts that contain the search term
+		hits. To make them work, make sure your search result template uses the_excerpt() to
+		display post excerpts.", 'relevanssi');
 	$excerpt_length_txt = __("Length of the snippet:", "relevanssi");
 	$excerpt_length_desc = __("This must be an integer.", "relevanssi");
 	$words = __("words", "relevanssi");
@@ -1745,14 +1830,23 @@ function relevanssi_options_form() {
 	$highlight_instr_1 = __("First, choose the type of highlighting used:", "relevanssi");
 	$highlight_instr_2 = __("Then adjust the settings for your chosen type:", "relevanssi");
 	$highlight_txt = __("Highlight query terms in search results:", 'relevanssi');
-	$highlight_comment = __("Highlighting isn't available unless you use custom snippets", 'relevanssi');
+	$highlight_comment = __("Highlighting isn't available unless you use custom snippets",
+		'relevanssi');
 	$hititle_txt = __("Highlight query terms in result titles too:", 'relevanssi');
 	$hititle_desc = __("", 'relevanssi');	
 	
 	$submit_value = __('Save the options', 'relevanssi');
 	$building_the_index = __('Building the index and indexing options', 'relevanssi');
-	$index_p1 = __("After installing the plugin, you need to build the index. This generally needs to be done once, you don't have to re-index unless something goes wrong. Indexing is a heavy task and might take more time than your servers allow. If the indexing cannot be finished - for example you get a blank screen or something like that after indexing - you can continue indexing from where you left by clicking 'Continue indexing'. Clicking 'Build the index' will delete the old index, so you can't use that.", 'relevanssi');
-	$index_p2 = __("So, if you build the index and don't get the 'Indexing complete' in the end, keep on clicking the 'Continue indexing' button until you do. On my blogs, I was able to index ~400 pages on one go, but had to continue indexing twice to index ~950 pages.", 'relevanssi');
+	$index_p1 = __("After installing the plugin, you need to build the index. This generally needs
+		to be done once, you don't have to re-index unless something goes wrong. Indexing is a heavy
+		task and might take more time than your servers allow. If the indexing cannot be finished -
+		for example you get a blank screen or something like that after indexing - you can continue
+		indexing from where you left by clicking 'Continue indexing'. Clicking 'Build the index'
+		will delete the old index, so you can't use that.", 'relevanssi');
+	$index_p2 = __("So, if you build the index and don't get the 'Indexing complete' in the end,
+		keep on clicking the 'Continue indexing' button until you do. On my blogs, I was able to
+		index ~400 pages on one go, but had to continue indexing twice to index ~950 pages.",
+		'relevanssi');
 	$build_index = __("Save indexing options and build the index", 'relevanssi');
 	$continue_index = __("Continue indexing", 'relevanssi');
 	$no_highlight_txt = __("No highlighting", 'relevanssi');
@@ -1768,39 +1862,61 @@ function relevanssi_options_form() {
 
 	$txt_col_choice_desc = __("Use HTML color codes (#rgb or #rrggbb)", "relevanssi");
 	$bg_col_choice_desc = __("Use HTML color codes (#rgb or #rrggbb)", "relevanssi");
-	$css_choice_desc = __("You can use any CSS styling here, style will be inserted with a &lt;span&gt;", "relevanssi"); 
-	$class_choice_desc = __("Name a class here, search results will be wrapped in a &lt;span&gt; with the class", "relevanssi"); 
+	$css_choice_desc = __("You can use any CSS styling here, style will be inserted with a
+		&lt;span&gt;", "relevanssi"); 
+	$class_choice_desc = __("Name a class here, search results will be wrapped in a &lt;span&gt;
+		with the class", "relevanssi"); 
 
 	$index_type_txt = __("What to include in the index", "relevanssi");
 	$index_both_txt = __("Everything", "relevanssi");
 	$index_posts_txt = __("Just posts", "relevanssi");
 	$index_pages_txt = __("Just pages", "relevanssi");
-	$index_type_comment = __("This determines which post types are included in the index. Choosing 'everything' will include posts, pages and all custom post types.", "relevanssi");
+	$index_public_txt = __("All public post types", "relevanssi");
+	$index_type_comment = __("This determines which post types are included in the index. Choosing
+		'everything' will include posts, pages and all custom post types. 'All public post types'
+		includes all registered post types that don't have the 'exclude_from_search' set to true.
+		This includes post, page, attachment, and possible custom types. 'All public types'
+		requires at least WP 2.9, otherwise it's the same as 'everything'.", "relevanssi");
 	$custom_type_txt = __("Custom post types to index", "relevanssi");
-	$custom_type_comment = __("If you don't want to index all custom post types, list here the custom post types you want to see indexed. List comma-separated post type names (as used in the database).", "relevanssi");
+	$custom_type_comment = __("If you don't want to index all custom post types, list here the custom
+		post types you want to see indexed. List comma-separated post type names (as used in the
+		database). You can also use a hidden field in the search form to restrict the search to a
+		certain post type: <code>&lt;input type='hidden' name='post_type' value='comma-separated
+		list of post types' /&gt;</code>. If you choose 'All public post types' or 'Everything'
+		above, this option has no effect.", "relevanssi");
 
 	$index_fields_txt = __("Custom fields to index:", "relevanssi");
-	$index_fields_desc = __("A comma-separated list of custom field names to include in the index.", "relevanssi");
+	$index_fields_desc = __("A comma-separated list of custom field names to include in the
+		index.", "relevanssi");
 
 	$custom_taxonomies_txt = __("Custom taxonomies to index:", "relevanssi");
-	$custom_taxonomies_desc = __("A comma-separated list of custom taxonomies to include in the index.", "relevanssi");
+	$custom_taxonomies_desc = __("A comma-separated list of custom taxonomies to include in the
+		index.", "relevanssi");
 
 	$show_matches_txt = __("Show breakdown of search hits in excerpts:", "relevanssi");
-	$show_matches_desc = __("Check this to show more information on where the search hits were made. Requires custom snippets to work.", "relevanssi");
+	$show_matches_desc = __("Check this to show more information on where the search hits were
+		made. Requires custom snippets to work.", "relevanssi");
 	$show_matches_text_txt = __("The breakdown format:", "relevanssi");
-	$show_matches_text_desc = __("Use %body%, %title%, %tags%, %comments% and %score% to display the number of hits and the document weight.", "relevanssi");
+	$show_matches_text_desc = __("Use %body%, %title%, %tags%, %comments% and %score% to display
+		the number of hits and the document weight.", "relevanssi");
 	
 	$fuzzy_txt = __("When to use fuzzy matching?", "relevanssi");
 	$fuzzy_sometimes_txt = __("When straight search gets no hits", "relevanssi");
 	$fuzzy_always_txt = __("Always", "relevanssi");
 	$fuzzy_never_txt = __("Don't use fuzzy search", "relevanssi");
-	$fuzzy_desc = __("Straight search matches just the term. Fuzzy search matches everything that begins or ends with the search term.", "relevanssi");
+	$fuzzy_desc = __("Straight search matches just the term. Fuzzy search matches everything
+		that begins or ends with the search term.", "relevanssi");
 	
 	$expand_shortcodes_txt = __("Expand shortcodes in post content:", "relevanssi");
-	$expand_shortcodes_desc = __("If checked, Relevanssi will expand shortcodes in post content before indexing. Otherwise shortcodes will be stripped. If you use shortcodes to include dynamic content, Relevanssi will not keep the index updated, the index will reflect the status of the shortcode content at the moment of indexing.", "relevanssi");
+	$expand_shortcodes_desc = __("If checked, Relevanssi will expand shortcodes in post content
+		before indexing. Otherwise shortcodes will be stripped. If you use shortcodes to
+		include dynamic content, Relevanssi will not keep the index updated, the index will
+		reflect the status of the shortcode content at the moment of indexing.", "relevanssi");
 	
 	$uninstall_title = __("Uninstall", "relevanssi");
-	$uninstall_txt = __("If you want to uninstall the plugin, start by clicking the button below to wipe clean the options and tables created by the plugin, then remove it from the plugins list.", "relevanssi");	
+	$uninstall_txt = __("If you want to uninstall the plugin, start by clicking the button
+		below to wipe clean the options and tables created by the plugin, then remove it from
+		the plugins list.", "relevanssi");	
 	$uninstall_button = __("Remove plugin data", "relevanssi");
 
 	echo <<<EOHTML
@@ -1985,9 +2101,10 @@ makes the search better - you'll help them and you'll help me.</p>
 	<label for="relevanssi_index_type">$index_type_txt:
 	<select name="relevanssi_index_type">
 	<option value="both" $index_type_both>$index_both_txt</option>
+	<option value="public" $index_type_public>$index_public_txt</option>
 	<option value="posts" $index_type_posts>$index_posts_txt</option>
 	<option value="pages" $index_type_pages>$index_pages_txt</option>
-	</select></label>
+	</select></label><br />
 	<small>$index_type_comment</small>
 
 	<br />

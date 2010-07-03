@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0
-Stable tag: 1.8
+Stable tag: 1.8.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -89,17 +89,27 @@ inverted document frequency is really low, so they never have much power in matc
 removing those words helps to make the index smaller and searching faster.
 
 == Known issues and To-do's ==
+* Known issue: The most common cause of blank screens when indexing is the lack of the mbstring extension. Make sure it's installed.
 * Known issue: In general, multiple Loops on the search page may cause surprising results. Please make sure the actual search results are the first loop.
 * Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
 * Known issue: I know the plugin works with WP 2.5, but it loses some non-essential functionality. The shortcode stuff doesn't work with WP 2.5, which doesn't support shortcodes. Compatibility with older versions of WP hasn't been tested.
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
+* To-do: Option to set the number of search results returned.
 
 == Thanks ==
 * Cristian Damm for tag indexing, comment indexing, post/page exclusion and general helpfulness.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 1.8.1 =
+* Sometimes empty ghost entries would appear in search results. No more.
+* Added support for the WordPress' post_type argument to restrict search results to single post type.
+* Relevanssi will now check for the presence of multibyte string functions and warn if they're missing.
+* The category indexing option checkbox didn't work. It's now fixed.
+* Small fix in the way punctuation is removed.
+* Added a new indexing option to index all public post types.
 
 = 1.8 =
 * Fixed lots of error notices that popped up when E_NOTICE was on. Sorry about those.
