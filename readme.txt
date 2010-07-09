@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0
-Stable tag: 1.8.1
+Stable tag: 1.9
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -102,6 +102,13 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 1.9 =
+* Excerpts are now better and will contain more search terms and not just the first hit.
+* Fixed an error relating to shortcodes in excerpts.
+* If comments are indexed, custom excerpts will show text from comments as well as post content.
+* Custom post type posts are now indexed as they are edited. That didn't work before.
+* Cleaned out more error notices.
 
 = 1.8.1 =
 * Sometimes empty ghost entries would appear in search results. No more.

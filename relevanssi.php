@@ -3,12 +3,12 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.8.1
+Version: 1.9
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
 
-/*  Copyright 2009 Mikko Saari  (email: mikko@mikkosaari.fi)
+/*  Copyright 2010 Mikko Saari  (email: mikko@mikkosaari.fi)
 
     This file is part of Relevanssi, a search plugin for WordPress.
 
@@ -27,8 +27,8 @@ Author URI: http://www.mikkosaari.fi/
 */
 
 // For debugging purposes
-// error_reporting(E_ALL);
-// ini_set("display_errors", 1); 
+//error_reporting(E_ALL);
+//ini_set("display_errors", 1); 
 
 register_activation_hook(__FILE__,'relevanssi_install');
 add_action('admin_menu', 'relevanssi_menu');
@@ -36,6 +36,8 @@ add_filter('the_posts', 'relevanssi_query');
 add_filter('post_limits', 'relevanssi_getLimit');
 add_action('edit_post', 'relevanssi_edit');
 add_action('edit_page', 'relevanssi_edit');
+add_action('save_post', 'relevanssi_edit');
+add_action('save_post', 'relevanssi_publish');				// thanks to Brian D Gajus
 add_action('delete_post', 'relevanssi_delete');
 add_action('publish_post', 'relevanssi_publish');
 add_action('publish_page', 'relevanssi_publish');
@@ -108,7 +110,8 @@ function relevanssi_edit($post) {
 		// The post isn't public anymore, remove it from index
 		relevanssi_remove_doc($post);
 	}
-	// No need to do anything else, because if the post is public, it'll trigger publish_post.
+	// No need to do anything else, because if the post is public, it'll trigger
+	// publish_post.
 }
 
 function relevanssi_delete($post) {
@@ -389,6 +392,7 @@ function relevanssi_query($posts) {
 
 		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type);
 		$hits = $return[0];
+
 		$wp_query->found_posts = sizeof($hits);
 		$wp_query->max_num_pages = ceil(sizeof($hits) / $wp_query->query_vars["posts_per_page"]);
 
@@ -852,17 +856,14 @@ function relevanssi_the_excerpt() {
 }
 
 function relevanssi_do_excerpt($post, $query) {
-	$excerpt_length = get_option("relevanssi_excerpt_length");
-	$type = get_option("relevanssi_excerpt_type");
-
 	$remove_stopwords = false;
 	$terms = relevanssi_tokenize($query, $remove_stopwords);
 
 	$content = apply_filters('the_content', $post->post_content);
 	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
 	if ('on' == get_option('relevanssi_expand_shortcodes')) {
-		if (function_exists("do_shortcodes")) {
-			$content = do_shortcodes($content);
+		if (function_exists("do_shortcode")) {
+			$content = do_shortcode($content);
 		}
 	}
 	else {
@@ -874,91 +875,18 @@ function relevanssi_do_excerpt($post, $query) {
 	
 	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
 	
-	$excerpt = "";
+	$excerpt_data = relevanssi_create_excerpt($content, $terms);
 	
-	if ("chars" == $type) {
-		$start = false;
-		foreach (array_keys($terms) as $term) {
-			if (function_exists('mb_stripos')) {
-				$pos = ("" == $content) ? false : mb_stripos($content, $term);
-			}
-			else {
-				$pos = mb_strpos($content, $term);
-				if (false === $pos) {
-					$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
-					$pos = mb_strpos($content, $titlecased);
-					if (false === $pos) {
-						$pos = mb_strpos($content, mb_strtoupper($term));
-					}
-				}
-			}
-			
-			if (false !== $pos) {
-				if ($pos + strlen($term) < $excerpt_length) {
-					$excerpt = mb_substr($content, 0, $excerpt_length);
-					$start = true;
-					break;
-				}
-				else {
-					$half = floor($excerpt_length/2);
-					$pos = $pos - $half;
-					$excerpt = mb_substr($content, $pos, $excerpt_length);
-					break;
-				}
-			}
-		}
-		
-		if ("" == $excerpt) {
-			$excerpt = mb_substr($content, 0, $excerpt_length);
-			$start = true;
+	if (get_option("relevanssi_index_comments") != 'none') {
+		$comment_content = relevanssi_get_comments($post->ID);
+		$comment_excerpts = relevanssi_create_excerpt($comment_content, $terms);
+		if ($comment_excerpts[1] > $excerpt_data[1]) {
+			$excerpt_data = $comment_excerpts;
 		}
 	}
-	else {
-		$words = explode(' ', $content);
-		
-		$i = 0;
-		while ($i < count($words)) {
-			if ($i + $excerpt_length > count($words)) {
-				$i = count($words) - $excerpt_length;
-			}
-			$excerpt_slice = array_slice($words, $i, $excerpt_length);
-			$excerpt_slice = implode(' ', $excerpt_slice);
-
-			foreach (array_keys($terms) as $term) {
-				if (function_exists('mb_stripos')) {
-					$pos = ("" == $excerpt_slice) ? false : mb_stripos($excerpt_slice, $term);
-					// To avoid "empty haystack" warnings
-				}
-				else {
-					$pos = mb_strpos($excerpt_slice, $term);
-					if (false === $pos) {
-						$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
-						$pos = mb_strpos($excerpt_slice, $titlecased);
-						if (false === $pos) {
-							$pos = mb_strpos($excerpt_slice, mb_strtoupper($term));
-						}
-					}
-				}
-				
-				if (false !== $pos) {
-					if (0 == $i) $start = true;
-					$excerpt = $excerpt_slice;
-					break;
-				}
-			}
-			
-			if ("" != $excerpt) break;
-			
-			$i += $excerpt_length;
-		}
-		
-		if ("" == $excerpt) {
-			$excerpt = explode(' ', $content, $excerpt_length);
-			array_pop($excerpt);
-			$excerpt = implode(' ', $excerpt);
-			$start = true;
-		}
-	}
+	
+	$excerpt = $excerpt_data[0];
+	$start = $excerpt_data[2];
 	
 	$content = apply_filters('get_the_excerpt', $content);
 	$content = apply_filters('the_excerpt', $content);	
@@ -976,6 +904,112 @@ function relevanssi_do_excerpt($post, $query) {
 	$excerpt = $excerpt . "...";
 
 	return $excerpt;
+}
+
+/**
+ * Creates an excerpt from content.
+ *
+ * @return array - element 0 is the excerpt, element 1 the number of term hits, element 2 is
+ * true, if the excerpt is from the start of the content.
+ */
+function relevanssi_create_excerpt($content, $terms) {
+	$excerpt_length = get_option("relevanssi_excerpt_length");
+	$type = get_option("relevanssi_excerpt_type");
+
+	$best_excerpt_term_hits = -1;
+	$excerpt = "";
+	
+	$start = false;
+	if ("chars" == $type) {
+		$term_hits = 0;
+		foreach (array_keys($terms) as $term) {
+			if (function_exists('mb_stripos')) {
+				$pos = ("" == $content) ? false : mb_stripos($content, $term);
+			}
+			else {
+				$pos = mb_strpos($content, $term);
+				if (false === $pos) {
+					$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
+					$pos = mb_strpos($content, $titlecased);
+					if (false === $pos) {
+						$pos = mb_strpos($content, mb_strtoupper($term));
+					}
+				}
+			}
+			
+			if (false !== $pos) {
+				$term_hits++;
+				if ($term_hits > $best_excerpt_term_hits) {
+					$best_excerpt_term_hits = $term_hits;
+					if ($pos + strlen($term) < $excerpt_length) {
+						$excerpt = mb_substr($content, 0, $excerpt_length);
+						$start = true;
+					}
+					else {
+						$half = floor($excerpt_length/2);
+						$pos = $pos - $half;
+						$excerpt = mb_substr($content, $pos, $excerpt_length);
+					}
+				}
+			}
+		}
+		
+		if ("" == $excerpt) {
+			$excerpt = mb_substr($content, 0, $excerpt_length);
+			$start = true;
+		}
+	}
+	else {
+		$words = explode(' ', $content);
+		
+		$i = 0;
+		
+		while ($i < count($words)) {
+			if ($i + $excerpt_length > count($words)) {
+				$i = count($words) - $excerpt_length;
+			}
+			$excerpt_slice = array_slice($words, $i, $excerpt_length);
+			$excerpt_slice = implode(' ', $excerpt_slice);
+
+			$term_hits = 0;
+			foreach (array_keys($terms) as $term) {
+				if (function_exists('mb_stripos')) {
+					$pos = ("" == $excerpt_slice) ? false : mb_stripos($excerpt_slice, $term);
+					// To avoid "empty haystack" warnings
+				}
+				else {
+					$pos = mb_strpos($excerpt_slice, $term);
+					if (false === $pos) {
+						$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
+						$pos = mb_strpos($excerpt_slice, $titlecased);
+						if (false === $pos) {
+							$pos = mb_strpos($excerpt_slice, mb_strtoupper($term));
+						}
+					}
+				}
+			
+				if (false !== $pos) {
+					$term_hits++;
+					if (0 == $i) $start = true;
+					if ($term_hits > $best_excerpt_term_hits) {
+						$best_excerpt_term_hits = $term_hits;
+						$excerpt = $excerpt_slice;
+					}
+				}
+			}
+			
+			$i += $excerpt_length;
+		}
+		
+		if ("" == $excerpt) {
+			$excerpt = explode(' ', $content, $excerpt_length);
+			array_pop($excerpt);
+			$excerpt = implode(' ', $excerpt);
+			$start = true;
+		}
+	}
+	
+	return array($excerpt, $best_excerpt_term_hits, $start);
 }
 
 // found here: http://forums.digitalpoint.com/showthread.php?t=1106745
@@ -1072,6 +1106,8 @@ function relevanssi_get_comments($postID) {
 	global $wpdb;
 
 	$comtype = get_option("relevanssi_index_comments");
+	$restriction = "";
+	$comment_string = "";
 	switch ($comtype) {
 		case "all": 
 			// all (incl. customs, track- & pingbacks)
@@ -1165,13 +1201,13 @@ function relevanssi_build_index($extend = false) {
 	if (!$extend) {
 		// truncate table first
 		$wpdb->query("TRUNCATE TABLE $relevanssi_table");
-		$q = "SELECT ID, post_content, post_title
+		$q = "SELECT *
 		FROM $wpdb->posts WHERE post_status='publish'" . $restriction;
 		update_option('relevanssi_index', '');
 	}
 	else {
 		// extending, so no truncate and skip the posts already in the index
-		$q = "SELECT ID, post_content, post_title
+		$q = "SELECT *
 		FROM $wpdb->posts WHERE post_status='publish' AND
 		ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table)" . $restriction;
 	}
@@ -1199,18 +1235,51 @@ function relevanssi_index_doc($post, $remove_first = false, $custom_fields = fal
 	global $wpdb, $relevanssi_table;
 
 	if (!is_object($post)) {
-		$post = $wpdb->get_row("SELECT ID, post_content, post_title
+		$post = $wpdb->get_row("SELECT ID, post_content, post_title, post_type
 			FROM $wpdb->posts WHERE post_status='publish' AND ID=$post");
 		if (!$post) {
 			// the post isn't public
 			return;
 		}
 	}
-
+	
+	$index_type = get_option('relevanssi_index_type');
+	$custom_types = explode(",", get_option('relevanssi_custom_types'));
+	
+	$index_this_post = false;
+	switch ($index_type) {
+		case 'posts':
+			if ("post" == $post->post_type) $index_this_post = true;
+			if (in_array($post->post_type, $custom_types)) $index_this_post = true;
+			break;
+		case 'pages':
+			if ("page" == $post->post_type) $index_this_post = true;
+			if (in_array($post->post_type, $custom_types)) $index_this_post = true;
+			break;
+		case 'public';
+			if (function_exists('get_post_types')) {
+				$public_types = get_post_types(array('exclude_from_search' => false));
+				if (in_array($post->post_type, $public_types)) $index_this_post = true;
+			}
+			else {
+				$index_this_post = true;
+			}
+			break;
+		case 'both':
+			$index_this_post = true;
+			break;
+	}
+	
 	if ($remove_first) {
 		// we are updating a post, so remove the old stuff first
 		relevanssi_remove_doc($post->ID);
 	}
+
+	// This needs to be here, after the call to relevanssi_remove_doc(), because otherwise
+	// a post that's in the index but shouldn't be there won't get removed. A remote chance,
+	// I mean who ever flips exclude_from_search between true and false once it's set, but
+	// I'd like to cover all bases.
+	if (!$index_this_post) return;
 
 	$n = 0;	
 	$titles = relevanssi_tokenize($post->post_title);
