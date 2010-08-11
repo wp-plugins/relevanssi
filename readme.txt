@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 3.0
-Stable tag: 1.9
+Tested up to: 3.0.1
+Stable tag: 2.0
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -33,7 +33,10 @@ tags, since those are pretty much the same). Just add a hidden input field named
 search form and list the desired category or tag IDs in the `value` field - positive numbers
 include those categories and tags, negative numbers exclude them. You can also set the
 restriction from general plugin settings (and then override it in individual search forms with
-the special field).
+the special field). This works with custom taxonomies as well, just replace `cat` with the name
+of your taxonomy.
+
+Relevanssi also supports custom post types.
 
 In addition of post and page content (including tags and categories), Relevanssi can index
 comments and pingbacks. It can also expand shortcodes in post content before indexing, so
@@ -88,11 +91,41 @@ every document are completely useless for information retrieval purposes. Basica
 inverted document frequency is really low, so they never have much power in matching. Also,
 removing those words helps to make the index smaller and searching faster.
 
+= Sorting search results =
+
+If you want something else than relevancy ranking, you can use orderby and order parameters. Orderby
+accepts $post variable attributes and order can be "asc" or "desc". The most relevant attributes
+here are most likely "post_date" and "comment_count".
+
+If you want to give your users the ability to sort search results by date, you can just add a link
+to http://www.yourblogdomain.com/?s=search-term&orderby=date&order=desc to your search result
+page.
+
+Order by relevance is either orderby=relevance or no orderby parameter at all.
+
+= Displaying the relevance score =
+
+Relevanssi stores the relevance score it uses to sort results in the $post variable. Just add
+something like
+
+echo $post->relevance_score
+
+to your search results template inside a PHP code block to display the relevance score.
+
+= Restricting searches with taxonomies =
+
+You can use taxonomies to restrict search results to posts and pages tagged with a certain 
+taxonomy term. If you have a custom taxonomy of "People" and want to search entries tagged
+"John" in this taxonomy, just use `?s=keyword&people=John` in the URL. You should be able to use
+an input field in the search form to do this, as well - just name the input field with the name
+of the taxonomy you want to use.
+
 == Known issues and To-do's ==
 * Known issue: The most common cause of blank screens when indexing is the lack of the mbstring extension. Make sure it's installed.
 * Known issue: In general, multiple Loops on the search page may cause surprising results. Please make sure the actual search results are the first loop.
 * Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
 * Known issue: I know the plugin works with WP 2.5, but it loses some non-essential functionality. The shortcode stuff doesn't work with WP 2.5, which doesn't support shortcodes. Compatibility with older versions of WP hasn't been tested.
+* Known issue: Custom post types and private posts is problematic - I'm using default 'read_private_*s' capability, which might not always work.
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 * To-do: Option to set the number of search results returned.
@@ -102,6 +135,14 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.0 =
+* Post authors can now be indexed and searched. Author are indexed by their display name.
+* In search results, $post->relevance_score variable will now contain the score of the search result.
+* Comment authors are now included in the index, if comments are indexed.
+* Search results can be sorted by any $post field and in any order, in addition of sorting them by relevancy.
+* Private posts are indexed and displayed to the users capable of seeing them. This uses Role-Scoper plugin, if it's available, otherwise it goes by WordPress capabilities.
+* Searches can be restricted with a taxonomy term (see FAQ for details).
 
 = 1.9 =
 * Excerpts are now better and will contain more search terms and not just the first hit.

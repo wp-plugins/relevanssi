@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 1.9
+Version: 2.0
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -159,6 +159,7 @@ function relevanssi_install() {
 	add_option('relevanssi_expand_shortcodes', 'on');
 	add_option('relevanssi_custom_types', '');
 	add_option('relevanssi_custom_taxonomies', '');
+	add_option('relevanssi_index_author', '');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -243,6 +244,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_expand_shortcodes');
 	delete_option('relevanssi_custom_types');
 	delete_option('relevanssi_custom_taxonomies');
+	delete_option('relevanssi_index_author');
 	
 	$sql = "DROP TABLE $stopword_table";
 	$wpdb->query($sql);
@@ -333,6 +335,21 @@ function relevanssi_fetch_stopwords() {
 	return $stopword_list;
 }
 
+/**
+ * Returns all public custom taxonomies.
+ * @since 2.0
+ */
+function relevanssi_all_taxonomies() {
+	$args=array(
+		'public'   => true,
+	  	'_builtin' => false
+	); 
+	$output = 'names'; // or objects
+	$operator = 'and'; // 'and' or 'or'
+	$taxonomies = get_taxonomies($args, $output, $operator); 
+	return $taxonomies;
+}
+
 function relevanssi_query($posts) {
 	$admin_search = get_option('relevanssi_admin_search');
 	($admin_search == 'on') ? $admin_search = true : $admin_search = false;
@@ -342,22 +359,25 @@ function relevanssi_query($posts) {
 		$search_ok = false; 					// but if this is an admin search, reconsider
 		if ($admin_search) $search_ok = true; 	// yes, we can search!
 	}
-	
+
+	relevanssi_all_taxonomies();
+
 	global $relevanssi_active;
 
 	if (is_search() && $search_ok && !$relevanssi_active) {
 		// this all is basically lifted from Kenny Katzgrau's wpSearch
 		// thanks, Kenny!
-		global $wp;
 		global $wpSearch_low;
 		global $wpSearch_high;
 		global $wp_query;
+		global $wp;
 
 		$relevanssi_active = true;
 
 		$posts = array();
 
 		$q = stripslashes($wp->query_vars["s"]);
+	
 		$cat = false;
 		if (isset($wp->query_vars["cat"])) {
 			$cat = $wp->query_vars["cat"];
@@ -369,6 +389,13 @@ function relevanssi_query($posts) {
 			}
 		}
 
+		$tax = false;
+		$tax_term = false;
+		if (isset($wp->query_vars["taxonomy"])) {
+			$tax = $wp->query_vars["taxonomy"];
+			$tax_term = $wp->query_vars["term"];
+		}
+		
 		if (!isset($excat)) {
 			$excat = get_option('relevanssi_excat');
 			if (0 == $excat) {
@@ -388,9 +415,11 @@ function relevanssi_query($posts) {
 			$cat = null;
 			$excat = null;
 			$expids = null;
+			$tax = null;
+			$tax_term = null;
 		}
 
-		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type);
+		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term);
 		$hits = $return[0];
 
 		$wp_query->found_posts = sizeof($hits);
@@ -406,8 +435,15 @@ function relevanssi_query($posts) {
 		$make_excerpts = get_option('relevanssi_excerpts');
 		
 		for ($i = $wpSearch_low; $i <= $wpSearch_high; $i++) {
-			$hit = $hits[intval($i)];
+			if (isset($hits[intval($i)])) {
+				$hit = $hits[intval($i)];
+			}
+			else {
+				continue;
+			}
+
 			$post = get_post($hit, OBJECT);
+			
 			if ($post == NULL) {
 				// apparently sometimes you can get a null object
 				continue;
@@ -417,7 +453,7 @@ function relevanssi_query($posts) {
 			if("on" == get_option('relevanssi_hilite_title')){
 				$post->post_title = strip_tags($post->post_title);
 				if ("none" != $highlight) {
-					$t = explode(" ", $q);				
+					$t = explode(" ", trim($q, " +"));
 					$post->post_title = relevanssi_highlight_terms($post->post_title, $t);
 				}
 			}
@@ -429,11 +465,47 @@ function relevanssi_query($posts) {
 					$post->post_excerpt .= relevanssi_show_matches($return, $hit);
 				}
 			}
+			
+			$post->relevance_score = round($return[5][$hit], 2);
+			
 			$posts[] = $post;
 		}
+
+		isset($wp->query_vars["orderby"]) ? $orderby = $wp->query_vars["orderby"] : $orderby = 'relevance';
+		isset($wp->query_vars["order"]) ? $order = $wp->query_vars["order"] : $order = 'desc';
+		if ($orderby != 'relevance')
+			objectSort($posts, $orderby, $order);
 	}
 
 	return $posts;
+}
+
+/**
+ * Function by Matthew Hood http://my.php.net/manual/en/function.sort.php#75036
+ */
+function objectSort(&$data, $key, $dir = 'desc') {
+    for ($i = count($data) - 1; $i >= 0; $i--) {
+		$swapped = false;
+      	for ($j = 0; $j < $i; $j++) {
+      		if ('asc' == $dir) {
+	           	if ($data[$j]->$key > $data[$j + 1]->$key) { 
+    		        $tmp = $data[$j];
+        	        $data[$j] = $data[$j + 1];
+            	    $data[$j + 1] = $tmp;
+                	$swapped = true;
+	           	}
+	        }
+			else {
+	           	if ($data[$j]->$key < $data[$j + 1]->$key) { 
+    		        $tmp = $data[$j];
+        	        $data[$j] = $data[$j + 1];
+            	    $data[$j + 1] = $tmp;
+                	$swapped = true;
+	           	}
+			}
+    	}
+	    if (!$swapped) return;
+    }
 }
 
 function relevanssi_show_matches($data, $hit) {
@@ -475,7 +547,7 @@ function relevanssi_getLimit($limit) {
 }
 
 // This is my own magic working.
-function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post_type = NULL) {
+function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post_type = NULL, $taxonomy = NULL, $taxonomy_term = NULL) {
 	global $relevanssi_table, $wpdb;
 
 	$hits = array();
@@ -532,6 +604,14 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 
 	if (isset($excat_temp)) {
 		$excat .= $excat_temp;
+	}
+
+
+	if (isset($taxonomy)) {
+		$term_id = $wpdb->get_var("SELECT term_id FROM $wpdb->terms WHERE name LIKE '$taxonomy_term'");
+		$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->term_taxonomy
+				WHERE term_id=$term_id");
+		$taxonomy = $term_tax_id;
 	}
 
 	if ($post_type) {
@@ -617,6 +697,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		if ($custom_cat) {
 			$query .= " AND doc IN ($custom_cat)";
 		}
+		
+		if ($taxonomy) {
+			$query .= " AND doc IN ($taxonomy)";
+		}
 
 		$matches = $wpdb->get_results($query);
 		if (count($matches) < 1 && "sometimes" == $fuzzy) {
@@ -648,6 +732,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 
 			if ($custom_cat) {
 				$query .= " AND doc IN ($custom_cat)";
+			}
+
+			if ($taxonomy) {
+				$query .= " AND doc IN ($taxonomy)";
 			}
 			
 			$matches = $wpdb->get_results($query);
@@ -684,6 +772,9 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 			$query .= " AND doc IN ($custom_cat)";
 		}
 
+		if ($taxonomy) {
+			$query .= " AND doc IN ($taxonomy)";
+		}
 
 		$df = $wpdb->get_var($query);
 
@@ -715,6 +806,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 
 			if ($custom_cat) {
 				$query .= " AND doc IN ($custom_cat)";
+			}
+
+			if ($taxonomy) {
+				$query .= " AND doc IN ($taxonomy)";
 			}
 			
 			$df = $wpdb->get_var($query);
@@ -759,7 +854,26 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		arsort($doc_weight);
 		$i = 0;
 		foreach ($doc_weight as $doc => $weight) {
-			$hits[intval($i)] = $doc;
+			$status = get_post_status($doc);
+			$post_ok = true;
+			if ('private' == $status) {
+				$post_ok = false;
+
+				if (function_exists('awp_user_can')) {
+					// Role-Scoper
+					$current_user = wp_get_current_user();
+					$post_ok = awp_user_can('read_post', $doc, $current_user->ID);
+				}
+				else {
+					// Basic WordPress version
+					$type = get_post_type($doc);
+					$cap = 'read_private_' . $type . 's';
+					if (current_user_can($cap)) {
+						$post_ok = true;
+					}
+				}
+			}
+			if ($post_ok) $hits[intval($i)] = $doc;
 			$i++;
 		}
 	}
@@ -1125,7 +1239,7 @@ function relevanssi_get_comments($postID) {
 	$from = 0;
 
 	while ( true ) {
-		$sql = "SELECT 	comment_content
+		$sql = "SELECT 	comment_content, comment_author
 				FROM 	$wpdb->comments
 				WHERE 	comment_post_ID = '$postID'
 				AND 	comment_approved = '1' 
@@ -1134,7 +1248,7 @@ function relevanssi_get_comments($postID) {
 		$comments = $wpdb->get_results($sql);
 		if (sizeof($comments) == 0) break;
 		foreach($comments as $comment) {
-			$comment_string .= $comment->comment_content . ' ';
+			$comment_string .= $comment->comment_author . ' ' . $comment->comment_content . ' ';
 		}
 		$from += $to;
 	}
@@ -1202,13 +1316,13 @@ function relevanssi_build_index($extend = false) {
 		// truncate table first
 		$wpdb->query("TRUNCATE TABLE $relevanssi_table");
 		$q = "SELECT *
-		FROM $wpdb->posts WHERE post_status='publish'" . $restriction;
+		FROM $wpdb->posts WHERE (post_status='publish' OR post_status='private')" . $restriction;
 		update_option('relevanssi_index', '');
 	}
 	else {
 		// extending, so no truncate and skip the posts already in the index
 		$q = "SELECT *
-		FROM $wpdb->posts WHERE post_status='publish' AND
+		FROM $wpdb->posts WHERE (post_status='publish' OR post_status='private') AND
 		ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table)" . $restriction;
 	}
 
@@ -1341,6 +1455,13 @@ function relevanssi_index_doc($post, $remove_first = false, $custom_fields = fal
 		}
 	}
 
+	// index author
+	if ("on" == get_option("relevanssi_index_author")) {
+		$auth = $post->post_author;
+		$display_name = $wpdb->get_var("SELECT display_name FROM $wpdb->users WHERE ID=$auth");
+		$wpdb->query("INSERT INTO $relevanssi_table (doc, term, tf, title)
+			VALUES ($post->ID, '$display_name', 1, 5)");
+	}
 
 	if ($custom_fields) {
 		foreach ($custom_fields as $field) {
@@ -1413,7 +1534,9 @@ function index_taxonomy_terms($post = null, $taxonomy = "") {
 	if ($ptagobj !== FALSE) { 
 		$tagstr = "";
 		foreach ($ptagobj as $ptag) {
-			$tagstr .= $ptag->name . ' ';
+			if (is_object($ptag)) {
+				$tagstr .= $ptag->name . ' ';
+			}
 		}		
 		$tagstr = trim($tagstr);
 		$ptags = relevanssi_tokenize($tagstr);		
@@ -1512,6 +1635,7 @@ function relevanssi_options() {
 		if (isset($_REQUEST['relevanssi_index_comments'])) update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']);
 		if (isset($_REQUEST['relevanssi_inctags'])) update_option('relevanssi_include_tags', $_REQUEST['relevanssi_inctags']);
 		if (isset($_REQUEST['relevanssi_inccats'])) update_option('relevanssi_include_cats', $_REQUEST['relevanssi_inccats']);
+		if (isset($_REQUEST['relevanssi_index_author'])) update_option('relevanssi_index_author', $_REQUEST['relevanssi_index_author']);
 		if (isset($_REQUEST['relevanssi_expand_shortcodes'])) update_option('relevanssi_expand_shortcodes', $_REQUEST['relevanssi_expand_shortcodes']);
 		relevanssi_build_index();
 	}
@@ -1609,6 +1733,7 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_hilite_title'])) update_option('relevanssi_hilite_title', $_REQUEST['relevanssi_hilite_title']); 	//added by OdditY	
 	if (isset($_REQUEST['relevanssi_index_comments'])) update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']); //added by OdditY	
 	if (isset($_REQUEST['relevanssi_include_cats'])) update_option('relevanssi_include_cats', $_REQUEST['relevanssi_inccats']);
+	if (isset($_REQUEST['relevanssi_index_author'])) update_option('relevanssi_index_author', $_REQUEST['relevanssi_index_author']);
 
 	if (isset($_REQUEST['relevanssi_show_matches'])) update_option('relevanssi_show_matches', $_REQUEST['relevanssi_show_matches']);
 	if (isset($_REQUEST['relevanssi_show_matches_text'])) update_option('relevanssi_show_matches_text', $_REQUEST['relevanssi_show_matches_text']);
@@ -1834,6 +1959,7 @@ function relevanssi_options_form() {
 	}//added by OdditY END <-
 	
 	$inccats = ('on' == get_option('relevanssi_include_cats') ? 'checked="checked"' : ''); 
+	$index_author = ('on' == get_option('relevanssi_index_author') ? 'checked="checked"' : ''); 
 	
 	$show_matches = ('on' == get_option('relevanssi_show_matches') ? 'checked="checked"' : '');
 	$show_matches_text = get_option('relevanssi_show_matches_text');
@@ -1883,6 +2009,11 @@ function relevanssi_options_form() {
 	$inccats_desc = __("If checked, Relevanssi will also index and search the categories of your
 		posts. Category titles will pass through 'single_cat_title' filter. Remember to rebuild the
 		index if you change this option!", 'relevanssi');
+
+	$index_author_txt = __('Index and search your posts\' authors:', 'relevanssi');
+	$index_author_desc = __("If checked, Relevanssi will also index and search the authors of your
+		posts. Author display name will be indexed. Remember to rebuild the index if you change
+		this option!", 'relevanssi');
 	
 	$excerpts_title = __("Custom excerpts/snippets", "relevanssi");
 	$excerpt_txt = __("Create custom search result snippets:", "relevanssi");
@@ -2199,6 +2330,12 @@ makes the search better - you'll help them and you'll help me.</p>
 	<label for="relevanssi_inccats">$inccats_txt
 	<input type="checkbox" name="relevanssi_inccats" $inccats /></label><br />
 	<small>$inccats_desc</small>
+
+	<br />
+
+	<label for="relevanssi_index_author">$index_author_txt
+	<input type="checkbox" name="relevanssi_index_author" $index_author /></label><br />
+	<small>$index_author_desc</small>
 
 	<br />
 	
