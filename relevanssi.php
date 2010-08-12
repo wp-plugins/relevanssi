@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.0
+Version: 2.0.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -335,21 +335,6 @@ function relevanssi_fetch_stopwords() {
 	return $stopword_list;
 }
 
-/**
- * Returns all public custom taxonomies.
- * @since 2.0
- */
-function relevanssi_all_taxonomies() {
-	$args=array(
-		'public'   => true,
-	  	'_builtin' => false
-	); 
-	$output = 'names'; // or objects
-	$operator = 'and'; // 'and' or 'or'
-	$taxonomies = get_taxonomies($args, $output, $operator); 
-	return $taxonomies;
-}
-
 function relevanssi_query($posts) {
 	$admin_search = get_option('relevanssi_admin_search');
 	($admin_search == 'on') ? $admin_search = true : $admin_search = false;
@@ -359,8 +344,6 @@ function relevanssi_query($posts) {
 		$search_ok = false; 					// but if this is an admin search, reconsider
 		if ($admin_search) $search_ok = true; 	// yes, we can search!
 	}
-
-	relevanssi_all_taxonomies();
 
 	global $relevanssi_active;
 
@@ -1728,7 +1711,7 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_custom_types'])) update_option('relevanssi_custom_types', $_REQUEST['relevanssi_custom_types']);
 	if (isset($_REQUEST['relevanssi_custom_taxonomies'])) update_option('relevanssi_custom_taxonomies', $_REQUEST['relevanssi_custom_taxonomies']);
 	if (isset($_REQUEST['relevanssi_index_fields'])) update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
-	if (isset($_REQUEST['relevanssi_exclude_posts'])) update_option('relevanssi_exclude_posts', $_REQUEST['relevanssi_expst']); 			//added by OdditY
+	if (isset($_REQUEST['relevanssi_expst'])) update_option('relevanssi_exclude_posts', $_REQUEST['relevanssi_expst']); 			//added by OdditY
 	if (isset($_REQUEST['relevanssi_include_tags'])) update_option('relevanssi_include_tags', $_REQUEST['relevanssi_inctags']); 			//added by OdditY	
 	if (isset($_REQUEST['relevanssi_hilite_title'])) update_option('relevanssi_hilite_title', $_REQUEST['relevanssi_hilite_title']); 	//added by OdditY	
 	if (isset($_REQUEST['relevanssi_index_comments'])) update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']); //added by OdditY	

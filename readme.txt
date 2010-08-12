@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.0
+Stable tag: 2.0.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -135,6 +135,10 @@ of the taxonomy you want to use.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.0.1 =
+* Exclude posts/pages option wasn't saved on the options page. It works now.
+* 2.0 included an unnecessary function that broke Relevanssi in WP 2.8.5. Fixed that.
 
 = 2.0 =
 * Post authors can now be indexed and searched. Author are indexed by their display name.
