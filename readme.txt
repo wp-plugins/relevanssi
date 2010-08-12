@@ -1,10 +1,10 @@
 === Relevanssi ===
 Contributors: msaari
 Donate link: http://www.mikkosaari.fi/relevanssi/
-Tags: search, relevance
+Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 2.8.4
-Stable tag: 1.6
+Tested up to: 3.0.1
+Stable tag: 2.0.2
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -22,30 +22,28 @@ any results, Relevanssi will look for similar terms. Strict phrases using quotat
 The matching is based on basic tf * idf weighing, with some extra features added like a boost for
 words that appear in titles.
 
-In general the plugin doesn't affect the display of search results at all - that is left for the 
-search result template to decide. However, if the option is set, Relevanssi will create custom
-search result snippets that show the part of the document where the search hit was made. Relevanssi
-can also highlight the query terms in the search results.
+Relevanssi can create custom search result snippets that show the part of the document where the
+search hit was made. Relevanssi can also highlight the query terms in the search results.
 
 Relevanssi can keep a log of user queries and display both most popular queries and recent queries
-that got no hits. The logging is a new feature that will be refined later.
+that got no hits.
 
 Relevanssi supports the hidden input field `cat` to restrict searches to certain categories (or
 tags, since those are pretty much the same). Just add a hidden input field named `cat` in your
-search form and list the desired category or tag IDs in the `value` field. You can also set the
-description from general plugin settings (and then override it in individual search forms with
-the special field).
+search form and list the desired category or tag IDs in the `value` field - positive numbers
+include those categories and tags, negative numbers exclude them. You can also set the
+restriction from general plugin settings (and then override it in individual search forms with
+the special field). This works with custom taxonomies as well, just replace `cat` with the name
+of your taxonomy.
 
-In addition of post and page content, Relevanssi can index comments and pingbacks. It can
-also expand shortcodes in post content before indexing, so that everything the user sees on
-the entry page will be included in the index.
+Relevanssi also supports custom post types.
+
+In addition of post and page content (including tags and categories), Relevanssi can index
+comments and pingbacks. It can also expand shortcodes in post content before indexing, so
+that everything the user sees on the entry page will be included in the index.
 
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
 Katzgrau.
-
-I know the plugin works with WP 2.5, but it loses some non-essential functionality. The
-shortcode stuff doesn't work with WP 2.5, which doesn't support shortcodes. Compatibility
-with older versions of WP hasn't been tested.
 
 == Installation ==
 
@@ -93,18 +91,99 @@ every document are completely useless for information retrieval purposes. Basica
 inverted document frequency is really low, so they never have much power in matching. Also,
 removing those words helps to make the index smaller and searching faster.
 
+= Sorting search results =
+
+If you want something else than relevancy ranking, you can use orderby and order parameters. Orderby
+accepts $post variable attributes and order can be "asc" or "desc". The most relevant attributes
+here are most likely "post_date" and "comment_count".
+
+If you want to give your users the ability to sort search results by date, you can just add a link
+to http://www.yourblogdomain.com/?s=search-term&orderby=date&order=desc to your search result
+page.
+
+Order by relevance is either orderby=relevance or no orderby parameter at all.
+
+= Displaying the relevance score =
+
+Relevanssi stores the relevance score it uses to sort results in the $post variable. Just add
+something like
+
+echo $post->relevance_score
+
+to your search results template inside a PHP code block to display the relevance score.
+
+= Restricting searches with taxonomies =
+
+You can use taxonomies to restrict search results to posts and pages tagged with a certain 
+taxonomy term. If you have a custom taxonomy of "People" and want to search entries tagged
+"John" in this taxonomy, just use `?s=keyword&people=John` in the URL. You should be able to use
+an input field in the search form to do this, as well - just name the input field with the name
+of the taxonomy you want to use.
+
 == Known issues and To-do's ==
-* Known issue: Relevanssi doesn't play nice with widgets that display recent posts. Right now it makes them disappear. Help with this problem would be most welcome.
-* Known issue: In general, multiple Loops on the search page may cause surprising results, and please make sure the actual search results are the first loop.
+* Known issue: The most common cause of blank screens when indexing is the lack of the mbstring extension. Make sure it's installed.
+* Known issue: In general, multiple Loops on the search page may cause surprising results. Please make sure the actual search results are the first loop.
 * Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
+* Known issue: I know the plugin works with WP 2.5, but it loses some non-essential functionality. The shortcode stuff doesn't work with WP 2.5, which doesn't support shortcodes. Compatibility with older versions of WP hasn't been tested.
+* Known issue: Custom post types and private posts is problematic - I'm using default 'read_private_*s' capability, which might not always work.
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
+* To-do: Option to set the number of search results returned.
 
 == Thanks ==
 * Cristian Damm for tag indexing, comment indexing, post/page exclusion and general helpfulness.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.0.2 =
+* Small bug fix: with private posts, sometimes correct amount of posts weren't displayed.
+
+= 2.0.1 =
+* Exclude posts/pages option wasn't saved on the options page. It works now.
+* 2.0 included an unnecessary function that broke Relevanssi in WP 2.8.5. Fixed that.
+
+= 2.0 =
+* Post authors can now be indexed and searched. Author are indexed by their display name.
+* In search results, $post->relevance_score variable will now contain the score of the search result.
+* Comment authors are now included in the index, if comments are indexed.
+* Search results can be sorted by any $post field and in any order, in addition of sorting them by relevancy.
+* Private posts are indexed and displayed to the users capable of seeing them. This uses Role-Scoper plugin, if it's available, otherwise it goes by WordPress capabilities.
+* Searches can be restricted with a taxonomy term (see FAQ for details).
+
+= 1.9 =
+* Excerpts are now better and will contain more search terms and not just the first hit.
+* Fixed an error relating to shortcodes in excerpts.
+* If comments are indexed, custom excerpts will show text from comments as well as post content.
+* Custom post type posts are now indexed as they are edited. That didn't work before.
+* Cleaned out more error notices.
+
+= 1.8.1 =
+* Sometimes empty ghost entries would appear in search results. No more.
+* Added support for the WordPress' post_type argument to restrict search results to single post type.
+* Relevanssi will now check for the presence of multibyte string functions and warn if they're missing.
+* The category indexing option checkbox didn't work. It's now fixed.
+* Small fix in the way punctuation is removed.
+* Added a new indexing option to index all public post types.
+
+= 1.8 =
+* Fixed lots of error notices that popped up when E_NOTICE was on. Sorry about those.
+* Custom post types can now be indexed if wanted. Default behaviour is to index all post types (posts, pages and custom types).
+* Custom taxonomies can also be indexed in addition to standard post tags. Default behaviour is to index nothing. If somebody knows a way to list all custom taxonomies, that information would be appreciated.
+
+= 1.7.3 =
+* Small bug fix: code that created database indexes was broken. Say "ALTER TABLE `wp_relevanssi` ADD INDEX (doc)" and "ALTER TABLE `wp_relevanssi` ADD INDEX (term)" to your MySQL db to fix this for an existing installation.
+
+= 1.7.2 =
+* Small bug fix: public posts that are changed to private are now removed from index (password protected posts remain in index).
+* An Italian translation is now included (thanks to Alessandro Fiorotto).
+
+= 1.7.1 =
+* Small fix: the hidden variable cat now accepts negative category and tag ids. Negative categories and tags are excluded in search. Mixing inclusion and exclusion is possible.
+
+= 1.7 =
+* Major bug fix: Relevanssi doesn't kill other post loops on the search result page anymore. Please let me know if Relevanssi feels too slow after the update.
+* Post categories can now be indexed.
 
 = 1.6 =
 * Relevanssi is now able to expand shortcodes before indexing to include shortcode content to the index.
@@ -150,7 +229,7 @@ removing those words helps to make the index smaller and searching faster.
 = 1.4 =
 * Added an option to restrict searches to certain categories or tags, either by plugin option or hidden input field in the search form.
 * The contents of `<script>` and other such tags are now removed from excerpts.
-* When indexing, HTML tags and `[quicktags]` are removed.
+* When indexing, HTML tags and `[shortcodes]` are removed.
 * Digits are no longer removed from terms. Re-index database to get them indexed.
 * Wrapped the output of `relevanssi_the_excerpt()` in <p> tags.
 * Stopwords are no longer removed from search queries.
