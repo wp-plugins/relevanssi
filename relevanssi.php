@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.0.2
+Version: 2.0.3
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -419,14 +419,12 @@ function relevanssi_query($posts) {
 		
 		for ($i = $wpSearch_low; $i <= $wpSearch_high; $i++) {
 			if (isset($hits[intval($i)])) {
-				$hit = $hits[intval($i)];
+				$post = $hits[intval($i)];
 			}
 			else {
 				continue;
 			}
 
-			$post = get_post($hit, OBJECT);
-			
 			if ($post == NULL) {
 				// apparently sometimes you can get a null object
 				continue;
@@ -445,19 +443,14 @@ function relevanssi_query($posts) {
 			if ('on' == $make_excerpts) {			
 				$post->post_excerpt = relevanssi_do_excerpt($post, $q);
 				if ('on' == get_option('relevanssi_show_matches')) {
-					$post->post_excerpt .= relevanssi_show_matches($return, $hit);
+					$post->post_excerpt .= relevanssi_show_matches($return, $post->ID);
 				}
 			}
 			
-			$post->relevance_score = round($return[5][$hit], 2);
+			$post->relevance_score = round($return[5][$post->ID], 2);
 			
 			$posts[] = $post;
 		}
-
-		isset($wp->query_vars["orderby"]) ? $orderby = $wp->query_vars["orderby"] : $orderby = 'relevance';
-		isset($wp->query_vars["order"]) ? $order = $wp->query_vars["order"] : $order = 'desc';
-		if ($orderby != 'relevance')
-			objectSort($posts, $orderby, $order);
 	}
 
 	return $posts;
@@ -856,9 +849,15 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 					}
 				}
 			}
-			if ($post_ok) $hits[intval($i++)] = $doc;
+			if ($post_ok) $hits[intval($i++)] = get_post($doc);
 		}
 	}
+
+	global $wp;
+	isset($wp->query_vars["orderby"]) ? $orderby = $wp->query_vars["orderby"] : $orderby = 'relevance';
+	isset($wp->query_vars["order"]) ? $order = $wp->query_vars["order"] : $order = 'desc';
+	if ($orderby != 'relevance')
+		objectSort($hits, $orderby, $order);
 
 	$return = array($hits, $body_matches, $title_matches, $tag_matches, $comment_matches, $scores);
 
