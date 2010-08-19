@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.0.3
+Version: 2.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -100,6 +100,37 @@ function relevanssi_init() {
 	}
 	
 	return;
+}
+
+function relevanssi_didyoumean($query, $pre, $post, $n = 5) {
+	global $wpdb, $log_table, $wp_query;
+	
+	$total_results = $wp_query->found_posts;	
+	
+	if ($total_results > $n) return;
+
+	$data = $wpdb->get_results("SELECT query, count(query) as c, AVG(hits) as a 
+		FROM $log_table WHERE hits > 1 GROUP BY query ORDER BY count(query) DESC");
+		
+	$distance = -1;
+	$closest = "";
+	
+	foreach ($data as $row) {
+		if ($row->c < 2) break;
+		$lev = levenshtein($query, $row->query);
+		
+		if ($lev < $distance || $distance < 0) {
+			if ($row->a > 0) {
+				$distance = $lev;
+				$closest = $row->query;
+				if ($lev == 1) break;
+			}
+		}
+	}
+	
+	if ($distance > 0) {
+		echo "$pre<a href='/?s=$closest'>$closest</a>$post";
+	}
 }
 
 function relevanssi_edit($post) {
@@ -359,7 +390,7 @@ function relevanssi_query($posts) {
 
 		$posts = array();
 
-		$q = stripslashes($wp->query_vars["s"]);
+		$q = trim(stripslashes($wp->query_vars["s"]));
 	
 		$cat = false;
 		if (isset($wp->query_vars["cat"])) {
@@ -584,9 +615,12 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 
 
 	if (isset($taxonomy)) {
+		$term_tax_id = null;
 		$term_id = $wpdb->get_var("SELECT term_id FROM $wpdb->terms WHERE name LIKE '$taxonomy_term'");
-		$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->term_taxonomy
-				WHERE term_id=$term_id");
+		if ($term_id) {
+			$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->term_taxonomy
+					WHERE term_id=$term_id");
+		}
 		$taxonomy = $term_tax_id;
 	}
 
@@ -615,7 +649,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 
 	$remove_stopwords = false;
 	$phrases = relevanssi_recognize_phrases($q);
-	
+
 	$terms = relevanssi_tokenize($q, $remove_stopwords);
 	if (count($terms) < 1) {
 		// Tokenizer killed all the search terms.
@@ -1583,17 +1617,46 @@ function relevanssi_remove_punct($a) {
 		$a = strip_tags($a);
 
 		$a = str_replace("'", '', $a);
-		$a = str_replace("Â´", '', $a);
-		$a = str_replace("â€™", '', $a);
+		$a = str_replace("«", '', $a);
+		$a = str_replace("Õ", '', $a);
 
-		$a = str_replace("â€”", " ", $a);
-        $a = mb_ereg_replace('/[[:punct:]]+/', ' ', $a);
-		$a = str_replace("â€", " ", $a);
+		$a = str_replace("Ñ", " ", $a);
+		
+        $a = preg_replace('/[[:punct:]]+/u', ' ', $a);
+
+		$a = str_replace("Ó", " ", $a);
 
         $a = preg_replace('/[[:space:]]+/', ' ', $a);
 		$a = trim($a);
         return $a;
 }
+
+function relevanssi_shortcode($atts, $content, $name) {
+	global $wpdb;
+
+	extract(shortcode_atts(array('term' => false, 'phrase' => 'not'), $atts));
+	
+	if ($term != false) {
+		$term = urlencode(strtolower($term));
+	}
+	else {
+		$term = urlencode(strip_tags(strtolower($content)));
+	}
+	
+	if ($phrase != 'not') {
+		$term = '%22' . $term . '%22';	
+	}
+	
+	$link = get_bloginfo('url') . "/?s=$term";
+	
+	$pre  = "<a href='$link'>";
+	$post = "</a>";
+
+	return $pre . do_shortcode($content) . $post;
+}
+
+add_shortcode('search', 'relevanssi_shortcode');
+
 
 /*****
  * Interface functions

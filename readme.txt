@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.0.3
+Stable tag: 2.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -38,6 +38,9 @@ of your taxonomy.
 
 Relevanssi also supports custom post types.
 
+With Relevanssi, you can also get Google-style "Did you mean?" suggestions, when search fails
+to produce results. These suggestions are based on successful user searches.
+
 In addition of post and page content (including tags and categories), Relevanssi can index
 comments and pingbacks. It can also expand shortcodes in post content before indexing, so
 that everything the user sees on the entry page will be included in the index.
@@ -55,6 +58,7 @@ Katzgrau.
 To update your installation, simply overwrite the old files with the new, activate the new
 version and if the new version has changes in the indexing, rebuild the index.
 
+= Using custom search results =
 If you want to use the custom search results, make sure your search results template uses 
 `the_excerpt()` to display the entries, because the plugin creates the custom snippet by replacing
 the post excerpt.
@@ -68,28 +72,15 @@ To avoid trouble, use the function like this:
 
 `<?php if (function_exists('relevanssi_the_excerpt')) { relevanssi_the_excerpt(); }; ?>`
 
+See Frequently Asked Questions for more instructions on what you can do with
+Relevanssi.
+
+= Uninstalling =
 To uninstall the plugin, first click the "Remove plugin data" button on the plugin settins page
 to remove options and database tables, then remove the plugin using the normal WordPress
 plugin management tools.
 
 == Frequently Asked Questions ==
-
-= What is tf * idf weighing? =
-
-It's the basic weighing scheme used in information retrieval. Tf stands for *term frequency*
-while idf is *inverted document frequency*. Term frequency is simply the number of times the term
-appears in a document, while document frequency is the number of documents in the database where
-the term appears.
-
-Thus, the weight of the word for a document increases the more often it appears in the document and
-the less often it appears in other documents.
-
-= What are stop words? =
-
-Each document database is full of useless words. All the little words that appear in just about
-every document are completely useless for information retrieval purposes. Basically, their
-inverted document frequency is really low, so they never have much power in matching. Also,
-removing those words helps to make the index smaller and searching faster.
 
 = Sorting search results =
 
@@ -112,6 +103,39 @@ echo $post->relevance_score
 
 to your search results template inside a PHP code block to display the relevance score.
 
+= Did you mean? suggestions =
+To use Google-style "did you mean?" suggestions, first enable search query logging. The
+suggestions are based on logged queries, so without good base of logged queries, the
+suggestions will be odd and not very useful.
+
+To use the suggestions, add the following line to your search result template, preferably
+before the have_posts() check:
+
+`<?php if (function_exists('relevanssi_didyoumean')) { relevanssi_didyoumean(get_search_query(), "<p>Did you mean: ", "?</p>", 5); }?>`
+
+The first parameter passes the search term, the second is the text before the result,
+the third is the text after the result and the number is the amount of search results
+necessary to not show suggestions. With the default value of 5, suggestions are not
+shown if the search returns more than 5 hits.
+
+= Search shortcode =
+Relevanssi also adds a shortcode to help making links to search results. That way users
+can easily find more information about a given subject from your blog. The syntax is
+simple:
+
+`[search]John Doe[/search]`
+
+This will make the text John Doe a link to search results for John Doe. In case you
+want to link to some other search term than the anchor text (necessary in languages
+like Finnish), you can use:
+
+`[search term="John Doe"]Mr. John Doe[/search]`
+
+Now the search will be for John Doe, but the anchor says Mr. John Doe.
+
+One more parameter: setting `[search phrase="on"]` will wrap the search term in
+quotation marks, making it a phrase. This can be useful in some cases.
+
 = Restricting searches with taxonomies =
 
 You can use taxonomies to restrict search results to posts and pages tagged with a certain 
@@ -120,12 +144,30 @@ taxonomy term. If you have a custom taxonomy of "People" and want to search entr
 an input field in the search form to do this, as well - just name the input field with the name
 of the taxonomy you want to use.
 
+= What is tf * idf weighing? =
+
+It's the basic weighing scheme used in information retrieval. Tf stands for *term frequency*
+while idf is *inverted document frequency*. Term frequency is simply the number of times the term
+appears in a document, while document frequency is the number of documents in the database where
+the term appears.
+
+Thus, the weight of the word for a document increases the more often it appears in the document and
+the less often it appears in other documents.
+
+= What are stop words? =
+
+Each document database is full of useless words. All the little words that appear in just about
+every document are completely useless for information retrieval purposes. Basically, their
+inverted document frequency is really low, so they never have much power in matching. Also,
+removing those words helps to make the index smaller and searching faster.
+
 == Known issues and To-do's ==
 * Known issue: The most common cause of blank screens when indexing is the lack of the mbstring extension. Make sure it's installed.
 * Known issue: In general, multiple Loops on the search page may cause surprising results. Please make sure the actual search results are the first loop.
 * Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
 * Known issue: I know the plugin works with WP 2.5, but it loses some non-essential functionality. The shortcode stuff doesn't work with WP 2.5, which doesn't support shortcodes. Compatibility with older versions of WP hasn't been tested.
 * Known issue: Custom post types and private posts is problematic - I'm using default 'read_private_*s' capability, which might not always work.
+* Known issue: There are reported problems with custom posts combined with custom taxonomies, the taxonomy restriction doesn't necessarily work.
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 * To-do: Option to set the number of search results returned.
@@ -135,6 +177,11 @@ of the taxonomy you want to use.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.1 =
+* An experimental "Did you mean" suggestion feature. Feedback is most welcome.
+* Added a short code to facilitate adding links to search results.
+* Fixed a small bug that in some cases caused MySQL errors.
 
 = 2.0.3 =
 * Fixed problems relating to the orderby parameter.
