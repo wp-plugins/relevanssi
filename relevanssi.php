@@ -1617,14 +1617,12 @@ function relevanssi_remove_punct($a) {
 		$a = strip_tags($a);
 
 		$a = str_replace("'", '', $a);
-		$a = str_replace("«", '', $a);
-		$a = str_replace("Õ", '', $a);
+		$a = str_replace("Â´", '', $a);
+		$a = str_replace("â€™", '', $a);
 
-		$a = str_replace("Ñ", " ", $a);
-		
-        $a = preg_replace('/[[:punct:]]+/u', ' ', $a);
-
-		$a = str_replace("Ó", " ", $a);
+		$a = str_replace("â€”", " ", $a);
+        $a = mb_ereg_replace('/[[:punct:]]+/', ' ', $a);
+		$a = str_replace("â€", " ", $a);
 
         $a = preg_replace('/[[:space:]]+/', ' ', $a);
 		$a = trim($a);
