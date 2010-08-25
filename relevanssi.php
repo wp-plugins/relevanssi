@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.1.1
+Version: 2.1.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -830,10 +830,11 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		$tag_boost = floatval(get_option('relevanssi_tag_boost'));
 		$comment_boost = floatval(get_option('relevanssi_comment_boost'));
 		
+		$idf = log($D / (1 + $df));
+//		$doc_terms_temp = array();
 		foreach ($matches as $match) {
-			$tf = $match->tf;
-			$idf = log($D / (1 + $df));
-			$weight = $tf * $idf;
+			$weight = $match->tf * $idf;
+			
 			switch ($match->title) {
 				case "1":
 					$weight = $weight * $title_boost;
@@ -850,21 +851,24 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 				default:
 					isset($body_matches[$match->doc]) ? $body_matches[$match->doc] += $match->tf : $body_matches[$match->doc] = $match->tf;
 			}
-			if (isset($doc_weight[$match->doc])) {
-				$doc_weight[$match->doc] += $weight;
-			}
-			else {
-				$doc_weight[$match->doc] = $weight;
-			}
-			
+
+			$doc_terms[$match->doc][$term] = true; // count how many terms are matched to a doc
+			isset($doc_weight[$match->doc]) ? $doc_weight[$match->doc] += $weight : $doc_weight[$match->doc] = $weight;
 			isset($scores[$match->doc]) ? $scores[$match->doc] += $weight : $scores[$match->doc] = $weight;
 		}
 	}
 
+	$total_terms = count($terms);
+	
 	if (isset($doc_weight) && count($doc_weight) > 0) {
 		arsort($doc_weight);
 		$i = 0;
 		foreach ($doc_weight as $doc => $weight) {
+			if (count($doc_terms[$doc]) < $total_terms) {
+				// AND operator in action:
+				// doc didn't match all terms, so it's discarded
+				continue;
+			}
 			$status = get_post_status($doc);
 			$post_ok = true;
 			if ('private' == $status) {
@@ -1339,12 +1343,13 @@ function relevanssi_build_index($extend = false) {
 		// extending, so no truncate and skip the posts already in the index
 		$q = "SELECT *
 		FROM $wpdb->posts WHERE (post_status='publish' OR post_status='private') AND
-		ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table)" . $restriction;
+		ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table)" . $restriction . " LIMIT 100";
 	}
 
 	$custom_fields = relevanssi_get_custom_fields();
 
 	$content = $wpdb->get_results($q);
+	
 	foreach ($content as $post) {
 		$n += relevanssi_index_doc($post, false, $custom_fields);
 		// n calculates the number of insert queries
@@ -1491,7 +1496,7 @@ function relevanssi_index_doc($post, $remove_first = false, $custom_fields = fal
 	}
 	
 	$contents = relevanssi_strip_invisibles($post->post_content);
-	
+
 	if ('on' == get_option('relevanssi_expand_shortcodes')) {
 		if (function_exists("do_shortcode")) {
 			$contents = do_shortcode($contents);
@@ -1622,7 +1627,7 @@ function relevanssi_remove_punct($a) {
 		$a = str_replace("’", '', $a);
 
 		$a = str_replace("—", " ", $a);
-        $a = mb_ereg_replace('/[[:punct:]]+/', ' ', $a);
+        $a = preg_replace('/[[:punct:]]+/u', ' ', $a);
 		$a = str_replace("”", " ", $a);
 
         $a = preg_replace('/[[:space:]]+/', ' ', $a);
@@ -1874,7 +1879,10 @@ function relevanssi_query_log() {
 }
 
 function relevanssi_options_form() {
-	global $title_boost_default, $tag_boost_default, $comment_boost_default;
+	global $title_boost_default, $tag_boost_default, $comment_boost_default, $wpdb, $relevanssi_table;
+	
+	$docs_count = $wpdb->get_var("SELECT COUNT(DISTINCT doc) FROM $relevanssi_table");
+	$biggest_doc = $wpdb->get_var("SELECT doc FROM $relevanssi_table ORDER BY doc DESC LIMIT 1");
 	
 	$title_boost = get_option('relevanssi_title_boost');
 	$tag_boost = get_option('relevanssi_tag_boost');
@@ -2162,6 +2170,11 @@ function relevanssi_options_form() {
 		the plugins list.", "relevanssi");	
 	$uninstall_button = __("Remove plugin data", "relevanssi");
 
+	$stateoftheindextitle = __("State of the Index", "relevanssi");
+	$highestindexed = __("Highest post ID indexed", "relevanssi");
+	$documents = __("Documents in the index", "relevanssi");
+	$basictitle = __("Basic options", "relevanssi");
+
 	echo <<<EOHTML
 	<br />
 	
@@ -2197,6 +2210,13 @@ makes the search better - you'll help them and you'll help me.</p>
 <p>&mdash; Mikko</p>
 </div>
 	
+	<h3>$stateoftheindextitle</h3>
+	<p>
+	$documents: <strong>$docs_count</strong><br />
+	$highestindexed: <strong>$biggest_doc</strong>
+	</p>
+	
+	<h3>$basictitle</h3>
 	<form method="post">
 	<label for="relevanssi_title_boost">$title_boost_txt 
 	<input type="text" name="relevanssi_title_boost" size="4" value="$title_boost" /></label>
@@ -2236,13 +2256,13 @@ makes the search better - you'll help them and you'll help me.</p>
 	<input type="text" name="relevanssi_cat" size="20" value="$cat" /></label><br />
 	<small>$cat_desc</small>
 
-	<br />
+	<br /><br />
 
 	<label for="relevanssi_excat">$excat_txt
 	<input type="text" name="relevanssi_excat" size="20" value="$excat" /></label><br />
 	<small>$excat_desc</small>
 
-	<br />
+	<br /><br />
 
 	<label for="relevanssi_excat">$expst_txt
 	<input type="text" name="relevanssi_expst" size="20" value="$expst" /></label><br />
@@ -2254,7 +2274,7 @@ makes the search better - you'll help them and you'll help me.</p>
 	<input type="checkbox" name="relevanssi_excerpts" $excerpts /></label><br />
 	<small>$excerpt_desc</small>
 	
-	<br />
+	<br /><br />
 	
 	<label for="relevanssi_excerpt_length">$excerpt_length_txt
 	<input type="text" name="relevanssi_excerpt_length" size="4" value="$excerpt_length" /></label>
@@ -2264,13 +2284,13 @@ makes the search better - you'll help them and you'll help me.</p>
 	</select><br />
 	<small>$excerpt_length_desc</small>
 
-	<br />
+	<br /><br />
 
 	<label for="relevanssi_show_matches">$show_matches_txt
 	<input type="checkbox" name="relevanssi_show_matches" $show_matches /></label>
 	<small>$show_matches_desc</small>
 
-	<br />
+	<br /><br />
 
 	<label for="relevanssi_show_matches_text">$show_matches_text_txt
 	<input type="text" name="relevanssi_show_matches_text" value="$show_matches_text" size="20" /></label>
@@ -2350,7 +2370,7 @@ makes the search better - you'll help them and you'll help me.</p>
 	</select></label><br />
 	<small>$index_type_comment</small>
 
-	<br />
+	<br /><br />
 	
 	<label for="relevanssi_custom_types">$custom_type_txt:
 	<input type="text" name="relevanssi_custom_types" size="30" value="$custom_types" /></label><br />
@@ -2368,19 +2388,19 @@ makes the search better - you'll help them and you'll help me.</p>
 	<input type="checkbox" name="relevanssi_inctags" $inctags /></label><br />
 	<small>$inctags_desc</small>
 
-	<br />
+	<br /><br />
 
 	<label for="relevanssi_inccats">$inccats_txt
 	<input type="checkbox" name="relevanssi_inccats" $inccats /></label><br />
 	<small>$inccats_desc</small>
 
-	<br />
+	<br /><br />
 
 	<label for="relevanssi_index_author">$index_author_txt
 	<input type="checkbox" name="relevanssi_index_author" $index_author /></label><br />
 	<small>$index_author_desc</small>
 
-	<br />
+	<br /><br />
 	
 	<label for="relevanssi_index_comments">$incom_type_txt
 	<select name="relevanssi_index_comments">
