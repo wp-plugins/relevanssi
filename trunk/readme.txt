@@ -186,6 +186,7 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: I know the plugin works with WP 2.5, but it loses some non-essential functionality. The shortcode stuff doesn't work with WP 2.5, which doesn't support shortcodes. Compatibility with older versions of WP hasn't been tested.
 * Known issue: Custom post types and private posts is problematic - I'm using default 'read_private_*s' capability, which might not always work.
 * Known issue: There are reported problems with custom posts combined with custom taxonomies, the taxonomy restriction doesn't necessarily work.
+* Known issue: Phrase matching is only done to post content; phrases don't match to category titles and other content.
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 * To-do: Option to set the number of search results returned.
