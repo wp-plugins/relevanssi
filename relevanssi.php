@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.1.2
+Version: 2.1.3
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -192,6 +192,8 @@ function relevanssi_install() {
 	add_option('relevanssi_custom_types', '');
 	add_option('relevanssi_custom_taxonomies', '');
 	add_option('relevanssi_index_author', '');
+	add_option('relevanssi_implicit_operator', 'OR');
+	add_option('relevanssi_omit_from_logs', '');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -277,6 +279,8 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_custom_types');
 	delete_option('relevanssi_custom_taxonomies');
 	delete_option('relevanssi_index_author');
+	delete_option('relevanssi_implicit_operator');
+	delete_option('relevanssi_omit_from_logs');
 	
 	$sql = "DROP TABLE $stopword_table";
 	$wpdb->query($sql);
@@ -434,8 +438,10 @@ function relevanssi_query($posts) {
 			$tax_term = null;
 		}
 
-		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term);
-		$hits = $return[0];
+		$operator = get_option("relevanssi_implicit_operator");
+
+		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator);
+		$hits = $return['hits'];
 
 		$wp_query->found_posts = sizeof($hits);
 		$wp_query->max_num_pages = ceil(sizeof($hits) / $wp_query->query_vars["posts_per_page"]);
@@ -479,7 +485,7 @@ function relevanssi_query($posts) {
 				}
 			}
 			
-			$post->relevance_score = round($return[5][$post->ID], 2);
+			$post->relevance_score = round($return['scores'][$post->ID], 2);
 			
 			$posts[] = $post;
 		}
@@ -517,11 +523,11 @@ function objectSort(&$data, $key, $dir = 'desc') {
 }
 
 function relevanssi_show_matches($data, $hit) {
-	$body = $data[1][$hit];
-	$title = $data[2][$hit];
-	$tag = $data[3][$hit];
-	$comment = $data[4][$hit];
-	$score = round($data[5][$hit], 2);
+	$body = $data['body_matches'][$hit];
+	$title = $data['title_matches'][$hit];
+	$tag = $data['tag_matches'][$hit];
+	$comment = $data['comment_matches'][$hit];
+	$score = round($data['scores'][$hit], 2);
 	
 	$text = get_option('relevanssi_show_matches_text');
 	$replace_these = array("%body%", "%title%", "%tags%", "%comments%", "%score%");
@@ -534,6 +540,10 @@ function relevanssi_show_matches($data, $hit) {
 
 function relevanssi_update_log($query, $hits) {
 	global $wpdb, $log_table;
+	
+	$omit = explode(",", get_option('relevanssi_omit_from_logs'));
+
+	if (in_array(wp_get_current_user()->ID, $omit)) return;
 	
 	$q = $wpdb->prepare("INSERT INTO $log_table (query, hits) VALUES (%s, %d)", $query, intval($hits));
 	$wpdb->query($q);
@@ -555,12 +565,18 @@ function relevanssi_getLimit($limit) {
 }
 
 // This is my own magic working.
-function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post_type = NULL, $taxonomy = NULL, $taxonomy_term = NULL) {
+function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post_type = NULL, $taxonomy = NULL, $taxonomy_term = NULL, $operator = "AND") {
 	global $relevanssi_table, $wpdb;
 
 	$hits = array();
 	
 	$custom_cat = NULL;
+	
+	$o_cat = $cat;
+	$o_excat = $excat;
+	$o_expost = $expost;
+	$o_post_type = $post_type;
+	$o_taxonomy = $taxonomy;
 	
 	if ("custom" == $cat) {
 		$custom_field = "custom";
@@ -864,7 +880,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		arsort($doc_weight);
 		$i = 0;
 		foreach ($doc_weight as $doc => $weight) {
-			if (count($doc_terms[$doc]) < $total_terms) {
+			if (count($doc_terms[$doc]) < $total_terms && $operator == "AND") {
 				// AND operator in action:
 				// doc didn't match all terms, so it's discarded
 				continue;
@@ -892,13 +908,20 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		}
 	}
 
+	if (count($hits) < 1) {
+		if ($operator == "AND") {
+			$return = relevanssi_search($q, $o_cat, $o_excat, $o_expost, $o_post_type, $o_taxonomy, $o_taxonomy_term, "OR");
+			extract($return);
+		}
+	}
+
 	global $wp;
 	isset($wp->query_vars["orderby"]) ? $orderby = $wp->query_vars["orderby"] : $orderby = 'relevance';
 	isset($wp->query_vars["order"]) ? $order = $wp->query_vars["order"] : $order = 'desc';
 	if ($orderby != 'relevance')
 		objectSort($hits, $orderby, $order);
 
-	$return = array($hits, $body_matches, $title_matches, $tag_matches, $comment_matches, $scores);
+	$return = array('hits' => $hits, 'body_matches' => $body_matches, 'title_matches' => $title_matches, 'tag_matches' => $tag_matches, 'comment_matches' => $comment_matches, 'scores' => $scores);
 
 	return $return;
 }
@@ -1676,15 +1699,7 @@ function relevanssi_options() {
 	}
 
 	if (isset($_REQUEST['index'])) {
-		if (isset($_REQUEST['relevanssi_index_type'])) update_option('relevanssi_index_type', $_REQUEST['relevanssi_index_type']);
-		if (isset($_REQUEST['relevanssi_custom_types'])) update_option('relevanssi_custom_types', $_REQUEST['relevanssi_custom_types']);
-		if (isset($_REQUEST['relevanssi_custom_taxonomies'])) update_option('relevanssi_custom_taxonomies', $_REQUEST['relevanssi_custom_taxonomies']);
-		if (isset($_REQUEST['relevanssi_index_fields'])) update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
-		if (isset($_REQUEST['relevanssi_index_comments'])) update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']);
-		if (isset($_REQUEST['relevanssi_inctags'])) update_option('relevanssi_include_tags', $_REQUEST['relevanssi_inctags']);
-		if (isset($_REQUEST['relevanssi_inccats'])) update_option('relevanssi_include_cats', $_REQUEST['relevanssi_inccats']);
-		if (isset($_REQUEST['relevanssi_index_author'])) update_option('relevanssi_index_author', $_REQUEST['relevanssi_index_author']);
-		if (isset($_REQUEST['relevanssi_expand_shortcodes'])) update_option('relevanssi_expand_shortcodes', $_REQUEST['relevanssi_expand_shortcodes']);
+		update_relevanssi_options();
 		relevanssi_build_index();
 	}
 
@@ -1765,7 +1780,7 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_excerpt_type'])) update_option('relevanssi_excerpt_type', $_REQUEST['relevanssi_excerpt_type']);	
 	if (isset($_REQUEST['relevanssi_log_queries'])) update_option('relevanssi_log_queries', $_REQUEST['relevanssi_log_queries']);	
 	if (isset($_REQUEST['relevanssi_highlight'])) update_option('relevanssi_highlight', $_REQUEST['relevanssi_highlight']);
-	
+
 	if (isset($_REQUEST['relevanssi_txt_col'])) update_option('relevanssi_txt_col', $_REQUEST['relevanssi_txt_col']);
 	if (isset($_REQUEST['relevanssi_bg_col'])) update_option('relevanssi_bg_col', $_REQUEST['relevanssi_bg_col']);
 	if (isset($_REQUEST['relevanssi_css'])) update_option('relevanssi_css', $_REQUEST['relevanssi_css']);
@@ -1782,11 +1797,12 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_index_comments'])) update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']); //added by OdditY	
 	if (isset($_REQUEST['relevanssi_include_cats'])) update_option('relevanssi_include_cats', $_REQUEST['relevanssi_inccats']);
 	if (isset($_REQUEST['relevanssi_index_author'])) update_option('relevanssi_index_author', $_REQUEST['relevanssi_index_author']);
-
 	if (isset($_REQUEST['relevanssi_show_matches'])) update_option('relevanssi_show_matches', $_REQUEST['relevanssi_show_matches']);
 	if (isset($_REQUEST['relevanssi_show_matches_text'])) update_option('relevanssi_show_matches_text', $_REQUEST['relevanssi_show_matches_text']);
 	if (isset($_REQUEST['relevanssi_fuzzy'])) update_option('relevanssi_fuzzy', $_REQUEST['relevanssi_fuzzy']);
 	if (isset($_REQUEST['relevanssi_expand_shortcodes'])) update_option('relevanssi_expand_shortcodes', $_REQUEST['relevanssi_expand_shortcodes']);
+	if (isset($_REQUEST['relevanssi_implicit_operator'])) update_option('relevanssi_implicit_operator', $_REQUEST['relevanssi_implicit_operator']);
+	if (isset($_REQUEST['relevanssi_omit_from_logs'])) update_option('relevanssi_omit_from_logs', $_REQUEST['relevanssi_omit_from_logs']);
 }
 
 function relevanssi_add_stopword($term) {
@@ -1986,8 +2002,12 @@ function relevanssi_options_form() {
 	$fuzzy_always = ('always' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
 	$fuzzy_never = ('never' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
 
+	$implicit_and = ('AND' == get_option('relevanssi_implicit_operator') ? 'selected="selected"' : '');
+	$implicit_or = ('OR' == get_option('relevanssi_implicit_operator') ? 'selected="selected"' : '');
+
 	$expand_shortcodes = ('on' == get_option('relevanssi_expand_shortcodes') ? 'checked="checked"' : '');
 
+	$omit_from_logs	= get_option('relevanssi_omit_from_logs');
 	
 	//Added by OdditY ->
 	$expst = get_option('relevanssi_exclude_posts'); 
@@ -2175,6 +2195,14 @@ function relevanssi_options_form() {
 	$documents = __("Documents in the index", "relevanssi");
 	$basictitle = __("Basic options", "relevanssi");
 
+	$implicit_txt = __("Default operator for the search?", "relevanssi");
+	$implicit_and_txt = __("AND - require all terms", "relevanssi");
+	$implicit_or_txt = __("OR - any term present is enough", "relevanssi");
+	$implicit_desc = __("If you choose AND and the search finds no matches, it will automatically do an OR search.", "relevanssi");
+
+	$omit_from_logs_txt = __("Don't log queries from these users:", "relevanssi");
+	$omit_from_logs_desc = __("Comma-separated list of user ids that will not be logged.", "relevanssi");
+	
 	echo <<<EOHTML
 	<br />
 	
@@ -2236,12 +2264,21 @@ makes the search better - you'll help them and you'll help me.</p>
 
 	<br /><br />
 
+	<label for="relevanssi_implicit_operator">$implicit_txt
+	<select name="relevanssi_implicit_operator">
+	<option value="AND" $implicit_and">$implicit_and_txt</option>
+	<option value="OR" $implicit_or">$implicit_or_txt</option>
+	</select></label><br />
+	<small>$implicit_desc</small>
+	
+	<br /><br />
+
 	<label for="relevanssi_fuzzy">$fuzzy_txt
 	<select name="relevanssi_fuzzy">
 	<option value="sometimes" $fuzzy_sometimes">$fuzzy_sometimes_txt</option>
 	<option value="always" $fuzzy_always">$fuzzy_always_txt</option>
 	<option value="never" $fuzzy_never">$fuzzy_never_txt</option>
-	</select><br />
+	</select></label><br />
 	<small>$fuzzy_desc</small>
 
 	<br /><br />
@@ -2249,6 +2286,12 @@ makes the search better - you'll help them and you'll help me.</p>
 	<label for="relevanssi_log_queries">$log_queries_txt
 	<input type="checkbox" name="relevanssi_log_queries" $log_queries /></label>
 	<small>$log_queries_desc</small>
+
+	<br /><br />
+
+	<label for="relevanssi_omit_from_logs">$omit_from_logs_txt
+	<input type="text" name="relevanssi_omit_from_logs" size="20" value="$omit_from_logs" /></label>
+	<small>$omit_from_logs_desc</small>
 
 	<h3>$exclusions</h3>
 	
