@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.1.3
+Stable tag: 2.1.4
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -196,6 +196,9 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.1.4 =
+* Fixed a small bug that could cause all queries by anonymous users to go unlogged.
 
 = 2.1.3 =
 * OR operator makes a comeback! The default operator is now an option, and if you choose AND and search gets no results, an OR search is also run.
