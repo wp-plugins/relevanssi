@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.1.5
+Version: 2.1.6
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -505,8 +505,7 @@ function relevanssi_query($posts) {
 			if("on" == get_option('relevanssi_hilite_title')){
 				$post->post_title = strip_tags($post->post_title);
 				if ("none" != $highlight) {
-					$t = explode(" ", trim($q, " +"));
-					$post->post_title = relevanssi_highlight_terms($post->post_title, $t);
+					$post->post_title = relevanssi_highlight_terms($post->post_title, $q);
 				}
 			}
 			// OdditY end <-			
@@ -1212,17 +1211,18 @@ function relevanssi_highlight_terms($excerpt, $query) {
 	}
 
 	foreach ($terms as $term) {
-		$term = " $term";
+		$term = " $term"; // the extra space prevents matching $term inside a word
 		$pos = 0;
 		$low_excerpt = mb_strtolower($excerpt);
 		while ($pos !== false) {
 			$pos = mb_strpos($low_excerpt, $term, $pos);
 			if ($pos !== false) {
+				$pos++; // to counter the extra space in the $term
 				$excerpt = mb_substr($excerpt, 0, $pos)
 						 . $start_emp_token
-						 . mb_substr($excerpt, $pos, mb_strlen($term))
+						 . mb_substr($excerpt, $pos, mb_strlen($term) - 1) // the -1 counters the extra space
 						 . $end_emp_token
-						 . mb_substr($excerpt, $pos + mb_strlen($term));
+						 . mb_substr($excerpt, $pos + mb_strlen($term) - 1);
 				$low_excerpt = mb_strtolower($excerpt);
 				$pos = $pos + mb_strlen($start_emp_token) + mb_strlen($end_emp_token);
 			}
@@ -1232,6 +1232,10 @@ function relevanssi_highlight_terms($excerpt, $query) {
 	$excerpt = str_replace($start_emp_token, $start_emp, $excerpt);
 	$excerpt = str_replace($end_emp_token, $end_emp, $excerpt);
 	$excerpt = str_replace($end_emp . $start_emp, "", $excerpt);
+	if (function_exists('mb_ereg_replace')) {
+		$pattern = $end_emp . '\s*' . $start_emp;
+		$excerpt = mb_ereg_replace($pattern, " ", $excerpt);
+	}
 
 	return $excerpt;
 }
