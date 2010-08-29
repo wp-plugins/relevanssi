@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.1
+Stable tag: 2.1.5
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -57,6 +57,24 @@ Katzgrau.
 
 To update your installation, simply overwrite the old files with the new, activate the new
 version and if the new version has changes in the indexing, rebuild the index.
+
+= How to index =
+Check the options to make sure they're to your liking, then click "Save indexing options and
+build the index". If everything's fine, you'll see the Relevanssi options screen again with a 
+message "Indexing successful!"
+
+If something fails, usually the result is a blank screen. The most common problem is a timeout:
+server ran out of time while indexing. The solution to that is simple: just return to Relevanssi
+screen (do not just try to reload the blank page) and click "Continue indexing". Indexing will
+continue. Most databases will get indexed in just few clicks of "Continue indexing". You can
+follow the process in the "State of the Index": if the amount of documents is growing, the 
+indexing is moving along.
+
+If the indexing gets stuck, something's wrong. I've had trouble with some plugins, for example
+Flowplayer video player stopped indexing. I had to disable the plugin, index and then activate
+the plugin again. Try disabling plugins, especially those that use shortcodes, to see if that
+helps. Relevanssi shows the highest post ID in the index - start troubleshooting from the post
+or page with the next highest ID. Server error logs may be useful, too.
 
 = Using custom search results =
 If you want to use the custom search results, make sure your search results template uses 
@@ -168,6 +186,7 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: I know the plugin works with WP 2.5, but it loses some non-essential functionality. The shortcode stuff doesn't work with WP 2.5, which doesn't support shortcodes. Compatibility with older versions of WP hasn't been tested.
 * Known issue: Custom post types and private posts is problematic - I'm using default 'read_private_*s' capability, which might not always work.
 * Known issue: There are reported problems with custom posts combined with custom taxonomies, the taxonomy restriction doesn't necessarily work.
+* Known issue: Phrase matching is only done to post content; phrases don't match to category titles and other content.
 * To-do: The stop word list management needs small improvements.
 * To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
 * To-do: Option to set the number of search results returned.
@@ -177,6 +196,29 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.1.5 =
+* You can now enter synonyms, expanding queries with synonyms when doing an OR search. This is useful to expand acronyms and abbreviations, for example.
+* When doing a phrase search, highlighting will only highlight phrase hits.
+* New breakdown variable %terms% will list hits by term.
+* Some users reported error messages about unexpected T_OBJECT_OPERATOR. Those shouldn't happen, please let me know if they still do.
+* Highlighting will now highlight only complete words.
+
+= 2.1.4 =
+* Fixed a small bug that could cause all queries by anonymous users to go unlogged.
+
+= 2.1.3 =
+* OR operator makes a comeback! The default operator is now an option, and if you choose AND and search gets no results, an OR search is also run.
+* You can now give a list of user ids - any searches by those users will not be logged. List your admin user id, so your test searches won't clutter the log.
+
+= 2.1.2 =
+* Removing punctuation didn't work properly, making phrase search impossible. I'd thought I'd fix it, but for some reason I made a mistake and the fix didn't appear in the released versions.
+* Search has now an implicit AND operator, which means that every search term must appear in all result documents. Please let me know if you'd prefer an implicit OR operator, like Relevanssi had before.
+* Relevanssi options page now shows the amount of indexed documents, making troubleshooting indexing easier.
+
+= 2.1.1 =
+* "Did you mean" suggestions now work in blogs that are not in root directory.
+* Early 2.1 downloads had faulty encodings. Update to make sure you've got a good file.
 
 = 2.1 =
 * An experimental "Did you mean" suggestion feature. Feedback is most welcome.
