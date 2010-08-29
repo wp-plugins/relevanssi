@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.1.4
+Stable tag: 2.1.5
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -196,6 +196,13 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.1.5 =
+* You can now enter synonyms, expanding queries with synonyms when doing an OR search. This is useful to expand acronyms and abbreviations, for example.
+* When doing a phrase search, highlighting will only highlight phrase hits.
+* New breakdown variable %terms% will list hits by term.
+* Some users reported error messages about unexpected T_OBJECT_OPERATOR. Those shouldn't happen, please let me know if they still do.
+* Highlighting will now highlight only complete words.
 
 = 2.1.4 =
 * Fixed a small bug that could cause all queries by anonymous users to go unlogged.
