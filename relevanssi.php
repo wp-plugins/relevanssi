@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.1.7
+Version: 2.1.8
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -32,8 +32,7 @@ Author URI: http://www.mikkosaari.fi/
 
 // Set true to use the timer, helpful for debugging
 define('TIMER', false);
-function microtime_float()
-{
+function relevanssi_microtime_float() {
     list($usec, $sec) = explode(" ", microtime());
     return ((float)$usec + (float)$sec);
 }
@@ -404,7 +403,7 @@ function relevanssi_query($posts) {
 		global $wp_query;
 		global $wp;
 
-		if (TIMER) $time_start_search = microtime_float();
+		if (TIMER) $time_start_search = relevanssi_microtime_float();
 
 		$relevanssi_active = true;
 
@@ -455,7 +454,7 @@ function relevanssi_query($posts) {
 
 		$operator = get_option("relevanssi_implicit_operator");
 
-		if (TIMER) $time_before_synonyms = microtime_float();
+		if (TIMER) $time_before_synonyms = relevanssi_microtime_float();
 		
 		// Add synonyms
 		// This is done here so the new terms will get highlighting
@@ -488,12 +487,12 @@ function relevanssi_query($posts) {
 			}
 		}
 
-		if (TIMER) $time_before_search = microtime_float();
+		if (TIMER) $time_before_search = relevanssi_microtime_float();
 
 		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator);
 		$hits = $return['hits'];
 
-		if (TIMER) $time_after_search = microtime_float();
+		if (TIMER) $time_after_search = relevanssi_microtime_float();
 
 		$wp_query->found_posts = sizeof($hits);
 		$wp_query->max_num_pages = ceil(sizeof($hits) / $wp_query->query_vars["posts_per_page"]);
@@ -507,7 +506,7 @@ function relevanssi_query($posts) {
 		
 		$make_excerpts = get_option('relevanssi_excerpts');
 
-		if (TIMER) $time_before_excerpts = microtime_float();
+		if (TIMER) $time_before_excerpts = relevanssi_microtime_float();
 		
 		for ($i = $wpSearch_low; $i <= $wpSearch_high; $i++) {
 			if (isset($hits[intval($i)])) {
@@ -544,7 +543,7 @@ function relevanssi_query($posts) {
 		}
 	}
 
-	if (TIMER) $time_done = microtime_float();
+	if (TIMER) $time_done = relevanssi_microtime_float();
 
 	if (TIMER) {
 		$time1 = 1000 * ($time_before_synonyms - $time_start_search);
@@ -553,14 +552,13 @@ function relevanssi_query($posts) {
 		$time4 = 1000 * ($time_before_excerpts - $time_start_search);
 		$time5 = 1000 * ($time_done - $time_start_search);
 		echo <<<EOH
-<!--
 before synonyms: $time1 ms
 before search: $time2 ms
 after search: $time3 ms
 before excerpts: $time4 ms
 done: $time5 ms
--->
 EOH;
+		exit();
 	}
 
 	return $posts;
