@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.1.6
+Stable tag: 2.2
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -196,6 +196,23 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.2 =
+* Relevanssi used to index navigation menu items. It won't, anymore.
+* Translation and stopwords in Brazilian Portuguese added, thanks to Pedro Padron.
+
+= 2.1.9 =
+* No changes, I'm just trying to resurrect the broken Relevanssi plugin page.
+
+= 2.1.8 =
+* Including the popular microtime_float function caused conflicts with several other plugins (whose authors are just as sloppy as I am!). Fixed that.
+
+= 2.1.7 =
+* The index categories option wasn't saved properly. Now it is.
+* Fixed the %terms% breakdown option to show correct counts and added %total% to show total hit count.
+* Phrases are now matched also in post titles and category titles (before they were only matched against post content).
+* Post excerpts can now be indexed and searched. I would appreciate feedback from people who use this feature: do you use the excerpts in search results? If you use custom snippets created by Relevanssi, what you want them to display?
+* Set the constant TIMER to true to enable timing of the search process for debugging reasons.
 
 = 2.1.6 =
 * Title highlighting caused an error. That is now fixed. I also streamlined the highlighting code a bit.
