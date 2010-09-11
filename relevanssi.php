@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/relevanssi/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.1.9
+Version: 2.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -1406,14 +1406,16 @@ function relevanssi_build_index($extend = false) {
 		// truncate table first
 		$wpdb->query("TRUNCATE TABLE $relevanssi_table");
 		$q = "SELECT *
-		FROM $wpdb->posts WHERE (post_status='publish' OR post_status='private')" . $restriction;
+		FROM $wpdb->posts WHERE (post_status='publish' OR post_status='private')
+		AND post_type!='nav_menu_item'" . $restriction;
 		update_option('relevanssi_index', '');
 	}
 	else {
 		// extending, so no truncate and skip the posts already in the index
 		$q = "SELECT *
-		FROM $wpdb->posts WHERE (post_status='publish' OR post_status='private') AND
-		ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table)" . $restriction . " LIMIT 100";
+		FROM $wpdb->posts WHERE (post_status='publish' OR post_status='private')
+		AND post_type!='nav_menu_item'
+		AND ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table)" . $restriction . " LIMIT 200";
 	}
 
 	$custom_fields = relevanssi_get_custom_fields();
@@ -1441,7 +1443,9 @@ function relevanssi_index_doc($post, $remove_first = false, $custom_fields = fal
 
 	if (!is_object($post)) {
 		$post = $wpdb->get_row("SELECT ID, post_content, post_title, post_type
-			FROM $wpdb->posts WHERE post_status='publish' AND ID=$post");
+			FROM $wpdb->posts WHERE (post_status='publish' OR post_status='private')
+			AND ID=$post
+			AND post_type!='nav_menu_item'");
 		if (!$post) {
 			// the post isn't public
 			return;

@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/relevanssi/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.1.9
+Stable tag: 2.2
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -196,6 +196,10 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.2 =
+* Relevanssi used to index navigation menu items. It won't, anymore.
+* Translation and stopwords in Brazilian Portuguese added, thanks to Pedro Padron.
 
 = 2.1.9 =
 * No changes, I'm just trying to resurrect the broken Relevanssi plugin page.
