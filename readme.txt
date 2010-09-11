@@ -1,6 +1,6 @@
 === Relevanssi ===
 Contributors: msaari
-Donate link: http://www.mikkosaari.fi/relevanssi/
+Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
