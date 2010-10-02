@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.2
+Version: 2.3
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -189,6 +189,7 @@ function relevanssi_install() {
 	add_option('relevanssi_exclude_posts', ''); 		//added by OdditY
 	add_option('relevanssi_include_tags', 'on');		//added by OdditY	
 	add_option('relevanssi_hilite_title', ''); 			//added by OdditY	
+	add_option('relevanssi_highlight_docs', 'off');
 	add_option('relevanssi_index_comments', 'none');	//added by OdditY
 	add_option('relevanssi_include_cats', '');
 	add_option('relevanssi_show_matches', '');
@@ -292,7 +293,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_omit_from_logs');
 	delete_option('relevanssi_synonyms');
 	delete_option('relevanssi_index_excerpt');
-
+	delete_option('relevanssi_highlight_docs');
 	
 	$sql = "DROP TABLE $stopword_table";
 	$wpdb->query($sql);
@@ -524,7 +525,7 @@ function relevanssi_query($posts) {
 			//Added by OdditY - Highlight Result Title too -> 
 			if("on" == get_option('relevanssi_hilite_title')){
 				$post->post_title = strip_tags($post->post_title);
-				if ("none" != $highlight) {
+				if ("none" != $highlight && !is_admin()) {
 					$post->post_title = relevanssi_highlight_terms($post->post_title, $q);
 				}
 			}
@@ -792,6 +793,8 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	if ($taxonomy) {
 		$query_restrictions .= " AND doc IN ($taxonomy)";
 	}
+
+	$query_restrictions = apply_filters('relevanssi_where', $query_restrictions); // Charles St-Pierre
 
 	foreach ($terms as $term) {
 		$term = $wpdb->escape(like_escape($term));
@@ -1070,7 +1073,9 @@ function relevanssi_do_excerpt($post, $query) {
 
 	$highlight = get_option('relevanssi_highlight');
 	if ("none" != $highlight) {
-		$excerpt = relevanssi_highlight_terms($excerpt, $query);
+		if (!is_admin()) {
+			$excerpt = relevanssi_highlight_terms($excerpt, $query);
+		}
 	}
 	
 	if (!$start) {
@@ -1212,6 +1217,34 @@ function relevanssi_strip_invisibles($text) {
     return $text;
 }
 
+if (get_option('relevanssi_highlight_docs', 'off') != 'off') {
+	add_filter('the_content', 'relevanssi_highlight_in_docs');
+}
+/**
+ * relevanssi_highlight_in_docs
+ *
+ * Highlights search terms from HTTP referer in post content. This function is pretty much
+ * 100% lifted from Search Unleashed plugin by John Godley, who has kindly released the plugin
+ * under the Gnu Public License. Thanks, John!
+ *
+ * @since 2.3
+ */
+function relevanssi_highlight_in_docs($content) {
+	$referrer = preg_replace('@(http|https)://@', '', stripslashes(urldecode($_SERVER['HTTP_REFERER'])));
+	$args     = explode('?', $referrer);
+	$query    = array();
+
+	if ( count( $args ) > 1 )
+		parse_str( $args[1], $query );
+
+	if (substr($referrer, 0, strlen($_SERVER['SERVER_NAME'])) == $_SERVER['SERVER_NAME'] && (isset($query['s']) || strpos($referrer, '/search/') !== false)) {
+		// Local search
+		$content = relevanssi_highlight_terms($content, $query['s']);
+	}
+	
+	return $content;
+}
+
 function relevanssi_highlight_terms($excerpt, $query) {
 	$type = get_option("relevanssi_highlight");
 	if ("none" == $type) {
@@ -1219,6 +1252,10 @@ function relevanssi_highlight_terms($excerpt, $query) {
 	}
 	
 	switch ($type) {
+		case "mark":						// thanks to Jeff Byrnes
+			$start_emp = "<mark>";
+			$end_emp = "</mark>";
+			break;
 		case "strong":
 			$start_emp = "<strong>";
 			$end_emp = "</strong>";
@@ -1258,7 +1295,7 @@ function relevanssi_highlight_terms($excerpt, $query) {
 	$start_emp_token = "*[/";
 	$end_emp_token = "\]*";
 	mb_internal_encoding("UTF-8");
-
+	
 	$terms = array_keys(relevanssi_tokenize($query, false));
 	
 	$phrases = relevanssi_extract_phrases($query);
@@ -1274,6 +1311,7 @@ function relevanssi_highlight_terms($excerpt, $query) {
 		$terms = $non_phrase_terms;
 		$terms[] = $phrase;
 	}
+
 
 	foreach ($terms as $term) {
 		$term = " $term"; // the extra space prevents matching $term inside a word
@@ -1701,12 +1739,12 @@ function relevanssi_remove_punct($a) {
 		$a = strip_tags($a);
 
 		$a = str_replace("'", '', $a);
-		$a = str_replace("´", '', $a);
-		$a = str_replace("’", '', $a);
+		$a = str_replace("Â´", '', $a);
+		$a = str_replace("â", '', $a);
 
-		$a = str_replace("—", " ", $a);
+		$a = str_replace("â", " ", $a);
         $a = preg_replace('/[[:punct:]]+/u', ' ', $a);
-		$a = str_replace("”", " ", $a);
+		$a = str_replace("â", " ", $a);
 
         $a = preg_replace('/[[:space:]]+/', ' ', $a);
 		$a = trim($a);
@@ -1839,6 +1877,14 @@ function update_relevanssi_options() {
 		$_REQUEST['relevanssi_log_queries'] = "off";
 	}
 
+	if (!isset($_REQUEST['relevanssi_hilite_title'])) {
+		$_REQUEST['relevanssi_hilite_title'] = "off";
+	}
+
+	if (!isset($_REQUEST['relevanssi_highlight_docs'])) {
+		$_REQUEST['relevanssi_highlight_docs'] = "off";
+	}
+
 	if (!isset($_REQUEST['relevanssi_expand_shortcodes'])) {
 		$_REQUEST['relevanssi_expand_shortcodes'] = "off";
 	}
@@ -1868,6 +1914,7 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_excerpt_type'])) update_option('relevanssi_excerpt_type', $_REQUEST['relevanssi_excerpt_type']);	
 	if (isset($_REQUEST['relevanssi_log_queries'])) update_option('relevanssi_log_queries', $_REQUEST['relevanssi_log_queries']);	
 	if (isset($_REQUEST['relevanssi_highlight'])) update_option('relevanssi_highlight', $_REQUEST['relevanssi_highlight']);
+	if (isset($_REQUEST['relevanssi_highlight_docs'])) update_option('relevanssi_highlight_docs', $_REQUEST['relevanssi_highlight_docs']);
 	if (isset($_REQUEST['relevanssi_txt_col'])) update_option('relevanssi_txt_col', $_REQUEST['relevanssi_txt_col']);
 	if (isset($_REQUEST['relevanssi_bg_col'])) update_option('relevanssi_bg_col', $_REQUEST['relevanssi_bg_col']);
 	if (isset($_REQUEST['relevanssi_css'])) update_option('relevanssi_css', $_REQUEST['relevanssi_css']);
@@ -2032,6 +2079,9 @@ function relevanssi_options_form() {
 		case "no":
 			$highlight_none = 'selected="selected"';
 			break;
+		case "mark":
+			$highlight_em = 'selected="selected"';
+			break;
 		case "em":
 			$highlight_em = 'selected="selected"';
 			break;
@@ -2117,6 +2167,8 @@ function relevanssi_options_form() {
 			$incom_type_none = 'selected="selected"';
 			break;
 	}//added by OdditY END <-
+
+	$highlight_docs = ('on' == get_option('relevanssi_highlight_docs') ? 'checked="checked"' : ''); 
 	
 	$inccats = ('on' == get_option('relevanssi_include_cats') ? 'checked="checked"' : ''); 
 	$index_author = ('on' == get_option('relevanssi_index_author') ? 'checked="checked"' : ''); 
@@ -2199,6 +2251,8 @@ function relevanssi_options_form() {
 		'relevanssi');
 	$hititle_txt = __("Highlight query terms in result titles too:", 'relevanssi');
 	$hititle_desc = __("", 'relevanssi');	
+	$highlight_docs_txt = __("Highlight query terms in documents:", 'relevanssi');
+	$highlight_docs_desc = __("Highlights hits when user opens the post from search results.", "relevanssi");
 	
 	$submit_value = __('Save the options', 'relevanssi');
 	$building_the_index = __('Building the index and indexing options', 'relevanssi');
@@ -2445,6 +2499,7 @@ makes the search better - you'll help them and you'll help me.</p>
 	<label for="relevanssi_highlight">$highlight_txt
 	<select name="relevanssi_highlight">
 	<option value="no" $highlight_none>$no_highlight_txt</option>
+	<option value="mark" $highlight_em>&lt;mark&gt;</option>
 	<option value="em" $highlight_em>&lt;em&gt;</option>
 	<option value="strong" $highlight_strong>&lt;strong&gt;</option>
 	<option value="col" $highlight_col>$txt_col_txt</option>
@@ -2459,6 +2514,12 @@ makes the search better - you'll help them and you'll help me.</p>
 	<label for="relevanssi_hilite_title">$hititle_txt
 	<input type="checkbox" name="relevanssi_hilite_title" $hititle /></label>
 	<small>$hititle_desc</small>
+
+	<br />
+
+	<label for="relevanssi_highlight_docs">$highlight_docs_txt
+	<input type="checkbox" name="relevanssi_highlight_docs" $highlight_docs /></label>
+	<small>$highlight_docs_desc</small>
 
 	<br /><br />
 	</div>
