@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.3
+Stable tag: 2.3.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -214,6 +214,9 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.3.1 =
+* I fixed the highlighting logic a bit, the highlighting didn't work properly before.
 
 = 2.3 =
 * New highlighting option: HTML5 mark tag. Thanks to Jeff Byrnes.

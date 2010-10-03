@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.3
+Version: 2.3.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -525,6 +525,7 @@ function relevanssi_query($posts) {
 			//Added by OdditY - Highlight Result Title too -> 
 			if("on" == get_option('relevanssi_hilite_title')){
 				$post->post_title = strip_tags($post->post_title);
+				$highlight = get_option('relevanssi_highlight');
 				if ("none" != $highlight && !is_admin()) {
 					$post->post_title = relevanssi_highlight_terms($post->post_title, $q);
 				}
@@ -594,12 +595,12 @@ function objectSort(&$data, $key, $dir = 'desc') {
 }
 
 function relevanssi_show_matches($data, $hit) {
-	$body = $data['body_matches'][$hit];
-	$title = $data['title_matches'][$hit];
-	$tag = $data['tag_matches'][$hit];
-	$comment = $data['comment_matches'][$hit];
-	$score = round($data['scores'][$hit], 2);
-	$term_hits_a = $data['term_hits'][$hit];
+	isset($data['body_matches'][$hit]) ? $body = $data['body_matches'][$hit] : $body = "";
+	isset($data['title_matches'][$hit]) ? $title = $data['title_matches'][$hit] : $title = "";
+	isset($data['tag_matches'][$hit]) ? $tag = $data['tag_matches'][$hit] : $tag = "";
+	isset($data['comment_matches'][$hit]) ? $comment = $data['comment_matches'][$hit] : $comment = "";
+	isset($data['scores'][$hit]) ? $score = round($data['scores'][$hit], 2) : $score = 0;
+	isset($data['term_hits'][$hit]) ? $term_hits_a = $data['term_hits'][$hit] : $term_hits_a = array();
 	arsort($term_hits_a);
 	$term_hits = "";
 	$total_hits = 0;
@@ -1219,16 +1220,8 @@ function relevanssi_strip_invisibles($text) {
 
 if (get_option('relevanssi_highlight_docs', 'off') != 'off') {
 	add_filter('the_content', 'relevanssi_highlight_in_docs');
+	add_filter('the_title', 'relevanssi_highlight_in_docs');
 }
-/**
- * relevanssi_highlight_in_docs
- *
- * Highlights search terms from HTTP referer in post content. This function is pretty much
- * 100% lifted from Search Unleashed plugin by John Godley, who has kindly released the plugin
- * under the Gnu Public License. Thanks, John!
- *
- * @since 2.3
- */
 function relevanssi_highlight_in_docs($content) {
 	$referrer = preg_replace('@(http|https)://@', '', stripslashes(urldecode($_SERVER['HTTP_REFERER'])));
 	$args     = explode('?', $referrer);
@@ -1298,7 +1291,7 @@ function relevanssi_highlight_terms($excerpt, $query) {
 	
 	$terms = array_keys(relevanssi_tokenize($query, false));
 	
-	$phrases = relevanssi_extract_phrases($query);
+	$phrases = relevanssi_extract_phrases(stripslashes($query));
 	
 	$non_phrase_terms = array();
 	foreach ($phrases as $phrase) {
@@ -1314,20 +1307,23 @@ function relevanssi_highlight_terms($excerpt, $query) {
 
 
 	foreach ($terms as $term) {
-		$term = " $term"; // the extra space prevents matching $term inside a word
 		$pos = 0;
-		$excerpt = " $excerpt";
 		$low_excerpt = mb_strtolower($excerpt);
 		while ($pos !== false) {
 			$pos = mb_strpos($low_excerpt, $term, $pos);
 			if ($pos !== false) {
-				$pos++; // to counter the extra space in the $term
-				$excerpt = mb_substr($excerpt, 0, $pos)
-						 . $start_emp_token
-						 . mb_substr($excerpt, $pos, mb_strlen($term) - 1) // the -1 counters the extra space
-						 . $end_emp_token
-						 . mb_substr($excerpt, $pos + mb_strlen($term) - 1);
-				$low_excerpt = mb_strtolower($excerpt);
+				$match = preg_match('/\w/', mb_substr($excerpt, $pos - 1, 1));
+				$highlight = false;
+				if ($match == 0) $highlight = true;
+				if ($pos == 0) $highlight = true;
+				if ($highlight) {
+					$excerpt = mb_substr($excerpt, 0, $pos)
+							 . $start_emp_token
+							 . mb_substr($excerpt, $pos, mb_strlen($term))
+							 . $end_emp_token
+							 . mb_substr($excerpt, $pos + mb_strlen($term));
+					$low_excerpt = mb_strtolower($excerpt);
+				}
 				$pos = $pos + mb_strlen($start_emp_token) + mb_strlen($end_emp_token);
 			}
 		}
@@ -1739,12 +1735,12 @@ function relevanssi_remove_punct($a) {
 		$a = strip_tags($a);
 
 		$a = str_replace("'", '', $a);
-		$a = str_replace("Â´", '', $a);
-		$a = str_replace("â", '', $a);
+		$a = str_replace("´", '', $a);
+		$a = str_replace("’", '', $a);
 
-		$a = str_replace("â", " ", $a);
+		$a = str_replace("—", " ", $a);
         $a = preg_replace('/[[:punct:]]+/u', ' ', $a);
-		$a = str_replace("â", " ", $a);
+		$a = str_replace("”", " ", $a);
 
         $a = preg_replace('/[[:space:]]+/', ' ', $a);
 		$a = trim($a);
@@ -2252,7 +2248,7 @@ function relevanssi_options_form() {
 	$hititle_txt = __("Highlight query terms in result titles too:", 'relevanssi');
 	$hititle_desc = __("", 'relevanssi');	
 	$highlight_docs_txt = __("Highlight query terms in documents:", 'relevanssi');
-	$highlight_docs_desc = __("Highlights hits when user opens the post from search results.", "relevanssi");
+	$highlight_docs_desc = __("Highlights hits when user opens the post from search results. This is based on HTTP referrer, so if that's blocked, there'll be no highlights.", "relevanssi");
 	
 	$submit_value = __('Save the options', 'relevanssi');
 	$building_the_index = __('Building the index and indexing options', 'relevanssi');
