@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.3.1
+Version: 2.3.3
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -526,8 +526,10 @@ function relevanssi_query($posts) {
 			if("on" == get_option('relevanssi_hilite_title')){
 				$post->post_title = strip_tags($post->post_title);
 				$highlight = get_option('relevanssi_highlight');
-				if ("none" != $highlight && !is_admin()) {
-					$post->post_title = relevanssi_highlight_terms($post->post_title, $q);
+				if ("none" != $highlight) {
+					if (!is_admin()) {
+						$post->post_title = relevanssi_highlight_terms($post->post_title, $q);
+					}
 				}
 			}
 			// OdditY end <-			
@@ -712,15 +714,16 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		$excat .= $excat_temp;
 	}
 
-
 	if (isset($taxonomy)) {
 		$term_tax_id = null;
-		$term_id = $wpdb->get_var("SELECT term_id FROM $wpdb->terms WHERE name LIKE '$taxonomy_term'");
-		if ($term_id) {
-			$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->term_taxonomy
-					WHERE term_id=$term_id");
+		$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->terms
+			JOIN $wpdb->term_taxonomy USING(`term_id`)
+			WHERE `slug` LIKE '$taxonomy_term' AND `taxonomy` LIKE '$taxonomy'");
+		if ($term_tax_id) {
+			$taxonomy = $term_tax_id;
+		} else {
+			$taxonomy = null;
 		}
-		$taxonomy = $term_tax_id;
 	}
 
 	if ($post_type) {
@@ -792,7 +795,40 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		$query_restrictions .= " AND doc IN ($custom_cat)";
 	}
 	if ($taxonomy) {
-		$query_restrictions .= " AND doc IN ($taxonomy)";
+		$query_restrictions .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
+			WHERE term_taxonomy_id IN ($taxonomy))";
+	}
+
+	if (isset($_REQUEST['by_date'])) {
+		$n = $_REQUEST['by_date'];
+
+		$u = substr($n, -1, 1);
+		switch ($u) {
+			case 'h':
+				$unit = "HOUR";
+				break;
+			case 'd':
+				$unit = "DAY";
+				break;
+			case 'm':
+				$unit = "MONTH";
+				break;
+			case 'y':
+				$unit = "YEAR";
+				break;
+			case 'w':
+				$unit = "WEEK";
+				break;
+			default:
+				$unit = "DAY";
+		}
+
+		$n = preg_replace('/[hdmyw]/', '', $n);
+
+		if (is_numeric($n)) {
+			$query_restrictions .= " AND doc IN (SELECT DISTINCT(ID) FROM $wpdb->posts
+				WHERE post_date > DATE_SUB(NOW(), INTERVAL $n $unit))";
+		}
 	}
 
 	$query_restrictions = apply_filters('relevanssi_where', $query_restrictions); // Charles St-Pierre
@@ -911,7 +947,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		}
 	}
 
-	global $wp;
+	global $wp;	
 	isset($wp->query_vars["orderby"]) ? $orderby = $wp->query_vars["orderby"] : $orderby = 'relevance';
 	isset($wp->query_vars["order"]) ? $order = $wp->query_vars["order"] : $order = 'desc';
 	if ($orderby != 'relevance')
@@ -1308,7 +1344,7 @@ function relevanssi_highlight_terms($excerpt, $query) {
 
 	foreach ($terms as $term) {
 		$pos = 0;
-		$low_excerpt = mb_strtolower($excerpt);
+		$low_excerpt = @mb_strtolower($excerpt);
 		while ($pos !== false) {
 			$pos = mb_strpos($low_excerpt, $term, $pos);
 			if ($pos !== false) {

@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.3.1
+Stable tag: 2.3.3
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -130,6 +130,22 @@ page.
 
 Order by relevance is either orderby=relevance or no orderby parameter at all.
 
+= Filtering results by date =
+
+You can specify date limits on searches with `by_date` search parameter. You can use it your
+search result page like this: http://www.yourblogdomain.com/?s=search-term&by_date=1d to offer
+your visitor the ability to restrict their search to certain time limit (see
+[RAPLIQ](http://www.rapliq.org/) for a working example).
+
+The date range is always back from the current date and time. Possible units are hour (h), day (d),
+week (w), month (m) and year (y). So, to see only posts from past week, you could use by_date=7d
+or by_date=1w.
+
+Using wrong letters for units or impossible date ranges will lead to either defaulting to date
+or no results at all, depending on case.
+
+Thanks to Charles St-Pierre for the idea.
+
 = Displaying the relevance score =
 
 Relevanssi stores the relevance score it uses to sort results in the $post variable. Just add
@@ -214,6 +230,14 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.3.3 =
+* Suppressed notices on one mb_strpos() call.
+* Added a search variable "by_date" to filter search results, see FAQ for details.
+
+= 2.3.2 =
+* Fixed a serious bug related to taxonomy term searches that could cause strange search results. Thanks to Charles St-Pierre for finding and killing the bug.
+* Spanish stopwords are now included (thanks to Miguel Mariano).
 
 = 2.3.1 =
 * I fixed the highlighting logic a bit, the highlighting didn't work properly before.
