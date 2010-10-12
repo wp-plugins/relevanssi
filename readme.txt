@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.3.3
+Stable tag: 2.3.3.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -100,6 +100,14 @@ to remove options and database tables, then remove the plugin using the normal W
 plugin management tools.
 
 == Frequently Asked Questions ==
+
+= Displaying the number of search results found =
+
+The typical solution to showing the number of search results found does not work with Relevanssi.
+However, there's a solution that's much easier: the number of search results is stored in a
+variable within $wp_query. Just add the following code to your search results template:
+
+`<?php echo 'Relevanssi found ' . $wp_query->found_posts . ' hits'; ?>`
 
 = Advanced search result filtering =
 
@@ -230,6 +238,10 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.3.3.1 =
+* Suppressed the error messages on the correct mb_strpos() function call. If you still get mb_strpos() errors, update.
+* Added a FAQ note on getting the number of search results found.
 
 = 2.3.3 =
 * Suppressed notices on one mb_strpos() call.
