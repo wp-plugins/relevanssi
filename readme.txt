@@ -1,10 +1,10 @@
 === Relevanssi ===
 Contributors: msaari
-Donate link: http://www.mikkosaari.fi/relevanssi/
+Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.1.6
+Stable tag: 2.3.3.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -23,7 +23,8 @@ The matching is based on basic tf * idf weighing, with some extra features added
 words that appear in titles.
 
 Relevanssi can create custom search result snippets that show the part of the document where the
-search hit was made. Relevanssi can also highlight the query terms in the search results.
+search hit was made. Relevanssi can also highlight the query terms in the search results and in
+the posts.
 
 Relevanssi can keep a log of user queries and display both most popular queries and recent queries
 that got no hits.
@@ -100,6 +101,31 @@ plugin management tools.
 
 == Frequently Asked Questions ==
 
+= Displaying the number of search results found =
+
+The typical solution to showing the number of search results found does not work with Relevanssi.
+However, there's a solution that's much easier: the number of search results is stored in a
+variable within $wp_query. Just add the following code to your search results template:
+
+`<?php echo 'Relevanssi found ' . $wp_query->found_posts . ' hits'; ?>`
+
+= Advanced search result filtering =
+
+If you want to add extra filters to the search results, you can add them using a hook.
+Relevanssi searches for results in the _relevanssi table, where terms and post_ids are listed.
+The various filtering methods work by listing either allowed or forbidden post ids in the
+query WHERE clause. Using the `relevanssi_where` hook you can add your own restrictions to
+the WHERE clause.
+
+These restrictions must be in the general format of 
+
+` AND doc IN (' . {a list of post ids, which could be a subquery} . ')`
+
+For more details, see where the filter is applied in the `relevanssi_search()` function. This
+is stricly an advanced hacker option for those people who're used to using filters and MySQL
+WHERE clauses and it is possible to break the search results completely by doing something wrong
+here.
+
 = Sorting search results =
 
 If you want something else than relevancy ranking, you can use orderby and order parameters. Orderby
@@ -111,6 +137,22 @@ to http://www.yourblogdomain.com/?s=search-term&orderby=date&order=desc to your 
 page.
 
 Order by relevance is either orderby=relevance or no orderby parameter at all.
+
+= Filtering results by date =
+
+You can specify date limits on searches with `by_date` search parameter. You can use it your
+search result page like this: http://www.yourblogdomain.com/?s=search-term&by_date=1d to offer
+your visitor the ability to restrict their search to certain time limit (see
+[RAPLIQ](http://www.rapliq.org/) for a working example).
+
+The date range is always back from the current date and time. Possible units are hour (h), day (d),
+week (w), month (m) and year (y). So, to see only posts from past week, you could use by_date=7d
+or by_date=1w.
+
+Using wrong letters for units or impossible date ranges will lead to either defaulting to date
+or no results at all, depending on case.
+
+Thanks to Charles St-Pierre for the idea.
 
 = Displaying the relevance score =
 
@@ -196,6 +238,44 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.3.3.1 =
+* Suppressed the error messages on the correct mb_strpos() function call. If you still get mb_strpos() errors, update.
+* Added a FAQ note on getting the number of search results found.
+
+= 2.3.3 =
+* Suppressed notices on one mb_strpos() call.
+* Added a search variable "by_date" to filter search results, see FAQ for details.
+
+= 2.3.2 =
+* Fixed a serious bug related to taxonomy term searches that could cause strange search results. Thanks to Charles St-Pierre for finding and killing the bug.
+* Spanish stopwords are now included (thanks to Miguel Mariano).
+
+= 2.3.1 =
+* I fixed the highlighting logic a bit, the highlighting didn't work properly before.
+
+= 2.3 =
+* New highlighting option: HTML5 mark tag. Thanks to Jeff Byrnes.
+* Relevanssi can now highlight search term hits in the posts user views from search. Highlighting for search term hits from external searches will be added later.
+* It is now possible to add custom filtering to search results, see FAQ for details. Thanks to Charles St-Pierre.
+* Removed search result highlighting from admin search, where it wasn't very useful.
+
+= 2.2 =
+* Relevanssi used to index navigation menu items. It won't, anymore.
+* Translation and stopwords in Brazilian Portuguese added, thanks to Pedro Padron.
+
+= 2.1.9 =
+* No changes, I'm just trying to resurrect the broken Relevanssi plugin page.
+
+= 2.1.8 =
+* Including the popular microtime_float function caused conflicts with several other plugins (whose authors are just as sloppy as I am!). Fixed that.
+
+= 2.1.7 =
+* The index categories option wasn't saved properly. Now it is.
+* Fixed the %terms% breakdown option to show correct counts and added %total% to show total hit count.
+* Phrases are now matched also in post titles and category titles (before they were only matched against post content).
+* Post excerpts can now be indexed and searched. I would appreciate feedback from people who use this feature: do you use the excerpts in search results? If you use custom snippets created by Relevanssi, what you want them to display?
+* Set the constant TIMER to true to enable timing of the search process for debugging reasons.
 
 = 2.1.6 =
 * Title highlighting caused an error. That is now fixed. I also streamlined the highlighting code a bit.
