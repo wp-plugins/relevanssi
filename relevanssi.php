@@ -1,9 +1,9 @@
 <?php
 /*
-Plugin Name: Relevanssi
+Plugin Name: Relevanssi - A Better Search
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.3.3.1
+Version: 2.4
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -1326,7 +1326,7 @@ function relevanssi_highlight_terms($excerpt, $query) {
 	mb_internal_encoding("UTF-8");
 	
 	$terms = array_keys(relevanssi_tokenize($query, false));
-	
+
 	$phrases = relevanssi_extract_phrases(stripslashes($query));
 	
 	$non_phrase_terms = array();
@@ -1343,26 +1343,9 @@ function relevanssi_highlight_terms($excerpt, $query) {
 
 
 	foreach ($terms as $term) {
-		$pos = 0;
-		$low_excerpt = mb_strtolower($excerpt);
-		while ($pos !== false) {
-			$pos = @mb_strpos($low_excerpt, $term, $pos);
-			if ($pos !== false) {
-				$match = preg_match('/\w/', mb_substr($excerpt, $pos - 1, 1));
-				$highlight = false;
-				if ($match == 0) $highlight = true;
-				if ($pos == 0) $highlight = true;
-				if ($highlight) {
-					$excerpt = mb_substr($excerpt, 0, $pos)
-							 . $start_emp_token
-							 . mb_substr($excerpt, $pos, mb_strlen($term))
-							 . $end_emp_token
-							 . mb_substr($excerpt, $pos + mb_strlen($term));
-					$low_excerpt = mb_strtolower($excerpt);
-				}
-				$pos = $pos + mb_strlen($start_emp_token) + mb_strlen($end_emp_token);
-			}
-		}
+		$repl = $start_emp_token . $term . $end_emp_token;
+		$excerpt = preg_replace("/$term(?!([^<]+)?>)/iu", $repl, $excerpt);
+		// thanks to http://pureform.wordpress.com/2008/01/04/matching-a-word-characters-outside-of-html-tags/
 	}
 
 	$excerpt = str_replace($start_emp_token, $start_emp, $excerpt);
@@ -1769,10 +1752,13 @@ function relevanssi_tokenize($str, $remove_stops = true) {
 
 function relevanssi_remove_punct($a) {
 		$a = strip_tags($a);
+		$a = stripslashes($a);
 
+		$a = str_replace('&#8217;', '', $a);
 		$a = str_replace("'", '', $a);
 		$a = str_replace("´", '', $a);
 		$a = str_replace("’", '', $a);
+		$a = str_replace("&shy;", '', $a);
 
 		$a = str_replace("—", " ", $a);
         $a = preg_replace('/[[:punct:]]+/u', ' ', $a);

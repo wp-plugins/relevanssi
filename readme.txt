@@ -1,10 +1,10 @@
-=== Relevanssi ===
+=== Relevanssi - A Better Search ===
 Contributors: msaari
 Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.3.3.1
+Stable tag: 2.4
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -238,6 +238,11 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.4 =
+* Highlighting post content won't highlight inside HTML tags anymore.
+* Soft hyphens inside words are now removed in indexing. They still confuse the highlighting.
+* Matching engine is now able to match category titles that contain apostrophes.
 
 = 2.3.3.1 =
 * Suppressed the error messages on the correct mb_strpos() function call. If you still get mb_strpos() errors, update.
