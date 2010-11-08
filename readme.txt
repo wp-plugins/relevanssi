@@ -4,47 +4,36 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.4
+Stable tag: 2.4.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
 == Description ==
 
-Relevanssi replaces the basic WordPress search with a partial-match search that sorts the results
-based on relevance. It is a partial match search, so if user inputs several search terms, the
-search will find all documents that match even one term, ranking highest those documents that match
-all search terms.
+Relevanssi replaces the standard WordPress search with a better search engine, with lots of features
+and configurable options.
 
-Relevanssi does some fuzzy matching too, so if user searches for something that doesn't produce
-any results, Relevanssi will look for similar terms. Strict phrases using quotation marks
-(like "search phrase") are supported.
+= Key features =
+* Search results sorted in the order of relevance, not by date.
+* Fuzzy matching: match partial words, if complete words don't match.
+* Find documents matching either just one search term (OR query) or require all words to appear (AND query).
+* Search for phrases with quotes, for example "search phrase".
+* Create custom excerpts that show where the hit was made, with the search terms highlighted.
+* Highlight search terms in the documents when user clicks through search results.
+* Search comments, tags, categories and custom fields.
 
-The matching is based on basic tf * idf weighing, with some extra features added like a boost for
-words that appear in titles.
+= Advanced features =
+* Adjust the weighting for titles, tags and comments.
+* Log queries, show most popular queries and recent queries with no hits.
+* Restrict searches to categories and tags using a hidden variable or plugin settings.
+* Index custom post types and custom taxonomies.
+* Index the contents of shortcodes.
+* Google-style "Did you mean?" suggestions based on successful user searches.
 
-Relevanssi can create custom search result snippets that show the part of the document where the
-search hit was made. Relevanssi can also highlight the query terms in the search results and in
-the posts.
-
-Relevanssi can keep a log of user queries and display both most popular queries and recent queries
-that got no hits.
-
-Relevanssi supports the hidden input field `cat` to restrict searches to certain categories (or
-tags, since those are pretty much the same). Just add a hidden input field named `cat` in your
-search form and list the desired category or tag IDs in the `value` field - positive numbers
-include those categories and tags, negative numbers exclude them. You can also set the
-restriction from general plugin settings (and then override it in individual search forms with
-the special field). This works with custom taxonomies as well, just replace `cat` with the name
-of your taxonomy.
-
-Relevanssi also supports custom post types.
-
-With Relevanssi, you can also get Google-style "Did you mean?" suggestions, when search fails
-to produce results. These suggestions are based on successful user searches.
-
-In addition of post and page content (including tags and categories), Relevanssi can index
-comments and pingbacks. It can also expand shortcodes in post content before indexing, so
-that everything the user sees on the entry page will be included in the index.
+= Relevanssi in Facebook =
+You can find [Relevanssi in Facebook](http://www.facebook.com/pages/Relevanssi-Better-Search-for-WordPress/139381702780384).
+Become a fan to follow the development of the plugin, I'll post updates on bugs, new features and
+new versions to the Facebook page.
 
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
 Katzgrau.
@@ -196,6 +185,16 @@ Now the search will be for John Doe, but the anchor says Mr. John Doe.
 One more parameter: setting `[search phrase="on"]` will wrap the search term in
 quotation marks, making it a phrase. This can be useful in some cases.
 
+= Restricting searches to categories and tags =
+Relevanssi supports the hidden input field `cat` to restrict searches to certain categories (or
+tags, since those are pretty much the same). Just add a hidden input field named `cat` in your
+search form and list the desired category or tag IDs in the `value` field - positive numbers
+include those categories and tags, negative numbers exclude them.
+
+You can also set the restriction from general plugin settings (and then override it in individual
+search forms with the special field). This works with custom taxonomies as well, just replace
+`cat` with the name of your taxonomy.
+
 = Restricting searches with taxonomies =
 
 You can use taxonomies to restrict search results to posts and pages tagged with a certain 
@@ -203,6 +202,20 @@ taxonomy term. If you have a custom taxonomy of "People" and want to search entr
 "John" in this taxonomy, just use `?s=keyword&people=John` in the URL. You should be able to use
 an input field in the search form to do this, as well - just name the input field with the name
 of the taxonomy you want to use.
+
+= Automatic indexing =
+Relevanssi indexes changes in documents as soon as they happen. However, changes in shortcoded
+content won't be registered automatically. If you use lots of shortcodes and dynamic content, you
+may want to add extra indexing. Here's how to do it:
+
+`if (!wp_next_scheduled('relevanssi_build_index')) {
+	wp_schedule_event( time(), 'daily', 'relevanssi_build_index' );
+}`
+
+Add the code above in your theme functions.php file so it gets executed. This will cause
+WordPress to build the index once a day. This is an untested and unsupported feature that may
+cause trouble and corrupt index if your database is large, so use at your own risk. This was
+presented at [forum](http://wordpress.org/support/topic/plugin-relevanssi-a-better-search-relevanssi-chron-indexing?replies=2).
 
 = What is tf * idf weighing? =
 
@@ -238,6 +251,11 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.4.1 =
+* Fixed a problem where search term highlighting was changing terms to lowercase.
+* Fixed a problem with highlighting breaking stuff in shortcodes.
+* Made some changes to the admin interface - there's more to come here, as the admin page is a bit of a mess right now.
 
 = 2.4 =
 * Highlighting post content won't highlight inside HTML tags anymore.

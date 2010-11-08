@@ -1,9 +1,9 @@
 <?php
 /*
-Plugin Name: Relevanssi - A Better Search
+Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.4
+Version: 2.4.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -66,6 +66,8 @@ global $stopword_list;
 global $title_boost_default;
 global $tag_boost_default;
 global $comment_boost_default;
+
+global $relevanssi_hits;
 
 $wpSearch_low = 0;
 $wpSearch_high = 0;
@@ -1255,7 +1257,7 @@ function relevanssi_strip_invisibles($text) {
 }
 
 if (get_option('relevanssi_highlight_docs', 'off') != 'off') {
-	add_filter('the_content', 'relevanssi_highlight_in_docs');
+	add_filter('the_content', 'relevanssi_highlight_in_docs', 11);
 	add_filter('the_title', 'relevanssi_highlight_in_docs');
 }
 function relevanssi_highlight_in_docs($content) {
@@ -1341,10 +1343,8 @@ function relevanssi_highlight_terms($excerpt, $query) {
 		$terms[] = $phrase;
 	}
 
-
 	foreach ($terms as $term) {
-		$repl = $start_emp_token . $term . $end_emp_token;
-		$excerpt = preg_replace("/$term(?!([^<]+)?>)/iu", $repl, $excerpt);
+		$excerpt = preg_replace("/($term)(?!([^<]+)?>)/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
 		// thanks to http://pureform.wordpress.com/2008/01/04/matching-a-word-characters-outside-of-html-tags/
 	}
 
@@ -2048,6 +2048,11 @@ function relevanssi_query_log() {
 function relevanssi_options_form() {
 	global $title_boost_default, $tag_boost_default, $comment_boost_default, $wpdb, $relevanssi_table;
 	
+	wp_enqueue_style('dashboard');
+	wp_print_styles('dashboard');
+	wp_enqueue_script('dashboard');
+	wp_print_scripts('dashboard');
+	
 	$docs_count = $wpdb->get_var("SELECT COUNT(DISTINCT doc) FROM $relevanssi_table");
 	$biggest_doc = $wpdb->get_var("SELECT doc FROM $relevanssi_table ORDER BY doc DESC LIMIT 1");
 	
@@ -2373,41 +2378,22 @@ function relevanssi_options_form() {
 	$synonyms_title = __("Synonyms", "relevanssi");
 	$synonyms_desc = __("Add synonyms here in 'key = value' format. When searching with the OR operator, any search of 'key' will be expanded to include 'value' as well. Using phrases is possible. The key-value pairs work in one direction only, but you can of course repeat the same pair reversed.", "relevanssi");
 	
+	$tweet = 'http://twitter.com/home?status=' . urlencode("I'm using Relevanssi, a better search for WordPress. http://wordpress.org/extend/plugins/relevanssi/ #relevanssi #wordpress");
+	if (function_exists("plugins_url")) {
+		if (version_compare($wp_version, '2.8dev', '>' )) {
+			$facebooklogo = plugins_url('facebooklogo.jpg', __FILE__);
+		}
+		else {
+			$facebooklogo = plugins_url('relevanssi/facebooklogo.jpg');
+		}
+	}
+	else {
+		// We can't check, so let's assume something sensible
+		$facebooklogo = '/wp-content/plugins/relevanssi/facebooklogo.jpg';
+	}
+	
 	echo <<<EOHTML
-	<br />
-	
-<div style="float: right; border: thin solid #111; padding: 10px; width: 200px">
-<h3>Support Relevanssi!</h3>
-<p>How valuable is the improved search for your WordPress site? Relevanssi is and will
-be free, but consider supporting the author if Relevanssi made your web site better.</p>
-
-<p>Relevanssi is written by <strong>Mikko Saari</strong>, a Finnish WordPress nerd, SEO grunt and board
-game geek. Any money received will be used for the good of Mikko, his wife and two
-hungry kids.</p>
-
-<div style="text-align:center">
-<form action="https://www.paypal.com/cgi-bin/webscr" method="post">
-<input type="hidden" name="cmd" value="_donations">
-<input type="hidden" name="business" value="mikko@mikkosaari.fi">
-<input type="hidden" name="lc" value="US">
-<input type="hidden" name="item_name" value="Relevanssi">
-<input type="hidden" name="currency_code" value="EUR">
-<input type="hidden" name="bn" value="PP-DonationsBF:btn_donateCC_LG.gif:NonHostedGuest">
-<input type="image" src="https://www.paypal.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="PayPal - The safer, easier way to pay online!">
-<img alt="" border="0" src="https://www.paypal.com/en_US/i/scr/pixel.gif" width="1" height="1">
-</form>
-</div>
-
-<p>If you don't like donating money, please consider blogging about Relevanssi with a link
-to the <a href="http://www.mikkosaari.fi/relevanssi/">plugin page</a>. Your users won't know
-you're using Relevanssi, all they see is better search results. Please let them know what
-makes the search better - you'll help them and you'll help me.</p>
-
-<p>Whatever you do, thanks for using Relevanssi!</p>
-
-<p>&mdash; Mikko</p>
-</div>
-	
+	<div class="postbox-container" style="width:70%;">
 	<h3>$stateoftheindextitle</h3>
 	<p>
 	$documents: <strong>$docs_count</strong><br />
@@ -2669,6 +2655,59 @@ makes the search better - you'll help them and you'll help me.</p>
 	<input type="submit" name="uninstall" value="$uninstall_button" />
 
 	</form>
+</div>
+<div class="postbox-container" style="width:20%; margin-top: 35px; margin-left: 15px;">
+	<div class="metabox-holder">	
+		<div class="meta-box-sortables" style="min-height: 0">
+			<div id="relevanssi_donate" class="postbox">
+			<h3 class="hndle"><span>Support Relevanssi!</span></h3>
+			<div class="inside">
+<p>Is the better search provided by Relevanssi worth something to you?</p>
+
+<p>You can also support Relevanssi by blogging about it.</p>
+
+<p>Even <a href="$tweet" target="_blank">a single tweet</a> will help spread the word!</p>
+
+<div style="text-align:center">
+<form action="https://www.paypal.com/cgi-bin/webscr" method="post">
+<input type="hidden" name="cmd" value="_donations">
+<input type="hidden" name="business" value="mikko@mikkosaari.fi">
+<input type="hidden" name="lc" value="US">
+<input type="hidden" name="item_name" value="Relevanssi">
+<input type="hidden" name="currency_code" value="EUR">
+<input type="hidden" name="bn" value="PP-DonationsBF:btn_donateCC_LG.gif:NonHostedGuest">
+<input type="image" src="https://www.paypal.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="PayPal - The safer, easier way to pay online!">
+<img alt="" border="0" src="https://www.paypal.com/en_US/i/scr/pixel.gif" width="1" height="1">
+</form>
+</div>
+			</div>
+		</div>
+	</div>
+	
+		<div class="meta-box-sortables" style="min-height: 0">
+			<div id="relevanssi_donate" class="postbox">
+			<h3 class="hndle"><span>Relevanssi in Facebook!</span></h3>
+			<div class="inside">
+			<div style="float: left; margin-right: 5px"><img src="$facebooklogo" width="45" height="43" alt="Facebook" /></div>
+			<p><a href="http://www.facebook.com/pages/Relevanssi-Better-Search-for-WordPress/139381702780384">Check
+			out the Relevanssi page in Facebook</a> for news and updates about your favourite plugin.</p>
+			</div>
+		</div>
+	</div>
+
+		<div class="meta-box-sortables" style="min-height: 0">
+			<div id="relevanssi_donate" class="postbox">
+			<h3 class="hndle"><span>Help and support</span></h3>
+			<div class="inside">
+			<p>For Relevanssi support, see:</p>
+			
+			<p>- <a href="http://wordpress.org/tags/relevanssi?forum_id=10">WordPress.org forum</a><br />
+			- <a href="http://www.mikkosaari.fi/en/relevanssi-search/">Plugin home page</a></p>
+			</div>
+		</div>
+	</div>
+</div>
+</div>
 EOHTML;
 }
 ?>
