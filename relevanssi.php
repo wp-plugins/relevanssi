@@ -1188,7 +1188,7 @@ function relevanssi_create_excerpt($content, $terms) {
 		$i = 0;
 		
 		while ($i < count($words)) {
-			if ($i + $excerpt_length > count()) {
+			if ($i + $excerpt_length > count($words)) {
 				$i = count($words) - $excerpt_length;
 			}
 			$excerpt_slice = array_slice($words, $i, $excerpt_length);
