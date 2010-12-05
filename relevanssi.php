@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.5
+Version: 2.5.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -200,6 +200,7 @@ function relevanssi_install() {
 	add_option('relevanssi_include_tags', 'on');		//added by OdditY	
 	add_option('relevanssi_hilite_title', ''); 			//added by OdditY	
 	add_option('relevanssi_highlight_docs', 'off');
+	add_option('relevanssi_highlight_comments', 'off');
 	add_option('relevanssi_index_comments', 'none');	//added by OdditY
 	add_option('relevanssi_include_cats', '');
 	add_option('relevanssi_show_matches', '');
@@ -305,6 +306,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_synonyms');
 	delete_option('relevanssi_index_excerpt');
 	delete_option('relevanssi_highlight_docs');
+	delete_option('relevanssi_highlight_comments');
 	delete_option('relevanssi_index_limit');
 	
 	$sql = "DROP TABLE $stopword_table";
@@ -1188,7 +1190,7 @@ function relevanssi_create_excerpt($content, $terms) {
 		$i = 0;
 		
 		while ($i < count($words)) {
-			if ($i + $excerpt_length > count($words)) {
+			if ($i + $excerpt_length > count()) {
 				$i = count($words) - $excerpt_length;
 			}
 			$excerpt_slice = array_slice($words, $i, $excerpt_length);
@@ -1259,6 +1261,9 @@ function relevanssi_strip_invisibles($text) {
 if (get_option('relevanssi_highlight_docs', 'off') != 'off') {
 	add_filter('the_content', 'relevanssi_highlight_in_docs', 11);
 	add_filter('the_title', 'relevanssi_highlight_in_docs');
+}
+if (get_option('relevanssi_highlight_comments', 'off') != 'off') {
+	add_filter('comment_text', 'relevanssi_highlight_in_docs', 11);
 }
 function relevanssi_highlight_in_docs($content) {
 	$referrer = preg_replace('@(http|https)://@', '', stripslashes(urldecode($_SERVER['HTTP_REFERER'])));
@@ -1343,10 +1348,14 @@ function relevanssi_highlight_terms($excerpt, $query) {
 		$terms[] = $phrase;
 	}
 
+	usort($terms, 'relevanssi_strlen_sort');
+
 	foreach ($terms as $term) {
 		$excerpt = preg_replace("/(\b$term|$term\b)(?!([^<]+)?>)/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
 		// thanks to http://pureform.wordpress.com/2008/01/04/matching-a-word-characters-outside-of-html-tags/
 	}
+
+	$excerpt = relevanssi_remove_nested_highlights($excerpt, $start_emp_token, $end_emp_token);
 
 	$excerpt = str_replace($start_emp_token, $start_emp, $excerpt);
 	$excerpt = str_replace($end_emp_token, $end_emp, $excerpt);
@@ -1357,6 +1366,36 @@ function relevanssi_highlight_terms($excerpt, $query) {
 	}
 
 	return $excerpt;
+}
+
+function relevanssi_remove_nested_highlights($s, $a, $b) {
+	$offset = 0;
+	$string = "";
+	$bits = explode($a, $s);
+	$new_bits = array($bits[0]);
+	for ($i = 1; $i < count($bits); $i++) {
+		if ($bits[$i] == '') continue;
+		if (substr_count($bits[$i], $b) > 1) {
+			$more_bits = explode($b, $bits[$i]);
+			$j = 0;
+			$k = count($more_bits) - 2;
+			$whole_bit = "";
+			foreach ($more_bits as $bit) {
+				$whole_bit .= $bit;
+				if ($j == $k) $whole_bit .= $b;
+				$j++;
+			}
+			$bits[$i] = $whole_bit;
+		}
+		$new_bits[] = $bits[$i];
+	}
+	$whole = implode($a, $new_bits);
+	
+	return $whole;
+}
+
+function relevanssi_strlen_sort($a, $b) {
+	return strlen($b) - strlen($a);
 }
 
 function relevanssi_get_comments($postID) {	
@@ -1947,6 +1986,10 @@ function update_relevanssi_options() {
 		$_REQUEST['relevanssi_highlight_docs'] = "off";
 	}
 
+	if (!isset($_REQUEST['relevanssi_highlight_comments'])) {
+		$_REQUEST['relevanssi_highlight_comments'] = "off";
+	}
+
 	if (!isset($_REQUEST['relevanssi_expand_shortcodes'])) {
 		$_REQUEST['relevanssi_expand_shortcodes'] = "off";
 	}
@@ -1977,6 +2020,7 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_log_queries'])) update_option('relevanssi_log_queries', $_REQUEST['relevanssi_log_queries']);	
 	if (isset($_REQUEST['relevanssi_highlight'])) update_option('relevanssi_highlight', $_REQUEST['relevanssi_highlight']);
 	if (isset($_REQUEST['relevanssi_highlight_docs'])) update_option('relevanssi_highlight_docs', $_REQUEST['relevanssi_highlight_docs']);
+	if (isset($_REQUEST['relevanssi_highlight_comments'])) update_option('relevanssi_highlight_comments', $_REQUEST['relevanssi_highlight_comments']);
 	if (isset($_REQUEST['relevanssi_txt_col'])) update_option('relevanssi_txt_col', $_REQUEST['relevanssi_txt_col']);
 	if (isset($_REQUEST['relevanssi_bg_col'])) update_option('relevanssi_bg_col', $_REQUEST['relevanssi_bg_col']);
 	if (isset($_REQUEST['relevanssi_css'])) update_option('relevanssi_css', $_REQUEST['relevanssi_css']);
@@ -2291,6 +2335,7 @@ function relevanssi_options_form() {
 	}//added by OdditY END <-
 
 	$highlight_docs = ('on' == get_option('relevanssi_highlight_docs') ? 'checked="checked"' : ''); 
+	$highlight_coms = ('on' == get_option('relevanssi_highlight_comments') ? 'checked="checked"' : ''); 
 	
 	$inccats = ('on' == get_option('relevanssi_include_cats') ? 'checked="checked"' : ''); 
 	$index_author = ('on' == get_option('relevanssi_index_author') ? 'checked="checked"' : ''); 
@@ -2452,6 +2497,12 @@ function relevanssi_options_form() {
 	<label for='relevanssi_highlight_docs'><?php _e("Highlight query terms in documents:", 'relevanssi'); ?>
 	<input type='checkbox' name='relevanssi_highlight_docs' <?php echo $highlight_docs ?> /></label>
 	<small><?php _e("Highlights hits when user opens the post from search results. This is based on HTTP referrer, so if that's blocked, there'll be no highlights.", "relevanssi"); ?></small>
+
+	<br />
+	
+	<label for='relevanssi_highlight_comments'><?php _e("Highlight query terms in comments:", 'relevanssi'); ?>
+	<input type='checkbox' name='relevanssi_highlight_comments' <?php echo $highlight_coms ?> /></label>
+	<small><?php _e("Highlights hits in comments when user opens the post from search results.", "relevanssi"); ?></small>
 
 	<br /><br />
 	</div>
