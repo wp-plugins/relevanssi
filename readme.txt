@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.4.1
+Stable tag: 2.5.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -88,6 +88,16 @@ To uninstall the plugin, first click the "Remove plugin data" button on the plug
 to remove options and database tables, then remove the plugin using the normal WordPress
 plugin management tools.
 
+= Combining with other plugins =
+Relevanssi doesn't work with plugins that rely on standard WP search. Those plugins want to
+access the MySQL queries, for example. That won't do with Relevanssi. [Search Light](http://wordpress.org/extend/plugins/search-light/),
+for example, won't work with Relevanssi.
+
+[Dave's WordPress Live Search](http://wordpress.org/extend/plugins/daves-wordpress-live-search/) is
+an AJAX instant search plugin that works with Relevanssi. Versions up to 1.17 won't work, but
+the next version after that should, as long as you have at least Relevanssi 2.5. The Live Search
+will cause some strange search logs, but the search itself works.
+
 == Frequently Asked Questions ==
 
 = Displaying the number of search results found =
@@ -114,6 +124,21 @@ For more details, see where the filter is applied in the `relevanssi_search()` f
 is stricly an advanced hacker option for those people who're used to using filters and MySQL
 WHERE clauses and it is possible to break the search results completely by doing something wrong
 here.
+
+= Direct access to query engine =
+Relevanssi can't be used in any situation, because it checks the presence of search with the
+`is_search()` function. This causes some unfortunate limitations and reduces the general usability
+of the plugin.
+
+You can now access the query engine directly. There's a new function `relevanssi_do_query()`,
+which can be used to do search queries just about anywhere. The function takes a WP_Query object
+as a parameter, so you need to store all the search parameters in the object (for example, put the
+search terms in `$your_query_object->query_vars['s']`). Then just pass the WP_Query object to
+Relevanssi with `relevanssi_do_query($your_wp_query_object);`.
+
+Relevanssi will process the query and insert the found posts as `$your_query_object->posts`. The
+query object is passed as reference and modified directly, so there's no return value. The posts
+array will contain all results that are found.
 
 = Sorting search results =
 
@@ -217,6 +242,21 @@ WordPress to build the index once a day. This is an untested and unsupported fea
 cause trouble and corrupt index if your database is large, so use at your own risk. This was
 presented at [forum](http://wordpress.org/support/topic/plugin-relevanssi-a-better-search-relevanssi-chron-indexing?replies=2).
 
+= Highlighting terms =
+Relevanssi search term highlighting can be used outside search results. You can access the search
+term highlighting function directly. This can be used for example to highlight search terms in
+structured search result data that comes from custom fields and isn't normally highlighted by
+Relevanssi.
+
+Just pass the content you want highlighted through `relevanssi_highlight_terms()` function. The
+content to highlight is the first parameter, the search query the second. The content with
+highlights is then returned by the function. Use it like this:
+
+`if (function_exists('relevanssi_highlight_terms')) {
+    echo relevanssi_highlight_terms($content, get_search_query());
+}
+else { echo $content; }`
+
 = What is tf * idf weighing? =
 
 It's the basic weighing scheme used in information retrieval. Tf stands for *term frequency*
@@ -242,8 +282,7 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: Custom post types and private posts is problematic - I'm using default 'read_private_*s' capability, which might not always work.
 * Known issue: There are reported problems with custom posts combined with custom taxonomies, the taxonomy restriction doesn't necessarily work.
 * Known issue: Phrase matching is only done to post content; phrases don't match to category titles and other content.
-* To-do: The stop word list management needs small improvements.
-* To-do: Improve the display of query logs. Any requests? What information would you like to see, what would be helpful?
+* To-do: The stop word list management needs improvements.
 * To-do: Option to set the number of search results returned.
 
 == Thanks ==
@@ -251,6 +290,18 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.5.1 =
+* Option to highlight search terms in comment text as well.
+* Fixed a small problem in highlighting search terms.
+
+= 2.5 =
+* Better support for other search plugins like [Dave's WordPress Live Search](http://wordpress.org/extend/plugins/daves-wordpress-live-search/).
+* New User searches screen that shows more data about user searches.
+* Search logs can now be emptied.
+* Custom fields weren't indexed on updated posts. That is now fixed.
+* Once again improved the highlighting: now the highlighting will look for word boundaries and won't highlight terms inside words.
+* Relevanssi query engine can now be accessed directly, making all sorts of advanced hacking easier. See FAQ.
 
 = 2.4.1 =
 * Fixed a problem where search term highlighting was changing terms to lowercase.
