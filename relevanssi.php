@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.5.1
+Version: 2.5.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -731,11 +731,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	}
 
 	if ($post_type) {
-		$post_type = mysql_real_escape_string($post_type);
-		$post_types = explode(',', $post_type);
+		if (!is_array($post_types)) $post_types = explode(',', $post_type);
 		$pt_array = array();
 		foreach ($post_types as $pt) {
-			$pt = "'" . trim($pt) . "'";
+			$pt = "'" . trim(mysql_real_escape_string($pt)) . "'";
 			array_push($pt_array, $pt);
 		}
 		$post_type = implode(",", $pt_array);
@@ -1666,7 +1665,7 @@ function relevanssi_index_doc($post, $remove_first = false, $custom_fields = fal
 		}
 	}
 
-	if ("on" == get_option("relevanssi_index_excerpt")) {
+	if (isset($post->post_excerpt) && "on" == get_option("relevanssi_index_excerpt")) {
 		$post->post_content .= ' ' . $post->post_excerpt;
 	}
 	
@@ -2362,7 +2361,7 @@ function relevanssi_options_form() {
 	<p>
 	<input type='submit' name='submit' value='<?php _e('Save options', 'relevanssi'); ?>' style="background-color:#007f00; border-color:#5fbf00; border-style:solid; border-width:thick; padding: 5px; color: #fff;" />
 	<input type="submit" name="index" value="<?php _e('Build the index', 'relevanssi') ?>" style="background-color:#007f00; border-color:#5fbf00; border-style:solid; border-width:thick; padding: 5px; color: #fff;" />
-	<input type="submit" name="index_extend" value="<?php _e('Continue indexing', 'relevanssi') ?>"  style="background-color:#e87000; border-color:#ffbb00; border-style:solid; border-width:thick; padding: 5px; color: #fff;" />, add <input type="text" size="4" name="relevanssi_index_limit" value="<?php echo $index_limit ?>" /> documents.</p>
+	<input type="submit" name="index_extend" value="<?php _e('Continue indexing', 'relevanssi') ?>"  style="background-color:#e87000; border-color:#ffbb00; border-style:solid; border-width:thick; padding: 5px; color: #fff;" />, <?php _e('add', 'relevanssi'); ?> <input type="text" size="4" name="relevanssi_index_limit" value="<?php echo $index_limit ?>" /> <?php _e('documents.', 'relevanssi'); ?></p>
 
 	<p><?php _e("Use 'Build the index' to build the index with current <a href='#indexing'>indexing options</a>. If you can't finish indexing with one go, use 'Continue indexing' to finish the job. You can change the number of documents to add until you find the largest amount you can add with one go. See 'State of the Index' below to find out how many documents actually go into the index.", 'relevanssi') ?></p>
 	

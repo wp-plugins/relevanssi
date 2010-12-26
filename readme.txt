@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.5.1
+Stable tag: 2.5.2
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -67,9 +67,8 @@ helps. Relevanssi shows the highest post ID in the index - start troubleshooting
 or page with the next highest ID. Server error logs may be useful, too.
 
 = Using custom search results =
-If you want to use the custom search results, make sure your search results template uses 
-`the_excerpt()` to display the entries, because the plugin creates the custom snippet by replacing
-the post excerpt.
+If you want to use the custom search results, make sure your search results template uses `the_excerpt()`
+to display the entries, because the plugin creates the custom snippet by replacing the post excerpt.
 
 If you're using a plugin that affects excerpts (like Advanced Excerpt), you may run into some
 problems. For those cases, I've included the function `relevanssi_the_excerpt()`, which you can
@@ -98,6 +97,12 @@ an AJAX instant search plugin that works with Relevanssi. Versions up to 1.17 wo
 the next version after that should, as long as you have at least Relevanssi 2.5. The Live Search
 will cause some strange search logs, but the search itself works.
 
+Some plugins cause problems when indexing documents. These are generally plugins that use shortcodes
+to do something somewhat complicated. One such plugin is [MapPress Easy Google Maps](http://wordpress.org/extend/plugins/mappress-google-maps-for-wordpress/).
+When indexing, you'll get a white screen. To fix the problem, disable either the offending plugin 
+or shorcode expansion in Relevanssi while indexing. After indexing, you can activate the plugin
+again.
+
 == Frequently Asked Questions ==
 
 = Displaying the number of search results found =
@@ -117,7 +122,6 @@ query WHERE clause. Using the `relevanssi_where` hook you can add your own restr
 the WHERE clause.
 
 These restrictions must be in the general format of 
-
 ` AND doc IN (' . {a list of post ids, which could be a subquery} . ')`
 
 For more details, see where the filter is applied in the `relevanssi_search()` function. This
@@ -126,8 +130,8 @@ WHERE clauses and it is possible to break the search results completely by doing
 here.
 
 = Direct access to query engine =
-Relevanssi can't be used in any situation, because it checks the presence of search with the
-`is_search()` function. This causes some unfortunate limitations and reduces the general usability
+Relevanssi can't be used in any situation, because it checks the presence of search with
+the `is_search()` function. This causes some unfortunate limitations and reduces the general usability
 of the plugin.
 
 You can now access the query engine directly. There's a new function `relevanssi_do_query()`,
@@ -173,7 +177,7 @@ Thanks to Charles St-Pierre for the idea.
 Relevanssi stores the relevance score it uses to sort results in the $post variable. Just add
 something like
 
-echo $post->relevance_score
+`echo $post->relevance_score`
 
 to your search results template inside a PHP code block to display the relevance score.
 
@@ -217,8 +221,8 @@ search form and list the desired category or tag IDs in the `value` field - posi
 include those categories and tags, negative numbers exclude them.
 
 You can also set the restriction from general plugin settings (and then override it in individual
-search forms with the special field). This works with custom taxonomies as well, just replace
-`cat` with the name of your taxonomy.
+search forms with the special field). This works with custom taxonomies as well, just replace `cat`
+with the name of your taxonomy.
 
 = Restricting searches with taxonomies =
 
@@ -282,6 +286,7 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: Custom post types and private posts is problematic - I'm using default 'read_private_*s' capability, which might not always work.
 * Known issue: There are reported problems with custom posts combined with custom taxonomies, the taxonomy restriction doesn't necessarily work.
 * Known issue: Phrase matching is only done to post content; phrases don't match to category titles and other content.
+* Known issue: User searches page requires MySQL 5.
 * To-do: The stop word list management needs improvements.
 * To-do: Option to set the number of search results returned.
 
@@ -290,6 +295,10 @@ removing those words helps to make the index smaller and searching faster.
 * Marcus Dalgren for UTF-8 fixing.
 
 == Changelog ==
+
+= 2.5.2 =
+* Fixed a bug about `mysql_real_escape_string()` expecting a string.
+* Added documentation about compatibility issues.
 
 = 2.5.1 =
 * Option to highlight search terms in comment text as well.
