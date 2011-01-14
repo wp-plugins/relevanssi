@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.5.3
+Version: 2.5.4
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -731,7 +731,12 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	}
 
 	if ($post_type) {
-		if (!is_array($post_types)) $post_types = explode(',', $post_type);
+		if (!is_array($post_type)) {
+			$post_types = explode(',', $post_type);
+		}
+		else {
+			$post_types = $post_type;
+		}
 		$pt_array = array();
 		foreach ($post_types as $pt) {
 			$pt = "'" . trim(mysql_real_escape_string($pt)) . "'";
@@ -1102,6 +1107,14 @@ function relevanssi_do_excerpt($post, $query) {
 		$comment_excerpts = relevanssi_create_excerpt($comment_content, $terms);
 		if ($comment_excerpts[1] > $excerpt_data[1]) {
 			$excerpt_data = $comment_excerpts;
+		}
+	}
+
+	if (get_option("relevanssi_index_excerpt") != 'none') {
+		$excerpt_content = $post->post_excerpt;
+		$excerpt_excerpts = relevanssi_create_excerpt($excerpt_content, $terms);
+		if ($excerpt_excerpts[1] > $excerpt_data[1]) {
+			$excerpt_data = $excerpt_excerpts;
 		}
 	}
 	
@@ -1877,6 +1890,14 @@ function relevanssi_options() {
 			}
 		}
 	}
+
+	if (isset($_REQUEST['addstopword'])) {
+		relevanssi_add_stopword($_REQUEST['addstopword']);
+	}
+	
+	if (isset($_REQUEST['removestopword'])) {
+		relevanssi_remove_stopword($_REQUEST['removestopword']);
+	}
 	
 	relevanssi_options_form();
 	
@@ -2059,6 +2080,20 @@ function relevanssi_add_stopword($term) {
 	}
 	else {
 		printf(__("<div id='message' class='updated fade'><p>Couldn't add term '%s' to stopwords!</p></div>", "relevanssi"), $term);
+	}
+}
+
+function relevanssi_remove_stopword($term) {
+	global $wpdb, $stopword_table;
+	
+	$q = $wpdb->prepare("DELETE FROM $stopword_table WHERE stopword = '$term'");
+	$success = $wpdb->query($q);
+	
+	if ($success) {
+		printf(__("<div id='message' class='updated fade'><p>Term '%s' removed from stopwords! Re-index to get it back to index.</p></div>", "relevanssi"), $term);
+	}
+	else {
+		printf(__("<div id='message' class='updated fade'><p>Couldn't remove term '%s' from stopwords!</p></div>", "relevanssi"), $term);
 	}
 }
 
@@ -2354,6 +2389,7 @@ function relevanssi_options_form() {
     <a href="#highlighting"><?php _e("Highlighting search results", "relevanssi"); ?></a> |
     <a href="#indexing"><?php _e("Indexing options", "relevanssi"); ?></a> |
     <a href="#synonyms"><?php _e("Synonyms", "relevanssi"); ?></a> |
+    <a href="#stopwords"><?php _e("Stopwords", "relevanssi"); ?></a> |
     <a href="#uninstall"><?php _e("Uninstalling", "relevanssi"); ?></a>
     </p>
 
@@ -2411,7 +2447,7 @@ function relevanssi_options_form() {
 	
 	<label for='relevanssi_log_queries'><?php _e("Keep a log of user queries:", "relevanssi"); ?>
 	<input type='checkbox' name='relevanssi_log_queries' <?php echo $log_queries ?> /></label>
-	<small><?php _e("If checked, Relevanssi will log user queries.", 'relevanssi'); ?></small>
+	<small><?php _e("If checked, Relevanssi will log user queries. The log appears in 'User searches' on the Dashboard admin menu.", 'relevanssi'); ?></small>
 
 	<br /><br />
 
@@ -2621,6 +2657,10 @@ function relevanssi_options_form() {
 	<p><small><?php _e("Add synonyms here in 'key = value' format. When searching with the OR operator, any search of 'key' will be expanded to include 'value' as well. Using phrases is possible. The key-value pairs work in one direction only, but you can of course repeat the same pair reversed.", "relevanssi"); ?></small></p>
 
 	<input type='submit' name='submit' value='<?php _e('Save the options', 'relevanssi'); ?>' />
+
+	<h3 id="stopwords"><?php _e("Stopwords", "relevanssi"); ?></h3>
+	
+	<?php relevanssi_show_stopwords(); ?>
 	
 	<h3 id="uninstall"><?php _e("Uninstalling the plugin", "relevanssi"); ?></h3>
 	
@@ -2634,6 +2674,39 @@ function relevanssi_options_form() {
 	<?php
 
 	relevanssi_sidebar();
+}
+
+function relevanssi_show_stopwords() {
+	global $wpdb, $stopword_table;
+
+	_e("<p>Enter a word here to add it to the list of stopwords. The word will automatically be removed from the index, so re-indexing is not necessary.</p>", 'relevanssi');
+
+?><label for="addstopword"><p><?php _e("Stopword to add: ", 'relevanssi'); ?><input type="text" name="addstopword" />
+<input type="submit" value="<?php _e("Add", 'relevanssi'); ?>" /></p>
+<?php
+
+	_e("<p>Here's a list of stopwords in the database. Click a word to remove it from stopwords. Removing stopwords won't automatically return them to index, so you need to re-index all posts after removing stopwords to get those words back to index.", 'relevanssi');
+
+	if (function_exists("plugins_url")) {
+		if (version_compare($wp_version, '2.8dev', '>' )) {
+			$src = plugins_url('delete.png', __FILE__);
+		}
+		else {
+			$src = plugins_url('relevanssi/delete.png');
+		}
+	}
+	else {
+		// We can't check, so let's assume something sensible
+		$src = '/wp-content/plugins/relevanssi/delete.png';
+	}
+	
+	echo "<ul>";
+	$results = $wpdb->get_results("SELECT * FROM $stopword_table");
+	foreach ($results as $stopword) {
+		$sw = $stopword->stopword; 
+		printf('<li style="display: inline;"><input type="submit" name="removestopword" value="%s"/></li>', $sw, $src, $sw);
+	}
+	echo "</ul>";
 }
 
 function relevanssi_sidebar() {
