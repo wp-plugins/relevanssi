@@ -3,12 +3,12 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.5.3
+Version: 2.5.5
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
 
-/*  Copyright 2010 Mikko Saari  (email: mikko@mikkosaari.fi)
+/*  Copyright 2011 Mikko Saari  (email: mikko@mikkosaari.fi)
 
     This file is part of Relevanssi, a search plugin for WordPress.
 
@@ -52,6 +52,14 @@ add_action('future_publish_post', 'relevanssi_publish');
 add_action('comment_post', 'relevanssi_comment_index'); 	//added by OdditY
 add_action('edit_comment', 'relevanssi_comment_edit'); 		//added by OdditY 
 add_action('delete_comment', 'relevanssi_comment_remove'); 	//added by OdditY
+// BEGIN added by renaissancehack
+// *_page and *_post hooks do not trigger on attachments
+add_action('delete_attachment', 'relevanssi_delete');
+add_action('add_attachment', 'relevanssi_publish');
+add_action('edit_attachment', 'relevanssi_edit');
+// When a post status changes, check child posts that inherit their status from parent
+add_action('transition_post_status', 'relevanssi_update_child_posts',99,3);
+// END added by renaissancehack
 add_action('init', 'relevanssi_init');
 
 $plugin_dir = basename(dirname(__FILE__));
@@ -150,16 +158,56 @@ function relevanssi_didyoumean($query, $pre, $post, $n = 5) {
 	}
 }
 
+// BEGIN added by renaissancehack
+function relevanssi_update_child_posts($new_status, $old_status, $post) {
+// called by 'transition_post_status' action hook when a post is edited/published/deleted
+//  and calls appropriate indexing function on child posts/attachments
+    global $wpdb;
+    $index_statuses = array('publish', 'private');
+    if (($new_status == $old_status)
+          || (in_array($new_status, $index_statuses) && in_array($old_status, $index_statuses))
+          || (in_array($post->post_type, array('attachment', 'revision')))) {
+        return;
+    }
+    $q = "SELECT * FROM $wpdb->posts WHERE post_parent=$post->ID AND post_type!='revision'";
+    $child_posts = $wpdb->get_results($q);
+    if ($child_posts) {
+        if (!in_array($new_status, $index_statuses)) {
+            foreach ($child_posts as $post) {
+                relevanssi_delete($post->ID);
+            }
+        } else {
+            foreach ($child_posts as $post) {
+                relevanssi_publish($post->ID);
+            }
+        }
+    }
+}
+// END added by renaissancehack
+
 function relevanssi_edit($post) {
 	// Check if the post is public
 	global $wpdb;
 	$post_status = $wpdb->get_var("SELECT post_status FROM $wpdb->posts WHERE ID=$post");
+// BEGIN added by renaissancehack
+    //  if post_status is "inherit", get post_status from parent
+    if ($post_status == 'inherit') {
+        $post_type = $wpdb->get_var("SELECT post_type FROM $wpdb->posts WHERE ID=$post");
+    	$post_status = $wpdb->get_var("SELECT p.post_status FROM $wpdb->posts p, $wpdb->posts c WHERE c.ID=$post AND c.post_parent=p.ID");
+    }
+// END added by renaissancehack
 	if ($post_status != 'publish') {
 		// The post isn't public anymore, remove it from index
 		relevanssi_remove_doc($post);
 	}
 	// No need to do anything else, because if the post is public, it'll trigger
 	// publish_post.
+// BEGIN added by renaissancehack
+    // unless it is an attachment -- then it will not trigger publish_post
+    elseif (($post_type == 'attachment') && ($post_status == 'publish')) {
+        relevanssi_publish($post);
+}
+// END added by renaissancehack
 }
 
 function relevanssi_delete($post) {
@@ -731,7 +779,12 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	}
 
 	if ($post_type) {
-		if (!is_array($post_types)) $post_types = explode(',', $post_type);
+		if (!is_array($post_type)) {
+			$post_types = explode(',', $post_type);
+		}
+		else {
+			$post_types = $post_type;
+		}
 		$pt_array = array();
 		foreach ($post_types as $pt) {
 			$pt = "'" . trim(mysql_real_escape_string($pt)) . "'";
@@ -1104,6 +1157,14 @@ function relevanssi_do_excerpt($post, $query) {
 			$excerpt_data = $comment_excerpts;
 		}
 	}
+
+	if (get_option("relevanssi_index_excerpt") != 'none') {
+		$excerpt_content = $post->post_excerpt;
+		$excerpt_excerpts = relevanssi_create_excerpt($excerpt_content, $terms);
+		if ($excerpt_excerpts[1] > $excerpt_data[1]) {
+			$excerpt_data = $excerpt_excerpts;
+		}
+	}
 	
 	$excerpt = $excerpt_data[0];
 	$start = $excerpt_data[2];
@@ -1445,10 +1506,10 @@ function relevanssi_build_index($extend = false) {
 	$allow_custom_types = true;
 	switch ($type) {
 		case "posts":
-			$restriction = " AND (post_type = 'post'";
+			$restriction = " AND (post.post_type = 'post'"; // add table alias to column for modified query - modified by renaissancehack
 			break;
 		case "pages":
-			$restriction = " AND (post_type = 'page'";
+			$restriction = " AND (post.post_type = 'page'"; // add table alias to column for modified query - modified by renaissancehack
 			break;
 		case "public":
 			if (function_exists('get_post_types')) {
@@ -1479,10 +1540,10 @@ function relevanssi_build_index($extend = false) {
 		foreach ($types as $type) {
 			$type = trim($type);
 			if (0 == $i) {
-				$restriction .= " post_type = '$type'";
+				$restriction .= " post.post_type = '$type'";  // add table alias to column for modified query - modified by renaissancehack
 			}
 			else {
-				$restriction .= " OR post_type = '$type'";
+				$restriction .= " OR post.post_type = '$type'";  // add table alias to column for modified query - modified by renaissancehack
 			}
 			$i++;
 		}
@@ -1497,9 +1558,19 @@ function relevanssi_build_index($extend = false) {
 	if (!$extend) {
 		// truncate table first
 		$wpdb->query("TRUNCATE TABLE $relevanssi_table");
-		$q = "SELECT *
-		FROM $wpdb->posts WHERE (post_status='publish' OR post_status='private')
-		AND post_type!='nav_menu_item'" . $restriction;
+// BEGIN modified by renaissancehack
+//  modified query to get child records that inherit their post_status
+        $q = "SELECT *,parent.post_status as post_status
+		FROM $wpdb->posts parent, $wpdb->posts post WHERE
+        (parent.post_status='publish' OR parent.post_status='private')
+        AND (
+            (post.post_status='inherit'
+            AND post.post_parent=parent.ID)
+            OR
+            (parent.ID=post.ID)
+        )
+		AND post.post_type!='nav_menu_item' AND post.post_type!='revision'" . $restriction;
+// END modified by renaissancehack
 		update_option('relevanssi_index', '');
 	}
 	else {
@@ -1508,10 +1579,20 @@ function relevanssi_build_index($extend = false) {
 		if ($limit > 0) {
 			$limit = " LIMIT $limit";
 		}
-		$q = "SELECT *
-		FROM $wpdb->posts WHERE (post_status='publish' OR post_status='private')
-		AND post_type!='nav_menu_item'
-		AND ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table)" . $restriction . " $limit";
+// BEGIN modified by renaissancehack
+//  modified query to get child records that inherit their post_status
+        $q = "SELECT *,parent.post_status as post_status
+		FROM $wpdb->posts parent, $wpdb->posts post WHERE
+        (parent.post_status='publish' OR parent.post_status='private')
+        AND (
+            (post.post_status='inherit'
+            AND post.post_parent=parent.ID)
+            OR
+            (parent.ID=post.ID)
+        )
+        AND post.post_type!='nav_menu_item' AND post.post_type!='revision'
+		AND post.ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table)" . $restriction . " $limit";
+// END modified by renaissancehack
 	}
 
 	$custom_fields = relevanssi_get_custom_fields();
@@ -1534,14 +1615,28 @@ function relevanssi_remove_doc($id) {
 	$wpdb->query($q);
 }
 
-function relevanssi_index_doc($post, $remove_first = false, $custom_fields = false) {
-	global $wpdb, $relevanssi_table;
-
+// BEGIN modified by renaissancehack
+//  recieve $post argument as $indexpost, so we can make it the $post global.  This will allow shortcodes
+//  that need to know what post is calling them to access $post->ID
+function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields = false) {
+	global $wpdb, $relevanssi_table, $post;
+    $post = $indexpost;
+// END modified by renaissancehack
 	if (!is_object($post)) {
-		$post = $wpdb->get_row("SELECT ID, post_content, post_title, post_type
-			FROM $wpdb->posts WHERE (post_status='publish' OR post_status='private')
-			AND ID=$post
-			AND post_type!='nav_menu_item'");
+// BEGIN modified by renaissancehack
+//  modified query to get child records that inherit their post_status
+        $post = $wpdb->get_row("SELECT *,parent.post_status
+			FROM $wpdb->posts parent, $wpdb->posts post WHERE
+            (parent.post_status='publish' OR parent.post_status='private')
+			AND post.ID=$post
+            AND (
+                (post.post_status='inherit'
+                AND post.post_parent=parent.ID)
+                OR
+                (parent.ID=post.ID)
+            )
+            AND post.post_type!='nav_menu_item' AND post.post_type!='revision'");
+// END modified by renaissancehack
 		if (!$post) {
 			// the post isn't public
 			return;
@@ -1665,7 +1760,7 @@ function relevanssi_index_doc($post, $remove_first = false, $custom_fields = fal
 		}
 	}
 
-	if (isset($post->post_excerpt) && "on" == get_option("relevanssi_index_excerpt")) {
+	if (isset($post->post_excerpt) && ("on" == get_option("relevanssi_index_excerpt") || "attachment" == $post->post_type)) { // include excerpt for attachments which use post_excerpt for captions - modified by renaissancehack
 		$post->post_content .= ' ' . $post->post_excerpt;
 	}
 	
@@ -1877,6 +1972,14 @@ function relevanssi_options() {
 			}
 		}
 	}
+
+	if (isset($_REQUEST['addstopword'])) {
+		relevanssi_add_stopword($_REQUEST['addstopword']);
+	}
+	
+	if (isset($_REQUEST['removestopword'])) {
+		relevanssi_remove_stopword($_REQUEST['removestopword']);
+	}
 	
 	relevanssi_options_form();
 	
@@ -2046,7 +2149,7 @@ function update_relevanssi_options() {
 
 function relevanssi_add_stopword($term) {
 	global $wpdb, $relevanssi_table, $stopword_table;
-	
+	if ('' == $term) return; // do not add empty $term to stopwords - added by renaissancehack
 	// add to stopwords
 	$q = $wpdb->prepare("INSERT INTO $stopword_table (stopword) VALUES (%s)", $term);
 	$success = $wpdb->query($q);
@@ -2059,6 +2162,20 @@ function relevanssi_add_stopword($term) {
 	}
 	else {
 		printf(__("<div id='message' class='updated fade'><p>Couldn't add term '%s' to stopwords!</p></div>", "relevanssi"), $term);
+	}
+}
+
+function relevanssi_remove_stopword($term) {
+	global $wpdb, $stopword_table;
+	
+	$q = $wpdb->prepare("DELETE FROM $stopword_table WHERE stopword = '$term'");
+	$success = $wpdb->query($q);
+	
+	if ($success) {
+		printf(__("<div id='message' class='updated fade'><p>Term '%s' removed from stopwords! Re-index to get it back to index.</p></div>", "relevanssi"), $term);
+	}
+	else {
+		printf(__("<div id='message' class='updated fade'><p>Couldn't remove term '%s' from stopwords!</p></div>", "relevanssi"), $term);
 	}
 }
 
@@ -2354,6 +2471,7 @@ function relevanssi_options_form() {
     <a href="#highlighting"><?php _e("Highlighting search results", "relevanssi"); ?></a> |
     <a href="#indexing"><?php _e("Indexing options", "relevanssi"); ?></a> |
     <a href="#synonyms"><?php _e("Synonyms", "relevanssi"); ?></a> |
+    <a href="#stopwords"><?php _e("Stopwords", "relevanssi"); ?></a> |
     <a href="#uninstall"><?php _e("Uninstalling", "relevanssi"); ?></a>
     </p>
 
@@ -2392,8 +2510,8 @@ function relevanssi_options_form() {
 
 	<label for='relevanssi_implicit_operator'><?php _e("Default operator for the search?", "relevanssi"); ?>
 	<select name='relevanssi_implicit_operator'>
-	<option value='AND' <?php echo $implicit_and ?>'><?php _e("AND - require all terms", "relevanssi"); ?></option>
-	<option value='OR' <?php echo $implicit_or ?>'><?php _e("OR - any term present is enough", "relevanssi"); ?></option>
+	<option value='AND' <?php echo $implicit_and ?>><?php _e("AND - require all terms", "relevanssi"); ?></option>
+	<option value='OR' <?php echo $implicit_or ?>><?php _e("OR - any term present is enough", "relevanssi"); ?></option>
 	</select></label><br />
 	<small><?php _e("If you choose AND and the search finds no matches, it will automatically do an OR search.", "relevanssi"); ?></small>
 	
@@ -2401,9 +2519,9 @@ function relevanssi_options_form() {
 
 	<label for='relevanssi_fuzzy'><?php _e('When to use fuzzy matching?', 'relevanssi'); ?>
 	<select name='relevanssi_fuzzy'>
-	<option value='sometimes' <?php echo $fuzzy_sometimes ?>'><?php _e("When straight search gets no hits", "relevanssi"); ?></option>
-	<option value='always' <?php echo $fuzzy_always ?>'><?php _e("Always", "relevanssi"); ?></option>
-	<option value='never' <?php echo $fuzzy_never ?>'><?php _e("Don't use fuzzy search", "relevanssi"); ?></option>
+	<option value='sometimes' <?php echo $fuzzy_sometimes ?>><?php _e("When straight search gets no hits", "relevanssi"); ?></option>
+	<option value='always' <?php echo $fuzzy_always ?>><?php _e("Always", "relevanssi"); ?></option>
+	<option value='never' <?php echo $fuzzy_never ?>><?php _e("Don't use fuzzy search", "relevanssi"); ?></option>
 	</select></label><br />
 	<small><?php _e("Straight search matches just the term. Fuzzy search matches everything that begins or ends with the search term.", "relevanssi"); ?></small>
 
@@ -2411,7 +2529,7 @@ function relevanssi_options_form() {
 	
 	<label for='relevanssi_log_queries'><?php _e("Keep a log of user queries:", "relevanssi"); ?>
 	<input type='checkbox' name='relevanssi_log_queries' <?php echo $log_queries ?> /></label>
-	<small><?php _e("If checked, Relevanssi will log user queries.", 'relevanssi'); ?></small>
+	<small><?php _e("If checked, Relevanssi will log user queries. The log appears in 'User searches' on the Dashboard admin menu.", 'relevanssi'); ?></small>
 
 	<br /><br />
 
@@ -2621,6 +2739,10 @@ function relevanssi_options_form() {
 	<p><small><?php _e("Add synonyms here in 'key = value' format. When searching with the OR operator, any search of 'key' will be expanded to include 'value' as well. Using phrases is possible. The key-value pairs work in one direction only, but you can of course repeat the same pair reversed.", "relevanssi"); ?></small></p>
 
 	<input type='submit' name='submit' value='<?php _e('Save the options', 'relevanssi'); ?>' />
+
+	<h3 id="stopwords"><?php _e("Stopwords", "relevanssi"); ?></h3>
+	
+	<?php relevanssi_show_stopwords(); ?>
 	
 	<h3 id="uninstall"><?php _e("Uninstalling the plugin", "relevanssi"); ?></h3>
 	
@@ -2634,6 +2756,39 @@ function relevanssi_options_form() {
 	<?php
 
 	relevanssi_sidebar();
+}
+
+function relevanssi_show_stopwords() {
+	global $wpdb, $stopword_table;
+
+	_e("<p>Enter a word here to add it to the list of stopwords. The word will automatically be removed from the index, so re-indexing is not necessary.</p>", 'relevanssi');
+
+?><label for="addstopword"><p><?php _e("Stopword to add: ", 'relevanssi'); ?><input type="text" name="addstopword" />
+<input type="submit" value="<?php _e("Add", 'relevanssi'); ?>" /></p></label> <!-- close <label ...> tag - added by renaissancehack -->
+<?php
+
+	_e("<p>Here's a list of stopwords in the database. Click a word to remove it from stopwords. Removing stopwords won't automatically return them to index, so you need to re-index all posts after removing stopwords to get those words back to index.", 'relevanssi');
+
+	if (function_exists("plugins_url")) {
+		if (version_compare($wp_version, '2.8dev', '>' )) {
+			$src = plugins_url('delete.png', __FILE__);
+		}
+		else {
+			$src = plugins_url('relevanssi/delete.png');
+		}
+	}
+	else {
+		// We can't check, so let's assume something sensible
+		$src = '/wp-content/plugins/relevanssi/delete.png';
+	}
+	
+	echo "<ul>";
+	$results = $wpdb->get_results("SELECT * FROM $stopword_table");
+	foreach ($results as $stopword) {
+		$sw = $stopword->stopword; 
+		printf('<li style="display: inline;"><input type="submit" name="removestopword" value="%s"/></li>', $sw, $src, $sw);
+	}
+	echo "</ul>";
 }
 
 function relevanssi_sidebar() {

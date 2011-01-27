@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.5.3
+Stable tag: 2.5.5
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -47,6 +47,10 @@ Katzgrau.
 
 To update your installation, simply overwrite the old files with the new, activate the new
 version and if the new version has changes in the indexing, rebuild the index.
+
+= Changes to templates =
+None necessary! Relevanssi uses the standard search form and doesn't usually need any changes in
+the search results template.
 
 = How to index =
 Check the options to make sure they're to your liking, then click "Save indexing options and
@@ -104,6 +108,10 @@ or shorcode expansion in Relevanssi while indexing. After indexing, you can acti
 again.
 
 == Frequently Asked Questions ==
+
+= Where are the user search logs? =
+See the top of the admin menu. There's 'User searches'. There. If the logs are empty, please note
+showing the results needs at least MySQL 5.
 
 = Displaying the number of search results found =
 
@@ -287,14 +295,27 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: There are reported problems with custom posts combined with custom taxonomies, the taxonomy restriction doesn't necessarily work.
 * Known issue: Phrase matching is only done to post content; phrases don't match to category titles and other content.
 * Known issue: User searches page requires MySQL 5.
-* To-do: The stop word list management needs improvements.
 * To-do: Option to set the number of search results returned.
 
 == Thanks ==
 * Cristian Damm for tag indexing, comment indexing, post/page exclusion and general helpfulness.
 * Marcus Dalgren for UTF-8 fixing.
+* Warren Tape for 2.5.5 fixes.
 
 == Changelog ==
+
+= 2.5.5 =
+* The stopword management created empty stopwords. It won't anymore.
+* Faulty HTML code in the admin page has been fixed.
+* Indexing shortcodes that need the global $post context is now possible.
+* Relevanssi is now aware of attachments and manages post_status of "inherit".
+* These fixes were provided by Warren Tape, thanks!
+
+= 2.5.4 =
+* Small bugfix relating to post types.
+* Added stopword management tools: way to remove and add stopwords.
+* Custom excerpts can now be created from post excerpts as well, if those are indexed.
+* Added answers to some frequently asked questions to the documentation.
 
 = 2.5.3 =
 * Very small bugfix fixing the error on line 1192.
