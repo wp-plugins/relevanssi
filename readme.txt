@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.5.4
+Stable tag: 2.5.5
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -300,8 +300,16 @@ removing those words helps to make the index smaller and searching faster.
 == Thanks ==
 * Cristian Damm for tag indexing, comment indexing, post/page exclusion and general helpfulness.
 * Marcus Dalgren for UTF-8 fixing.
+* Warren Tape for 2.5.5 fixes.
 
 == Changelog ==
+
+= 2.5.5 =
+* The stopword management created empty stopwords. It won't anymore.
+* Faulty HTML code in the admin page has been fixed.
+* Indexing shortcodes that need the global $post context is now possible.
+* Relevanssi is now aware of attachments and manages post_status of "inherit".
+* These fixes were provided by Warren Tape, thanks!
 
 = 2.5.4 =
 * Small bugfix relating to post types.
