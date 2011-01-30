@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.5.5
+Stable tag: 2.5.6
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -153,7 +153,6 @@ query object is passed as reference and modified directly, so there's no return 
 array will contain all results that are found.
 
 = Sorting search results =
-
 If you want something else than relevancy ranking, you can use orderby and order parameters. Orderby
 accepts $post variable attributes and order can be "asc" or "desc". The most relevant attributes
 here are most likely "post_date" and "comment_count".
@@ -165,7 +164,6 @@ page.
 Order by relevance is either orderby=relevance or no orderby parameter at all.
 
 = Filtering results by date =
-
 You can specify date limits on searches with `by_date` search parameter. You can use it your
 search result page like this: http://www.yourblogdomain.com/?s=search-term&by_date=1d to offer
 your visitor the ability to restrict their search to certain time limit (see
@@ -181,7 +179,6 @@ or no results at all, depending on case.
 Thanks to Charles St-Pierre for the idea.
 
 = Displaying the relevance score =
-
 Relevanssi stores the relevance score it uses to sort results in the $post variable. Just add
 something like
 
@@ -303,6 +300,11 @@ removing those words helps to make the index smaller and searching faster.
 * Warren Tape for 2.5.5 fixes.
 
 == Changelog ==
+
+= 2.5.6 =
+* Attachments are no longer automatically indexed; there's an option for it now.
+* You can now exclude custom post types from index.
+* When AND search fails, it falls back to OR search. It's now possible to disable this fallback.
 
 = 2.5.5 =
 * The stopword management created empty stopwords. It won't anymore.

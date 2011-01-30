@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.5.5
+Version: 2.5.6
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -264,6 +264,8 @@ function relevanssi_install() {
 	add_option('relevanssi_synonyms', '');
 	add_option('relevanssi_index_excerpt', '');
 	add_option('relevanssi_index_limit', '500');
+	add_option('relevanssi_index_attachments', '');
+	add_option('relevanssi_disable_or_fallback', 'off');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -356,6 +358,8 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_highlight_docs');
 	delete_option('relevanssi_highlight_comments');
 	delete_option('relevanssi_index_limit');
+	delete_option('relevanssi_index_attachments');
+	delete_option('relevanssi_disable_or_fallback');
 	
 	$sql = "DROP TABLE $stopword_table";
 	$wpdb->query($sql);
@@ -751,7 +755,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		$excats = explode(",", $excat);
 		$term_tax_ids = array();
 		foreach ($excats as $t_cat) {
-			$t_cat = $wpdb->escape($t_cat);
+			$t_cat = $wpdb->escape(trim($t_cat, ' -'));
 			$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->term_taxonomy
 				WHERE term_id=$t_cat");
 			if ($term_tax_id) {
@@ -799,6 +803,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		if ($expost != "") {
 			$aexpids = explode(",",$expost);
 			foreach ($aexpids as $exid){
+				$exid = $wpdb->escape(trim($exid, ' -'));
 				$postex .= " AND doc !='$exid'";
 			}
 		}	
@@ -997,7 +1002,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	}
 
 	if (count($hits) < 1) {
-		if ($operator == "AND") {
+		if ($operator == "AND" AND get_option('relevanssi_disable_or_fallback') != 'on') {
 			$return = relevanssi_search($q, $o_cat, $o_excat, $o_expost, $o_post_type, $o_taxonomy, $o_taxonomy_term, "OR");
 			extract($return);
 		}
@@ -1502,6 +1507,8 @@ function relevanssi_build_index($extend = false) {
 	global $wpdb, $relevanssi_table;
 	set_time_limit(0);
 	
+	get_option('relevanssi_index_attachments') == 'on' ? $attachments = '' : $attachments = "AND post.post_type!='attachment'";
+	
 	$type = get_option("relevanssi_index_type");
 	$allow_custom_types = true;
 	switch ($type) {
@@ -1520,12 +1527,14 @@ function relevanssi_build_index($extend = false) {
 			break;
 		case "both": 								// really should be "everything"
 			$restriction = "";
-			$allow_custom_types = false;
+			$allow_custom_types = true;
 			break;
 		default:
 			$restriction = "";
 	}
 
+	$negative_restriction = "";
+	
 	if ($allow_custom_types) $custom_types = get_option("relevanssi_custom_types");
 	
 	if ("" != $custom_types) {
@@ -1539,15 +1548,23 @@ function relevanssi_build_index($extend = false) {
 		$i=0;
 		foreach ($types as $type) {
 			$type = trim($type);
-			if (0 == $i) {
-				$restriction .= " post.post_type = '$type'";  // add table alias to column for modified query - modified by renaissancehack
+			if (substr($type, 0, 1) == '-') {
+				$type = trim($type, '-');
+				$negative_restriction .= "AND post.post_type != '$type'";
+				$i--;
 			}
 			else {
-				$restriction .= " OR post.post_type = '$type'";  // add table alias to column for modified query - modified by renaissancehack
+				if (0 == $i) {
+					$restriction .= " post.post_type = '$type'";  // add table alias to column for modified query - modified by renaissancehack
+				}
+				else {
+					$restriction .= " OR post.post_type = '$type'";  // add table alias to column for modified query - modified by renaissancehack
+				}
 			}
 			$i++;
 		}
 		$restriction .= ")";
+		if ($restriction == " AND ()") $restriction = "";
 	}
 	elseif ("" != $restriction) {
 		$restriction .= ")";
@@ -1569,7 +1586,7 @@ function relevanssi_build_index($extend = false) {
             OR
             (parent.ID=post.ID)
         )
-		AND post.post_type!='nav_menu_item' AND post.post_type!='revision'" . $restriction;
+		AND post.post_type!='nav_menu_item' AND post.post_type!='revision' $attachments $restriction $negative_restriction";
 // END modified by renaissancehack
 		update_option('relevanssi_index', '');
 	}
@@ -1590,8 +1607,8 @@ function relevanssi_build_index($extend = false) {
             OR
             (parent.ID=post.ID)
         )
-        AND post.post_type!='nav_menu_item' AND post.post_type!='revision'
-		AND post.ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table)" . $restriction . " $limit";
+        AND post.post_type!='nav_menu_item' AND post.post_type!='revision' $attachments
+		AND post.ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table) $restriction $limit";
 // END modified by renaissancehack
 	}
 
@@ -1625,7 +1642,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	if (!is_object($post)) {
 // BEGIN modified by renaissancehack
 //  modified query to get child records that inherit their post_status
-        $post = $wpdb->get_row("SELECT *,parent.post_status
+		get_option('relevanssi_index_attachments') == 'on' ? $attachments = '' : $attachments = "AND post.post_type!='attachment'";
+		$post = $wpdb->get_row("SELECT *,parent.post_status
 			FROM $wpdb->posts parent, $wpdb->posts post WHERE
             (parent.post_status='publish' OR parent.post_status='private')
 			AND post.ID=$post
@@ -1635,7 +1653,7 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
                 OR
                 (parent.ID=post.ID)
             )
-            AND post.post_type!='nav_menu_item' AND post.post_type!='revision'");
+            AND post.post_type!='nav_menu_item' AND post.post_type!='revision' $attachments");
 // END modified by renaissancehack
 		if (!$post) {
 			// the post isn't public
@@ -2080,6 +2098,14 @@ function update_relevanssi_options() {
 		$_REQUEST['relevanssi_log_queries'] = "off";
 	}
 
+	if (!isset($_REQUEST['relevanssi_disable_or_fallback'])) {
+		$_REQUEST['relevanssi_disable_or_fallback'] = "off";
+	}
+
+	if (!isset($_REQUEST['relevanssi_index_attachments'])) {
+		$_REQUEST['relevanssi_index_attachments'] = "off";
+	}
+
 	if (!isset($_REQUEST['relevanssi_hilite_title'])) {
 		$_REQUEST['relevanssi_hilite_title'] = "off";
 	}
@@ -2145,6 +2171,8 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_implicit_operator'])) update_option('relevanssi_implicit_operator', $_REQUEST['relevanssi_implicit_operator']);
 	if (isset($_REQUEST['relevanssi_omit_from_logs'])) update_option('relevanssi_omit_from_logs', $_REQUEST['relevanssi_omit_from_logs']);
 	if (isset($_REQUEST['relevanssi_index_limit'])) update_option('relevanssi_index_limit', $_REQUEST['relevanssi_index_limit']);
+	if (isset($_REQUEST['relevanssi_index_attachments'])) update_option('relevanssi_index_attachments', $_REQUEST['relevanssi_index_attachments']);
+	if (isset($_REQUEST['relevanssi_disable_or_fallback'])) update_option('relevanssi_disable_or_fallback', $_REQUEST['relevanssi_disable_or_fallback']);
 }
 
 function relevanssi_add_stopword($term) {
@@ -2424,6 +2452,7 @@ function relevanssi_options_form() {
 	$implicit_or = ('OR' == get_option('relevanssi_implicit_operator') ? 'selected="selected"' : '');
 
 	$expand_shortcodes = ('on' == get_option('relevanssi_expand_shortcodes') ? 'checked="checked"' : '');
+	$disablefallback = ('on' == get_option('relevanssi_disable_or_fallback') ? 'checked="checked"' : '');
 
 	$omit_from_logs	= get_option('relevanssi_omit_from_logs');
 	
@@ -2452,6 +2481,8 @@ function relevanssi_options_form() {
 
 	$highlight_docs = ('on' == get_option('relevanssi_highlight_docs') ? 'checked="checked"' : ''); 
 	$highlight_coms = ('on' == get_option('relevanssi_highlight_comments') ? 'checked="checked"' : ''); 
+
+	$attachments = ('on' == get_option('relevanssi_index_attachments') ? 'checked="checked"' : ''); 
 	
 	$inccats = ('on' == get_option('relevanssi_include_cats') ? 'checked="checked"' : ''); 
 	$index_author = ('on' == get_option('relevanssi_index_author') ? 'checked="checked"' : ''); 
@@ -2515,6 +2546,12 @@ function relevanssi_options_form() {
 	</select></label><br />
 	<small><?php _e("If you choose AND and the search finds no matches, it will automatically do an OR search.", "relevanssi"); ?></small>
 	
+	<br /><br />
+
+	<label for='relevanssi_disable_or_fallback'><?php _e("Disable OR fallback:", "relevanssi"); ?>
+	<input type='checkbox' name='relevanssi_disable_or_fallback' <?php echo $disablefallback ?> /></label>
+	<small><?php _e("If you don't want Relevanssi to fall back to OR search when AND search gets no hits, check this option. For most cases, leave this one unchecked.", 'relevanssi'); ?></small>
+
 	<br /><br />
 
 	<label for='relevanssi_fuzzy'><?php _e('When to use fuzzy matching?', 'relevanssi'); ?>
@@ -2666,13 +2703,19 @@ function relevanssi_options_form() {
 	<option value='posts' <?php echo $index_type_posts ?>><?php _e("Just posts", "relevanssi"); ?></option>
 	<option value='pages' <?php echo $index_type_pages ?>><?php _e("Just pages", "relevanssi"); ?></option>
 	</select></label><br />
-	<small><?php _e("This determines which post types are included in the index. Choosing 'everything' will include posts, pages and all custom post types. 'All public post types' includes all registered post types that don't have the 'exclude_from_search' set to true. This includes post, page, attachment, and possible custom types. 'All public types' requires at least WP 2.9, otherwise it's the same as 'everything'.", "relevanssi"); ?></small>
+	<small><?php _e("This determines which post types are included in the index. Choosing 'everything' will include posts, pages and all custom post types. 'All public post types' includes all registered post types that don't have the 'exclude_from_search' set to true. This includes post, page, and possible custom types. 'All public types' requires at least WP 2.9, otherwise it's the same as 'everything'. Note: attachments are covered with a separate option below.", "relevanssi"); ?></small>
 
 	<br /><br />
 	
 	<label for='relevanssi_custom_types'><?php _e("Custom post types to index", "relevanssi"); ?>:
 	<input type='text' name='relevanssi_custom_types' size='30' value='<?php echo $custom_types ?>' /></label><br />
-	<small><?php _e("If you don't want to index all custom post types, list here the custom post types you want to see indexed. List comma-separated post type names (as used in the database). You can also use a hidden field in the search form to restrict the search to a certain post type: <code>&lt;input type='hidden' name='post_type' value='comma-separated list of post types' /&gt;</code>. If you choose 'All public post types' or 'Everything' above, this option has no effect.", "relevanssi"); ?></small>
+	<small><?php _e("If you don't want to index all custom post types, list here the custom post types you want to see indexed. List comma-separated post type names (as used in the database). You can also use a hidden field in the search form to restrict the search to a certain post type: <code>&lt;input type='hidden' name='post_type' value='comma-separated list of post types' /&gt;</code>. If you choose 'All public post types' or 'Everything' above, this option has no effect. You can exclude custom post types with the minus notation, for example '-foo,bar,-baz' would include 'bar' and exclude 'foo' and 'baz'.", "relevanssi"); ?></small>
+
+	<br /><br />
+
+	<label for='relevanssi_index_attachments'><?php _e('Index and search your posts\' attachments:', 'relevanssi'); ?>
+	<input type='checkbox' name='relevanssi_index_attachments' <?php echo $attachments ?> /></label><br />
+	<small><?php _e("If checked, Relevanssi will also index and search attachments of your posts (pictures, files and so on). Remember to rebuild the index if you change this option!", 'relevanssi'); ?></small>
 
 	<br /><br />
 
