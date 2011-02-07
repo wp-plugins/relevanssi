@@ -479,7 +479,7 @@ msgstr "Requêtes sans succès"
 #: relevanssi.php:2446
 #@ relevanssi
 msgid "Logs"
-msgstr ""
+msgstr "Logs"
 
 #: relevanssi.php:2388
 #@ relevanssi
@@ -614,7 +614,7 @@ msgstr "Ceci détermine quels types de billets sont inclus dans l'index. Choisir
 #: relevanssi.php:2593
 #@ relevanssi
 msgid "If you don't want to index all custom post types, list here the custom post types you want to see indexed. List comma-separated post type names (as used in the database). You can also use a hidden field in the search form to restrict the search to a certain post type: <code>&lt;input type='hidden' name='post_type' value='comma-separated list of post types' /&gt;</code>. If you choose 'All public post types' or 'Everything' above, this option has no effect."
-msgstr "Si vous ne désirez pas indexer tous les types de billets personnalisés, listez ici les types de billets personnalisés que vous ne désirerez pas indexer. Listez les noms des types de billets en les séparant par une virgule (tels qu'ils apparaissent dans la base de données). Vous pouvez aussi utiliser un champ caché dans le formulaire de recherche pour restreindre la recherche à un certain type de billet: <code>&lt;input type='hidden' name='post_type' value='liste de types de billets séparés par une virgule' /&gt;</code>. Si vous avez choisi 'Tous les types de billets personnalisés' ou 'Tout', cette option n'a aucun effet."
+msgstr "Si vous ne désirez pas indexer tous les types de billets personnalisés, listez ici les types de billets personnalisés que vous désirez indexer. Listez les noms des types de billets en les séparant par une virgule (tels qu'ils apparaissent dans la base de données). Vous pouvez aussi utiliser un champ caché dans le formulaire de recherche pour restreindre la recherche à un certain type de billet: <code>&lt;input type='hidden' name='post_type' value='liste de types de billets séparés par une virgule' /&gt;</code>. Si vous avez choisi 'Tous les types de billets personnalisés' ou 'Tout', cette option n'a aucun effet."
 
 #: relevanssi.php:2599
 #@ relevanssi
@@ -682,7 +682,7 @@ msgstr "<div id='message' class='updated fade'><p>Impossible de retirer '%s' des
 #: relevanssi.php:2661
 #@ relevanssi
 msgid "Stopwords"
-msgstr ""
+msgstr "Stopwords"
 
 #: relevanssi.php:2400
 #@ relevanssi
@@ -692,7 +692,7 @@ msgstr "ajouter"
 #: relevanssi.php:2400
 #@ relevanssi
 msgid "documents."
-msgstr ""
+msgstr "documents."
 
 #: relevanssi.php:2450
 #@ relevanssi

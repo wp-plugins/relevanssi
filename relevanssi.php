@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.5.6
+Version: 2.6
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -266,6 +266,7 @@ function relevanssi_install() {
 	add_option('relevanssi_index_limit', '500');
 	add_option('relevanssi_index_attachments', '');
 	add_option('relevanssi_disable_or_fallback', 'off');
+	add_option('relevanssi_respect_exclude', 'on');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -360,6 +361,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_index_limit');
 	delete_option('relevanssi_index_attachments');
 	delete_option('relevanssi_disable_or_fallback');
+	delete_option('relevanssi_respect_exclude');
 	
 	$sql = "DROP TABLE $stopword_table";
 	$wpdb->query($sql);
@@ -564,6 +566,10 @@ function relevanssi_do_query(&$query) {
 
 	$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator);
 	$hits = $return['hits'];
+
+	$filter_data = array($hits, $q);
+	$hits_filters_applied = apply_filters('relevanssi_hits_filter', $filter_data);
+	$hits = $hits_filters_applied[0];
 
 	$query->found_posts = sizeof($hits);
 	$query->max_num_pages = ceil(sizeof($hits) / $query->query_vars["posts_per_page"]);
@@ -782,6 +788,12 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		}
 	}
 
+	if (!$post_type && get_option('relevanssi_respect_exclude') == 'on') {
+		if (function_exists('get_post_types')) {
+			$post_type = implode(',', get_post_types(array('exclude_from_search' => false)));
+		}
+	}
+	
 	if ($post_type) {
 		if (!is_array($post_type)) {
 			$post_types = explode(',', $post_type);
@@ -968,7 +980,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	}
 
 	$total_terms = count($terms);
-	
+
 	if (isset($doc_weight) && count($doc_weight) > 0) {
 		arsort($doc_weight);
 		$i = 0;
@@ -1324,11 +1336,15 @@ function relevanssi_strip_invisibles($text) {
 }
 
 if (get_option('relevanssi_highlight_docs', 'off') != 'off') {
-	add_filter('the_content', 'relevanssi_highlight_in_docs', 11);
-	add_filter('the_title', 'relevanssi_highlight_in_docs');
+	if (is_singular()) {
+		add_filter('the_content', 'relevanssi_highlight_in_docs', 11);
+		add_filter('the_title', 'relevanssi_highlight_in_docs');
+	}
 }
 if (get_option('relevanssi_highlight_comments', 'off') != 'off') {
-	add_filter('comment_text', 'relevanssi_highlight_in_docs', 11);
+	if (is_singular()) {
+		add_filter('comment_text', 'relevanssi_highlight_in_docs', 11);
+	}
 }
 function relevanssi_highlight_in_docs($content) {
 	$referrer = preg_replace('@(http|https)://@', '', stripslashes(urldecode($_SERVER['HTTP_REFERER'])));
@@ -2122,6 +2138,10 @@ function update_relevanssi_options() {
 		$_REQUEST['relevanssi_expand_shortcodes'] = "off";
 	}
 
+	if (!isset($_REQUEST['relevanssi_respect_exclude'])) {
+		$_REQUEST['relevanssi_respect_exclude'] = "off";
+	}
+
 	if (isset($_REQUEST['relevanssi_excerpt_length'])) {
 		$value = intval($_REQUEST['relevanssi_excerpt_length']);
 		if ($value != 0) {
@@ -2173,6 +2193,7 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_index_limit'])) update_option('relevanssi_index_limit', $_REQUEST['relevanssi_index_limit']);
 	if (isset($_REQUEST['relevanssi_index_attachments'])) update_option('relevanssi_index_attachments', $_REQUEST['relevanssi_index_attachments']);
 	if (isset($_REQUEST['relevanssi_disable_or_fallback'])) update_option('relevanssi_disable_or_fallback', $_REQUEST['relevanssi_disable_or_fallback']);
+	if (isset($_REQUEST['relevanssi_respect_exclude'])) update_option('relevanssi_respect_exclude', $_REQUEST['relevanssi_respect_exclude']);
 }
 
 function relevanssi_add_stopword($term) {
@@ -2482,6 +2503,8 @@ function relevanssi_options_form() {
 	$highlight_docs = ('on' == get_option('relevanssi_highlight_docs') ? 'checked="checked"' : ''); 
 	$highlight_coms = ('on' == get_option('relevanssi_highlight_comments') ? 'checked="checked"' : ''); 
 
+	$respect_exclude = ('on' == get_option('relevanssi_respect_exclude') ? 'checked="checked"' : ''); 
+
 	$attachments = ('on' == get_option('relevanssi_index_attachments') ? 'checked="checked"' : ''); 
 	
 	$inccats = ('on' == get_option('relevanssi_include_cats') ? 'checked="checked"' : ''); 
@@ -2593,6 +2616,12 @@ function relevanssi_options_form() {
 	<label for='relevanssi_excat'><?php _e('Exclude these posts/pages from search:', 'relevanssi'); ?>
 	<input type='text' name='relevanssi_expst' size='20' value='<?php echo $expst ?>' /></label><br />
 	<small><?php _e("Enter a comma-separated list of post/page IDs that are excluded from search results. This only works here, you can't use the input field option (WordPress doesn't pass custom parameters there).", 'relevanssi'); ?></small>
+
+	<br /><br />
+
+	<label for='relevanssi_respect_exclude'><?php _e('Respect exclude_from_search for custom post types:', 'relevanssi'); ?>
+	<input type='checkbox' name='relevanssi_respect_exclude' <?php echo $respect_exclude ?> /></label><br />
+	<small><?php _e("If checked, Relevanssi won't display posts of custom post types that have 'exclude_from_search' set to true. If not checked, Relevanssi will display anything that is indexed.", 'relevanssi'); ?></small>
 
 	<h3 id="excerpts"><?php _e("Custom excerpts/snippets", "relevanssi"); ?></h3>
 	

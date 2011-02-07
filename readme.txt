@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.5.6
+Stable tag: 2.6
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -136,6 +136,11 @@ For more details, see where the filter is applied in the `relevanssi_search()` f
 is stricly an advanced hacker option for those people who're used to using filters and MySQL
 WHERE clauses and it is possible to break the search results completely by doing something wrong
 here.
+
+There's another filter hook, `relevanssi_hits_filter`, which lets you modify the hits directly.
+The filter passes an array, where index 0 gives the list of hits in the form of an array of 
+post objects and index 1 has the search query as a string. The filter expects you to return an
+array containing the array of post objects in index 0 (`return array($your_processed_hit_array)`).
 
 = Direct access to query engine =
 Relevanssi can't be used in any situation, because it checks the presence of search with
@@ -300,6 +305,10 @@ removing those words helps to make the index smaller and searching faster.
 * Warren Tape for 2.5.5 fixes.
 
 == Changelog ==
+
+= 2.6 =
+* New setting allows user to define how `exclude_from_search` is handled. It's now possible to exclude a custom post type from general searches and search for it specifically by defining post_type.
+* New filter: `relevanssi_hits_filter` lets you process hits found by Relevanssi. See FAQ.
 
 = 2.5.6 =
 * Attachments are no longer automatically indexed; there's an option for it now.
