@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.1
-Stable tag: 2.5.3
+Stable tag: 2.6
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -47,6 +47,10 @@ Katzgrau.
 
 To update your installation, simply overwrite the old files with the new, activate the new
 version and if the new version has changes in the indexing, rebuild the index.
+
+= Changes to templates =
+None necessary! Relevanssi uses the standard search form and doesn't usually need any changes in
+the search results template.
 
 = How to index =
 Check the options to make sure they're to your liking, then click "Save indexing options and
@@ -105,6 +109,10 @@ again.
 
 == Frequently Asked Questions ==
 
+= Where are the user search logs? =
+See the top of the admin menu. There's 'User searches'. There. If the logs are empty, please note
+showing the results needs at least MySQL 5.
+
 = Displaying the number of search results found =
 
 The typical solution to showing the number of search results found does not work with Relevanssi.
@@ -129,6 +137,11 @@ is stricly an advanced hacker option for those people who're used to using filte
 WHERE clauses and it is possible to break the search results completely by doing something wrong
 here.
 
+There's another filter hook, `relevanssi_hits_filter`, which lets you modify the hits directly.
+The filter passes an array, where index 0 gives the list of hits in the form of an array of 
+post objects and index 1 has the search query as a string. The filter expects you to return an
+array containing the array of post objects in index 0 (`return array($your_processed_hit_array)`).
+
 = Direct access to query engine =
 Relevanssi can't be used in any situation, because it checks the presence of search with
 the `is_search()` function. This causes some unfortunate limitations and reduces the general usability
@@ -145,7 +158,6 @@ query object is passed as reference and modified directly, so there's no return 
 array will contain all results that are found.
 
 = Sorting search results =
-
 If you want something else than relevancy ranking, you can use orderby and order parameters. Orderby
 accepts $post variable attributes and order can be "asc" or "desc". The most relevant attributes
 here are most likely "post_date" and "comment_count".
@@ -157,7 +169,6 @@ page.
 Order by relevance is either orderby=relevance or no orderby parameter at all.
 
 = Filtering results by date =
-
 You can specify date limits on searches with `by_date` search parameter. You can use it your
 search result page like this: http://www.yourblogdomain.com/?s=search-term&by_date=1d to offer
 your visitor the ability to restrict their search to certain time limit (see
@@ -173,7 +184,6 @@ or no results at all, depending on case.
 Thanks to Charles St-Pierre for the idea.
 
 = Displaying the relevance score =
-
 Relevanssi stores the relevance score it uses to sort results in the $post variable. Just add
 something like
 
@@ -287,14 +297,36 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: There are reported problems with custom posts combined with custom taxonomies, the taxonomy restriction doesn't necessarily work.
 * Known issue: Phrase matching is only done to post content; phrases don't match to category titles and other content.
 * Known issue: User searches page requires MySQL 5.
-* To-do: The stop word list management needs improvements.
 * To-do: Option to set the number of search results returned.
 
 == Thanks ==
 * Cristian Damm for tag indexing, comment indexing, post/page exclusion and general helpfulness.
 * Marcus Dalgren for UTF-8 fixing.
+* Warren Tape for 2.5.5 fixes.
 
 == Changelog ==
+
+= 2.6 =
+* New setting allows user to define how `exclude_from_search` is handled. It's now possible to exclude a custom post type from general searches and search for it specifically by defining post_type.
+* New filter: `relevanssi_hits_filter` lets you process hits found by Relevanssi. See FAQ.
+
+= 2.5.6 =
+* Attachments are no longer automatically indexed; there's an option for it now.
+* You can now exclude custom post types from index.
+* When AND search fails, it falls back to OR search. It's now possible to disable this fallback.
+
+= 2.5.5 =
+* The stopword management created empty stopwords. It won't anymore.
+* Faulty HTML code in the admin page has been fixed.
+* Indexing shortcodes that need the global $post context is now possible.
+* Relevanssi is now aware of attachments and manages post_status of "inherit".
+* These fixes were provided by Warren Tape, thanks!
+
+= 2.5.4 =
+* Small bugfix relating to post types.
+* Added stopword management tools: way to remove and add stopwords.
+* Custom excerpts can now be created from post excerpts as well, if those are indexed.
+* Added answers to some frequently asked questions to the documentation.
 
 = 2.5.3 =
 * Very small bugfix fixing the error on line 1192.
