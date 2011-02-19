@@ -3,15 +3,16 @@ Contributors: msaari
 Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 3.0.1
-Stable tag: 2.6
+Tested up to: 3.0.5
+Stable tag: 2.7
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
 == Description ==
 
 Relevanssi replaces the standard WordPress search with a better search engine, with lots of features
-and configurable options.
+and configurable options. You'll get better results, better presentation of results - your users
+will thank you.
 
 = Key features =
 * Search results sorted in the order of relevance, not by date.
@@ -29,9 +30,11 @@ and configurable options.
 * Index custom post types and custom taxonomies.
 * Index the contents of shortcodes.
 * Google-style "Did you mean?" suggestions based on successful user searches.
+* Automatic support for [WPML multi-language plugin](http://wpml.org/)
+* Advanced filtering to help hacking the search results the way you want.
 
 = Relevanssi in Facebook =
-You can find [Relevanssi in Facebook](http://www.facebook.com/pages/Relevanssi-Better-Search-for-WordPress/139381702780384).
+You can find [Relevanssi in Facebook](http://www.facebook.com/relevanssi).
 Become a fan to follow the development of the plugin, I'll post updates on bugs, new features and
 new versions to the Facebook page.
 
@@ -104,7 +107,7 @@ will cause some strange search logs, but the search itself works.
 Some plugins cause problems when indexing documents. These are generally plugins that use shortcodes
 to do something somewhat complicated. One such plugin is [MapPress Easy Google Maps](http://wordpress.org/extend/plugins/mappress-google-maps-for-wordpress/).
 When indexing, you'll get a white screen. To fix the problem, disable either the offending plugin 
-or shorcode expansion in Relevanssi while indexing. After indexing, you can activate the plugin
+or shortcode expansion in Relevanssi while indexing. After indexing, you can activate the plugin
 again.
 
 == Frequently Asked Questions ==
@@ -298,6 +301,7 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: Phrase matching is only done to post content; phrases don't match to category titles and other content.
 * Known issue: User searches page requires MySQL 5.
 * To-do: Option to set the number of search results returned.
+* To-do: Tool to export and import Relevanssi settings.
 
 == Thanks ==
 * Cristian Damm for tag indexing, comment indexing, post/page exclusion and general helpfulness.
@@ -305,6 +309,16 @@ removing those words helps to make the index smaller and searching faster.
 * Warren Tape for 2.5.5 fixes.
 
 == Changelog ==
+
+= 2.7 =
+* Caching search results is possible. If you have lots of repeated queries, caching will provide extra speed and less wear on server.
+* Multilanguage plugin WPML is now supported. If WPML is active, Relevanssi will automatically restrict search results to current language.
+* New filter: `relevanssi_search_filter` lets you adjust search query variables. See source code for further details. Thanks to Sam Hotchkiss.
+* Got a report of synonyms not working; hopefully fixed it now.
+* It is now possible to set the minimum word length to index. Default is now 3 instead of 2.
+* You can now add several stopwords at one go and remove all stopwords.
+* Author search didn't work properly. It works now.
+* Search result highlighting functions properly now, there might've been some problems with it.
 
 = 2.6 =
 * New setting allows user to define how `exclude_from_search` is handled. It's now possible to exclude a custom post type from general searches and search for it specifically by defining post_type.

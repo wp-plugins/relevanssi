@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.6
+Version: 2.7
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -29,13 +29,7 @@ Author URI: http://www.mikkosaari.fi/
 // For debugging purposes
 //error_reporting(E_ALL);
 //ini_set("display_errors", 1); 
-
-// Set true to use the timer, helpful for debugging
-define('TIMER', false);
-function relevanssi_microtime_float() {
-    list($usec, $sec) = explode(" ", microtime());
-    return ((float)$usec + (float)$sec);
-}
+//define('WP-DEBUG', true);
 
 register_activation_hook(__FILE__,'relevanssi_install');
 add_action('admin_menu', 'relevanssi_menu');
@@ -70,6 +64,8 @@ global $wpSearch_high;
 global $relevanssi_table;
 global $stopword_table;
 global $log_table;
+global $relevanssi_cache;
+global $relevanssi_excerpt_cache;
 global $stopword_list;
 global $title_boost_default;
 global $tag_boost_default;
@@ -82,6 +78,8 @@ $wpSearch_high = 0;
 $relevanssi_table = $wpdb->prefix . "relevanssi";
 $stopword_table = $wpdb->prefix . "relevanssi_stopwords";
 $log_table = $wpdb->prefix . "relevanssi_log";
+$relevanssi_cache = $wpdb->prefix . "relevanssi_cache";
+$relevanssi_excerpt_cache = $wpdb->prefix . "relevanssi_excerpt_cache";
 $title_boost_default = 5;
 $tag_boost_default = 0.75;
 $comment_boost_default = 0.75;
@@ -188,6 +186,7 @@ function relevanssi_update_child_posts($new_status, $old_status, $post) {
 function relevanssi_edit($post) {
 	// Check if the post is public
 	global $wpdb;
+
 	$post_status = $wpdb->get_var("SELECT post_status FROM $wpdb->posts WHERE ID=$post");
 // BEGIN added by renaissancehack
     //  if post_status is "inherit", get post_status from parent
@@ -210,8 +209,15 @@ function relevanssi_edit($post) {
 // END added by renaissancehack
 }
 
+function relevanssi_purge_excerpt_cache($post) {
+	global $wpdb, $relevanssi_excerpt_cache;
+	
+	$wpdb->query("DELETE FROM $relevanssi_excerpt_cache WHERE post = $post");
+}
+
 function relevanssi_delete($post) {
 	relevanssi_remove_doc($post);
+	relevanssi_purge_excerpt_cache($post);
 }
 
 function relevanssi_publish($post) {
@@ -267,6 +273,9 @@ function relevanssi_install() {
 	add_option('relevanssi_index_attachments', '');
 	add_option('relevanssi_disable_or_fallback', 'off');
 	add_option('relevanssi_respect_exclude', 'on');
+	add_option('relevanssi_cache_seconds', 172800);
+	add_option('relevanssi_enable_cache', 'off');
+	add_option('relevanssi_min_word_length', 3);
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -303,7 +312,6 @@ function relevanssi_install() {
 		relevanssi_populate_stopwords();
 	}
 
-
 	if($wpdb->get_var("SHOW TABLES LIKE '$log_table'") != $log_table) {
 		$sql = "CREATE TABLE " . $log_table . " (id mediumint(9) NOT NULL AUTO_INCREMENT, "
 		. "query varchar(200) NOT NULL, "
@@ -313,6 +321,29 @@ function relevanssi_install() {
 
 		dbDelta($sql);
 	}
+
+	$relevanssi_cache = $wpdb->prefix . 'relevanssi_cache';
+
+	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_cache'") != $relevanssi_cache) {
+		$sql = "CREATE TABLE " . $relevanssi_cache . " (param varchar(32) NOT NULL, "
+		. "hits text NOT NULL, "
+		. "tstamp timestamp NOT NULL, "
+	    . "UNIQUE KEY param (param));";
+
+		dbDelta($sql);
+	}
+
+	$relevanssi_excerpt_cache = $wpdb->prefix . 'relevanssi_excerpt_cache';
+
+	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_excerpt_cache'") != $relevanssi_excerpt_cache) {
+		$sql = "CREATE TABLE " . $relevanssi_excerpt_cache . " (query varchar(100) NOT NULL, "
+		. "post mediumint(9) NOT NULL, "
+		. "excerpt text NOT NULL, "
+	    . "UNIQUE (query, post));";
+
+		dbDelta($sql);
+	}
+
 }
 
 if (function_exists('register_uninstall_hook')) {
@@ -362,6 +393,9 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_index_attachments');
 	delete_option('relevanssi_disable_or_fallback');
 	delete_option('relevanssi_respect_exclude');
+	delete_option('relevanssi_cache_seconds');
+	delete_option('relevanssi_enable_cache');
+	delete_option('relevanssi_min_word_length');
 	
 	$sql = "DROP TABLE $stopword_table";
 	$wpdb->query($sql);
@@ -538,8 +572,8 @@ function relevanssi_do_query(&$query) {
 	if ("OR" == $operator) {
 		// Synonyms are only used in OR queries
 		$synonym_data = get_option('relevanssi_synonyms');
-		$synonyms = array();
 		if ($synonym_data) {
+			$synonyms = array();
 			$pairs = explode(";", $synonym_data);
 			foreach ($pairs as $pair) {
 				$parts = explode("=", $pair);
@@ -547,24 +581,39 @@ function relevanssi_do_query(&$query) {
 				$value = trim($parts[1]);
 				$synonyms[$key][$value] = true;
 			}
-		}
-		if (count($synonyms) > 0) {
-			$new_terms = array();
-			$terms = array_keys(relevanssi_tokenize($q, false)); // remove stopwords is false here
-			foreach ($terms as $term) {
-				if (in_array($term, array_keys($synonyms))) {
-					$new_terms = array_merge($new_terms, array_keys($synonyms[$term]));
+			if (count($synonyms) > 0) {
+				$new_terms = array();
+				$terms = array_keys(relevanssi_tokenize($q, false)); // remove stopwords is false here
+				foreach ($terms as $term) {
+					if (in_array($term, array_keys($synonyms))) {
+						$new_terms = array_merge($new_terms, array_keys($synonyms[$term]));
+					}
 				}
-			}
-			if (count($new_terms) > 0) {
-				foreach ($new_terms as $new_term) {
-					$q .= " $new_term";
+				if (count($new_terms) > 0) {
+					foreach ($new_terms as $new_term) {
+						$q .= " $new_term";
+					}
 				}
 			}
 		}
 	}
 
-	$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator);
+	$cache = get_option('relevanssi_cache_enabled');
+	$cache == 'on' ? $cache = true : $cache = false;
+	
+	if ($cache) {
+		$params = md5(serialize(array($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator)));
+		$return = relevanssi_fetch_hits($params);
+		if (!$return) {
+			$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator);
+			$return_ser = serialize($return);
+			relevanssi_store_hits($params, $return_ser);
+		}
+	}
+	else {
+		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator);
+	}
+
 	$hits = $return['hits'];
 
 	$filter_data = array($hits, $q);
@@ -613,7 +662,17 @@ function relevanssi_do_query(&$query) {
 		// OdditY end <-			
 		
 		if ('on' == $make_excerpts) {			
-			$post->post_excerpt = relevanssi_do_excerpt($post, $q);
+			if ($cache) {
+				$post->post_excerpt = relevanssi_fetch_excerpt($post->ID, $q);
+				if ($post->post_excerpt == null) {
+					$post->post_excerpt = relevanssi_do_excerpt($post, $q);
+					relevanssi_store_excerpt($post->ID, $q, $post->post_excerpt);
+				}
+			}
+			else {
+				$post->post_excerpt = relevanssi_do_excerpt($post, $q);
+			}
+			
 			if ('on' == get_option('relevanssi_show_matches')) {
 				$post->post_excerpt .= relevanssi_show_matches($return, $post->ID);
 			}
@@ -627,6 +686,67 @@ function relevanssi_do_query(&$query) {
 	$query->posts = $posts;
 	
 	return $posts;
+}
+
+function relevanssi_fetch_excerpt($post, $query) {
+	global $wpdb, $relevanssi_excerpt_cache;
+
+	$query = mysql_real_escape_string($query);	
+	$excerpt = $wpdb->get_var("SELECT excerpt FROM $relevanssi_excerpt_cache WHERE post = $post AND query = '$query'");
+	
+	if (!$excerpt) return null;
+	
+	return $excerpt;
+}
+
+function relevanssi_store_excerpt($post, $query, $excerpt) {
+	global $wpdb, $relevanssi_excerpt_cache;
+	
+	$query = mysql_real_escape_string($query);
+	$excerpt = mysql_real_escape_string($excerpt);
+
+	$wpdb->query("INSERT IGNORE INTO $relevanssi_excerpt_cache (post, query, excerpt) VALUES ($post, '$query', '$excerpt')");
+}
+
+function relevanssi_fetch_hits($param) {
+	global $wpdb, $relevanssi_cache;
+
+	$time = get_option('relevanssi_cache_seconds', 172800);
+
+	$hits = $wpdb->get_var("SELECT hits FROM $relevanssi_cache WHERE param = '$param' AND UNIX_TIMESTAMP() - UNIX_TIMESTAMP(tstamp) < $time");
+	
+	if ($hits) {
+		return unserialize($hits);
+	}
+	else {
+		return null;
+	}
+}
+
+function relevanssi_store_hits($param, $data) {
+	global $wpdb, $relevanssi_cache;
+
+	$param = mysql_real_escape_string($param);
+	$data = mysql_real_escape_string($data);
+	$wpdb->query("INSERT IGNORE INTO $relevanssi_cache (param, hits) VALUES ('$param', '$data')");
+}
+
+if (defined('ICL_LANGUAGE_CODE'))
+	add_filter('relevanssi_hits_filter', 'relevanssi_wpml_filter');
+	
+// thanks to rvencu
+function relevanssi_wpml_filter($data) {
+	if (function_exists(icl_object_id)) {
+		$filtered_hits = array();
+    	foreach ($data[0] as $hit) {
+        	if ($hit->ID == icl_object_id($hit->ID, $hit->post_type,false,ICL_LANGUAGE_CODE))
+                $filtered_hits[] = $hit;
+	    }
+	    return array($filtered_hits,$hits[1]);
+	}
+	else {
+		return $data;
+	}
 }
 
 /**
@@ -712,6 +832,26 @@ function relevanssi_getLimit($limit) {
 // This is my own magic working.
 function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post_type = NULL, $taxonomy = NULL, $taxonomy_term = NULL, $operator = "AND") {
 	global $relevanssi_table, $wpdb;
+
+	$values_to_filter = array(
+		'q' => $q,
+		'cat' => $cat,
+		'excat' => $excat,
+		'expost' => $expost,
+		'post_type' => $post_type,
+		'taxonomy' => $taxonomy,
+		'taxonomy_term' => $taxonomy_term,
+		'operator' => $operator,
+		);
+	$filtered_values = apply_filters( 'relevanssi_search_filters', $values_to_filter );
+	$q               = $filtered_values['q'];
+	$cat             = $filtered_values['cat'];
+	$excat           = $filtered_values['excat'];
+	$expost          = $filtered_values['expost'];
+	$post_type       = $filtered_values['post_type'];
+	$taxonomy        = $filtered_values['taxonomy'];
+	$taxonomy_term   = $filtered_values['taxonomy_term'];
+	$operator        = $filtered_values['operator'];
 
 	$hits = array();
 	
@@ -1336,27 +1476,25 @@ function relevanssi_strip_invisibles($text) {
 }
 
 if (get_option('relevanssi_highlight_docs', 'off') != 'off') {
-	if (is_singular()) {
-		add_filter('the_content', 'relevanssi_highlight_in_docs', 11);
-		add_filter('the_title', 'relevanssi_highlight_in_docs');
-	}
+	add_filter('the_content', 'relevanssi_highlight_in_docs', 11);
+	add_filter('the_title', 'relevanssi_highlight_in_docs');
 }
 if (get_option('relevanssi_highlight_comments', 'off') != 'off') {
-	if (is_singular()) {
-		add_filter('comment_text', 'relevanssi_highlight_in_docs', 11);
-	}
+	add_filter('comment_text', 'relevanssi_highlight_in_docs', 11);
 }
 function relevanssi_highlight_in_docs($content) {
-	$referrer = preg_replace('@(http|https)://@', '', stripslashes(urldecode($_SERVER['HTTP_REFERER'])));
-	$args     = explode('?', $referrer);
-	$query    = array();
-
-	if ( count( $args ) > 1 )
-		parse_str( $args[1], $query );
-
-	if (substr($referrer, 0, strlen($_SERVER['SERVER_NAME'])) == $_SERVER['SERVER_NAME'] && (isset($query['s']) || strpos($referrer, '/search/') !== false)) {
-		// Local search
-		$content = relevanssi_highlight_terms($content, $query['s']);
+	if (is_singular()) {
+		$referrer = preg_replace('@(http|https)://@', '', stripslashes(urldecode($_SERVER['HTTP_REFERER'])));
+		$args     = explode('?', $referrer);
+		$query    = array();
+	
+		if ( count( $args ) > 1 )
+			parse_str( $args[1], $query );
+	
+		if (substr($referrer, 0, strlen($_SERVER['SERVER_NAME'])) == $_SERVER['SERVER_NAME'] && (isset($query['s']) || strpos($referrer, '/search/') !== false)) {
+			// Local search
+			$content = relevanssi_highlight_terms($content, $query['s']);
+		}
 	}
 	
 	return $content;
@@ -1707,6 +1845,7 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	if ($remove_first) {
 		// we are updating a post, so remove the old stuff first
 		relevanssi_remove_doc($post->ID);
+		relevanssi_purge_excerpt_cache($post->ID);
 	}
 
 	// This needs to be here, after the call to relevanssi_remove_doc(), because otherwise
@@ -1779,8 +1918,11 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	if ("on" == get_option("relevanssi_index_author")) {
 		$auth = $post->post_author;
 		$display_name = $wpdb->get_var("SELECT display_name FROM $wpdb->users WHERE ID=$auth");
-		$wpdb->query("INSERT INTO $relevanssi_table (doc, term, tf, title)
-			VALUES ($post->ID, '$display_name', 1, 5)");
+		$names = relevanssi_tokenize($display_name, false);
+		foreach($names as $name => $count) {
+			$wpdb->query("INSERT INTO $relevanssi_table (doc, term, tf, title)
+				VALUES ($post->ID, '$name', $count, 5)");
+		}
 	}
 
 	if ($custom_fields) {
@@ -1826,9 +1968,12 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 			// a slightly clumsy way to handle titles, I'll try to come up with something better
 		}
 	}
+	
+	$min_word_length = get_option('relevanssi_min_word_length', 3);
+	
 	if (count($contents) > 0) {
 		foreach ($contents as $content => $count) {
-			if (strlen($content) < 2) continue;
+			if (strlen($content) < $min_word_length) continue;
 			$n++;
 			$wpdb->query("INSERT INTO $relevanssi_table (doc, term, tf, title)
 			VALUES ($post->ID, '$content', $count, 0)");
@@ -1976,45 +2121,49 @@ function relevanssi_options() {
 	$options_txt = __('Relevanssi Search Options', 'relevanssi');
 
 	printf("<div class='wrap'><h2>%s</h2>", $options_txt);
-
-	if (isset($_REQUEST['submit'])) {
-		update_relevanssi_options();
-	}
-
-	if (isset($_REQUEST['index'])) {
-		update_relevanssi_options();
-		relevanssi_build_index();
-	}
-
-	if (isset($_REQUEST['index_extend'])) {
-		update_relevanssi_options();
-		relevanssi_build_index(true);
-	}
+	if (!empty($_POST) && check_admin_referer('relevanssi_nonce')) {
+		if (isset($_REQUEST['submit'])) {
+			update_relevanssi_options();
+		}
 	
-	if (isset($_REQUEST['search'])) {
-		relevanssi_search($_REQUEST['q']);
-	}
+		if (isset($_REQUEST['index'])) {
+			update_relevanssi_options();
+			relevanssi_build_index();
+		}
 	
-	if (isset($_REQUEST['uninstall'])) {
-		relevanssi_uninstall();
-	}
-	
-	if (isset($_REQUEST['dowhat'])) {
-		if ("add_stopword" == $_REQUEST['dowhat']) {
-			if (isset($_REQUEST['term'])) {
-				relevanssi_add_stopword($_REQUEST['term']);
+		if (isset($_REQUEST['index_extend'])) {
+			update_relevanssi_options();
+			relevanssi_build_index(true);
+		}
+		
+		if (isset($_REQUEST['search'])) {
+			relevanssi_search($_REQUEST['q']);
+		}
+		
+		if (isset($_REQUEST['uninstall'])) {
+			relevanssi_uninstall();
+		}
+		
+		if (isset($_REQUEST['dowhat'])) {
+			if ("add_stopword" == $_REQUEST['dowhat']) {
+				if (isset($_REQUEST['term'])) {
+					relevanssi_add_stopword($_REQUEST['term']);
+				}
 			}
 		}
-	}
-
-	if (isset($_REQUEST['addstopword'])) {
-		relevanssi_add_stopword($_REQUEST['addstopword']);
-	}
 	
-	if (isset($_REQUEST['removestopword'])) {
-		relevanssi_remove_stopword($_REQUEST['removestopword']);
-	}
+		if (isset($_REQUEST['addstopword'])) {
+			relevanssi_add_stopword($_REQUEST['addstopword']);
+		}
+		
+		if (isset($_REQUEST['removestopword'])) {
+			relevanssi_remove_stopword($_REQUEST['removestopword']);
+		}
 	
+		if (isset($_REQUEST['removeallstopwords'])) {
+			relevanssi_remove_all_stopwords();
+		}
+	}
 	relevanssi_options_form();
 	
 	relevanssi_common_words();
@@ -2081,6 +2230,18 @@ function update_relevanssi_options() {
 		$boost = floatval($_REQUEST['relevanssi_comment_boost']);
 		update_option('relevanssi_comment_boost', $boost);
 	}
+
+	if (isset($_REQUEST['relevanssi_min_word_length'])) {
+		$value = intval($_REQUEST['relevanssi_min_word_length']);
+		if ($value == 0) $value = 2;
+		update_option('relevanssi_min_word_length', $value);
+	}
+
+	if (isset($_REQUEST['relevanssi_cache_seconds'])) {
+		$value = intval($_REQUEST['relevanssi_cache_seconds']);
+		if ($value == 0) $value = 86400;
+		update_option('relevanssi_cache_seconds', $value);
+	}
 	
 	if (!isset($_REQUEST['relevanssi_admin_search'])) {
 		$_REQUEST['relevanssi_admin_search'] = "off";
@@ -2138,6 +2299,10 @@ function update_relevanssi_options() {
 		$_REQUEST['relevanssi_expand_shortcodes'] = "off";
 	}
 
+	if (!isset($_REQUEST['relevanssi_enable_cache'])) {
+		$_REQUEST['relevanssi_enable_cache'] = "off";
+	}
+
 	if (!isset($_REQUEST['relevanssi_respect_exclude'])) {
 		$_REQUEST['relevanssi_respect_exclude'] = "off";
 	}
@@ -2150,7 +2315,8 @@ function update_relevanssi_options() {
 	}
 	
 	if (isset($_REQUEST['relevanssi_synonyms'])) {
-		$value = str_replace("\n", ";", $_REQUEST['relevanssi_synonyms']);
+		$linefeeds = array("\r\n", "\n", "\r");
+		$value = str_replace($linefeeds, ";", $_REQUEST['relevanssi_synonyms']);
 		$value = stripslashes($value);
 		update_option('relevanssi_synonyms', $value);
 	}
@@ -2194,12 +2360,43 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_index_attachments'])) update_option('relevanssi_index_attachments', $_REQUEST['relevanssi_index_attachments']);
 	if (isset($_REQUEST['relevanssi_disable_or_fallback'])) update_option('relevanssi_disable_or_fallback', $_REQUEST['relevanssi_disable_or_fallback']);
 	if (isset($_REQUEST['relevanssi_respect_exclude'])) update_option('relevanssi_respect_exclude', $_REQUEST['relevanssi_respect_exclude']);
+	if (isset($_REQUEST['relevanssi_enable_cache'])) update_option('relevanssi_enable_cache', $_REQUEST['relevanssi_enable_cache']);
 }
 
 function relevanssi_add_stopword($term) {
 	global $wpdb, $relevanssi_table, $stopword_table;
 	if ('' == $term) return; // do not add empty $term to stopwords - added by renaissancehack
-	// add to stopwords
+	
+	$n = 0;
+	$s = 0;
+	
+	$terms = explode(',', $term);
+	if (count($terms) > 1) {
+		foreach($terms as $term) {
+			$n++;
+			$term = trim($term);
+			$success = relevanssi_add_single_stopword($term);
+			if ($success) $s++;
+		}
+		printf(__("<div id='message' class='updated fade'><p>Successfully added %d/%d terms to stopwords!</p></div>", "relevanssi"), $s, $n);
+	}
+	else {
+		// add to stopwords
+		$success = relevanssi_add_single_stopword($term);
+		
+		if ($success) {
+			printf(__("<div id='message' class='updated fade'><p>Term '%s' added to stopwords!</p></div>", "relevanssi"), $term);
+		}
+		else {
+			printf(__("<div id='message' class='updated fade'><p>Couldn't add term '%s' to stopwords!</p></div>", "relevanssi"), $term);
+		}
+	}
+}
+
+function relevanssi_add_single_stopword($term) {
+	global $wpdb, $relevanssi_table, $stopword_table;
+	if ('' == $term) return;
+
 	$q = $wpdb->prepare("INSERT INTO $stopword_table (stopword) VALUES (%s)", $term);
 	$success = $wpdb->query($q);
 	
@@ -2207,11 +2404,20 @@ function relevanssi_add_stopword($term) {
 		// remove from index
 		$q = $wpdb->prepare("DELETE FROM $relevanssi_table WHERE term=%s", $term);
 		$wpdb->query($q);
-		printf(__("<div id='message' class='updated fade'><p>Term '%s' added to stopwords!</p></div>", "relevanssi"), $term);
+		return true;
 	}
 	else {
-		printf(__("<div id='message' class='updated fade'><p>Couldn't add term '%s' to stopwords!</p></div>", "relevanssi"), $term);
+		return false;
 	}
+}
+
+function relevanssi_remove_all_stopwords() {
+	global $wpdb, $stopword_table;
+	
+	$q = $wpdb->prepare("TRUNCATE $stopword_table");
+	$success = $wpdb->query($q);
+	
+	printf(__("<div id='message' class='updated fade'><p>Stopwords removed! Remember to re-index.</p></div>", "relevanssi"), $term);
 }
 
 function relevanssi_remove_stopword($term) {
@@ -2505,6 +2711,11 @@ function relevanssi_options_form() {
 
 	$respect_exclude = ('on' == get_option('relevanssi_respect_exclude') ? 'checked="checked"' : ''); 
 
+	$enable_cache = ('on' == get_option('relevanssi_enable_cache') ? 'checked="checked"' : ''); 
+	$cache_seconds = get_option('relevanssi_cache_seconds');
+
+	$min_word_length = get_option('relevanssi_min_word_length');
+
 	$attachments = ('on' == get_option('relevanssi_index_attachments') ? 'checked="checked"' : ''); 
 	
 	$inccats = ('on' == get_option('relevanssi_include_cats') ? 'checked="checked"' : ''); 
@@ -2517,13 +2728,15 @@ function relevanssi_options_form() {
 ?>
 <div class='postbox-container' style='width:70%;'>
 	<form method='post'>
-
+	<?php wp_nonce_field('relevanssi_nonce'); ?>
+	
     <p><a href="#basic"><?php _e("Basic options", "relevanssi"); ?></a> |
 	<a href="#logs"><?php _e("Logs", "relevanssi"); ?></a> |
     <a href="#exclusions"><?php _e("Exclusions and restrictions", "relevanssi"); ?></a> |
     <a href="#excerpts"><?php _e("Custom excerpts", "relevanssi"); ?></a> |
     <a href="#highlighting"><?php _e("Highlighting search results", "relevanssi"); ?></a> |
     <a href="#indexing"><?php _e("Indexing options", "relevanssi"); ?></a> |
+    <a href="#caching"><?php _e("Caching", "relevanssi"); ?></a> |
     <a href="#synonyms"><?php _e("Synonyms", "relevanssi"); ?></a> |
     <a href="#stopwords"><?php _e("Stopwords", "relevanssi"); ?></a> |
     <a href="#uninstall"><?php _e("Uninstalling", "relevanssi"); ?></a>
@@ -2736,6 +2949,12 @@ function relevanssi_options_form() {
 
 	<br /><br />
 	
+	<label for='relevanssi_min_word_length'><?php _e("Minimum word length to index", "relevanssi"); ?>:
+	<input type='text' name='relevanssi_min_word_length' size='30' value='<?php echo $min_word_length ?>' /></label><br />
+	<small><?php _e("Words shorter than this number will not be indexed.", "relevanssi"); ?></small>
+
+	<br /><br />
+
 	<label for='relevanssi_custom_types'><?php _e("Custom post types to index", "relevanssi"); ?>:
 	<input type='text' name='relevanssi_custom_types' size='30' value='<?php echo $custom_types ?>' /></label><br />
 	<small><?php _e("If you don't want to index all custom post types, list here the custom post types you want to see indexed. List comma-separated post type names (as used in the database). You can also use a hidden field in the search form to restrict the search to a certain post type: <code>&lt;input type='hidden' name='post_type' value='comma-separated list of post types' /&gt;</code>. If you choose 'All public post types' or 'Everything' above, this option has no effect. You can exclude custom post types with the minus notation, for example '-foo,bar,-baz' would include 'bar' and exclude 'foo' and 'baz'.", "relevanssi"); ?></small>
@@ -2804,6 +3023,18 @@ function relevanssi_options_form() {
 
 	<input type='submit' name='index_extend' value='<?php _e("Continue indexing", 'relevanssi'); ?>' />
 
+	<h3 id="caching"><?php _e("Caching", "relevanssi"); ?></h3>
+
+	<label for='relevanssi_enable_cache'><?php _e('Enable result and excerpt caching:', 'relevanssi'); ?>
+	<input type='checkbox' name='relevanssi_enable_cache' <?php echo $enable_cache ?> /></label><br />
+	<small><?php _e("If checked, Relevanssi will cache search results and post excerpts.", 'relevanssi'); ?></small>
+
+	<br /><br />
+	
+	<label for='relevanssi_cache_seconds'><?php _e("Cache expire (in seconds):", "relevanssi"); ?>
+	<input type='text' name='relevanssi_cache_seconds' size='30' value='<?php echo $cache_seconds ?>' /></label><br />
+	<small><?php _e("86400 = day", "relevanssi"); ?></small>
+
 	<h3 id="synonyms"><?php _e("Synonyms", "relevanssi"); ?></h3>
 	
 	<p><textarea name='relevanssi_synonyms' rows='9' cols='60'><?php echo $synonyms ?></textarea></p>
@@ -2831,11 +3062,11 @@ function relevanssi_options_form() {
 }
 
 function relevanssi_show_stopwords() {
-	global $wpdb, $stopword_table;
+	global $wpdb, $stopword_table, $wp_version;
 
-	_e("<p>Enter a word here to add it to the list of stopwords. The word will automatically be removed from the index, so re-indexing is not necessary.</p>", 'relevanssi');
+	_e("<p>Enter a word here to add it to the list of stopwords. The word will automatically be removed from the index, so re-indexing is not necessary. You can enter many words at the same time, separate words with commas.</p>", 'relevanssi');
 
-?><label for="addstopword"><p><?php _e("Stopword to add: ", 'relevanssi'); ?><input type="text" name="addstopword" />
+?><label for="addstopword"><p><?php _e("Stopword(s) to add: ", 'relevanssi'); ?><textarea name="addstopword" rows="2" cols="40"></textarea>
 <input type="submit" value="<?php _e("Add", 'relevanssi'); ?>" /></p></label> <!-- close <label ...> tag - added by renaissancehack -->
 <?php
 
@@ -2861,6 +3092,10 @@ function relevanssi_show_stopwords() {
 		printf('<li style="display: inline;"><input type="submit" name="removestopword" value="%s"/></li>', $sw, $src, $sw);
 	}
 	echo "</ul>";
+	
+?>
+<p><input type="submit" name="removeallstopwords" value="<?php _e('Remove all stopwords', 'relevanssi'); ?>" /></p>
+<?php
 }
 
 function relevanssi_sidebar() {
