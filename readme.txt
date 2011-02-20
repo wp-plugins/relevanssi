@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.5
-Stable tag: 2.7.1
+Stable tag: 2.7.2
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -315,6 +315,10 @@ removing those words helps to make the index smaller and searching faster.
 * Warren Tape for 2.5.5 fixes.
 
 == Changelog ==
+
+= 2.7.2 =
+* A silly typo caused the caching not to work. That's fixed now.
+* A new filter: `relevanssi_didyoumean_query` lets you modify the query used for 'Did you mean?' searches.
 
 = 2.7.1 =
 * Thanks to a bug in the code, the WPML support didn't work. It's fixed now.

@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.7.1
+Version: 2.7.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -132,8 +132,10 @@ function relevanssi_didyoumean($query, $pre, $post, $n = 5) {
 	
 	if ($total_results > $n) return;
 
-	$data = $wpdb->get_results("SELECT query, count(query) as c, AVG(hits) as a 
-		FROM $log_table WHERE hits > 1 GROUP BY query ORDER BY count(query) DESC");
+	$q = "SELECT query, count(query) as c, AVG(hits) as a FROM $log_table WHERE hits > 1 GROUP BY query ORDER BY count(query) DESC";
+	$q = apply_filters('relevanssi_didyoumean_query', $q);
+
+	$data = $wpdb->get_results($q);
 		
 	$distance = -1;
 	$closest = "";
@@ -599,7 +601,7 @@ function relevanssi_do_query(&$query) {
 		}
 	}
 
-	$cache = get_option('relevanssi_cache_enabled');
+	$cache = get_option('relevanssi_enable_cache');
 	$cache == 'on' ? $cache = true : $cache = false;
 	
 	if ($cache) {
@@ -740,7 +742,7 @@ function relevanssi_wpml_filter($data) {
         	if ($hit->ID == icl_object_id($hit->ID, $hit->post_type,false,ICL_LANGUAGE_CODE))
                 $filtered_hits[] = $hit;
 	    }
-	    return array($filtered_hits,$hits[1]);
+	    return array($filtered_hits, $data[1]);
 	}
 	else {
 		return $data;
