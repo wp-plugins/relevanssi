@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.5
-Stable tag: 2.7
+Stable tag: 2.7.2
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -186,6 +186,12 @@ or no results at all, depending on case.
 
 Thanks to Charles St-Pierre for the idea.
 
+= Caching =
+Relevanssi has an included cache feature that'll store search results and
+post excerpts in the database for reuse. It's something of an experimental 
+feature right now, but should work and if there are lots of repeat queries,
+it'll give some actual boost in performance.
+
 = Displaying the relevance score =
 Relevanssi stores the relevance score it uses to sort results in the $post variable. Just add
 something like
@@ -309,6 +315,13 @@ removing those words helps to make the index smaller and searching faster.
 * Warren Tape for 2.5.5 fixes.
 
 == Changelog ==
+
+= 2.7.2 =
+* A silly typo caused the caching not to work. That's fixed now.
+* A new filter: `relevanssi_didyoumean_query` lets you modify the query used for 'Did you mean?' searches.
+
+= 2.7.1 =
+* Thanks to a bug in the code, the WPML support didn't work. It's fixed now.
 
 = 2.7 =
 * Caching search results is possible. If you have lots of repeated queries, caching will provide extra speed and less wear on server.

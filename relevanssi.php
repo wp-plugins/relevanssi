@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.mikkosaari.fi/en/relevanssi-search/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.7
+Version: 2.7.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -55,6 +55,7 @@ add_action('edit_attachment', 'relevanssi_edit');
 add_action('transition_post_status', 'relevanssi_update_child_posts',99,3);
 // END added by renaissancehack
 add_action('init', 'relevanssi_init');
+add_filter('relevanssi_hits_filter', 'relevanssi_wpml_filter');
 
 $plugin_dir = basename(dirname(__FILE__));
 load_plugin_textdomain( 'relevanssi', 'wp-content/plugins/' . $plugin_dir, $plugin_dir);
@@ -131,8 +132,10 @@ function relevanssi_didyoumean($query, $pre, $post, $n = 5) {
 	
 	if ($total_results > $n) return;
 
-	$data = $wpdb->get_results("SELECT query, count(query) as c, AVG(hits) as a 
-		FROM $log_table WHERE hits > 1 GROUP BY query ORDER BY count(query) DESC");
+	$q = "SELECT query, count(query) as c, AVG(hits) as a FROM $log_table WHERE hits > 1 GROUP BY query ORDER BY count(query) DESC";
+	$q = apply_filters('relevanssi_didyoumean_query', $q);
+
+	$data = $wpdb->get_results($q);
 		
 	$distance = -1;
 	$closest = "";
@@ -598,7 +601,7 @@ function relevanssi_do_query(&$query) {
 		}
 	}
 
-	$cache = get_option('relevanssi_cache_enabled');
+	$cache = get_option('relevanssi_enable_cache');
 	$cache == 'on' ? $cache = true : $cache = false;
 	
 	if ($cache) {
@@ -731,18 +734,15 @@ function relevanssi_store_hits($param, $data) {
 	$wpdb->query("INSERT IGNORE INTO $relevanssi_cache (param, hits) VALUES ('$param', '$data')");
 }
 
-if (defined('ICL_LANGUAGE_CODE'))
-	add_filter('relevanssi_hits_filter', 'relevanssi_wpml_filter');
-	
 // thanks to rvencu
 function relevanssi_wpml_filter($data) {
-	if (function_exists(icl_object_id)) {
+	if (function_exists('icl_object_id')) {
 		$filtered_hits = array();
     	foreach ($data[0] as $hit) {
         	if ($hit->ID == icl_object_id($hit->ID, $hit->post_type,false,ICL_LANGUAGE_CODE))
                 $filtered_hits[] = $hit;
 	    }
-	    return array($filtered_hits,$hits[1]);
+	    return array($filtered_hits, $data[1]);
 	}
 	else {
 		return $data;
