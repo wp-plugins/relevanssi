@@ -4,7 +4,7 @@ Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.0.5
-Stable tag: 2.7.2
+Stable tag: 2.7.3
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -243,6 +243,23 @@ You can also set the restriction from general plugin settings (and then override
 search forms with the special field). This works with custom taxonomies as well, just replace `cat`
 with the name of your taxonomy.
 
+If you want to restrict the search to categories using a dropdown box on the search form, use
+a code like this:
+
+`<form method="post">
+	<div><label class="screen-reader-text" for="s">Search</label>
+	<input type="text" value="" name="s" id="s" />
+<?php
+	wp_dropdown_categories(array('show_option_all' => 'All categories'));
+?>
+	<input type="submit" id="searchsubmit" value="Search" />
+	</div>
+</form>`
+
+This produces a search form with a dropdown box for categories. Do note that this code won't work
+when placed in a Text widget: either place it directly in the template or use a PHP widget plugin
+to get a widget that can execute PHP code.
+
 = Restricting searches with taxonomies =
 
 You can use taxonomies to restrict search results to posts and pages tagged with a certain 
@@ -250,6 +267,14 @@ taxonomy term. If you have a custom taxonomy of "People" and want to search entr
 "John" in this taxonomy, just use `?s=keyword&people=John` in the URL. You should be able to use
 an input field in the search form to do this, as well - just name the input field with the name
 of the taxonomy you want to use.
+
+It's also possible to do a dropdown for custom taxonomies, using the same function. Just adjust
+the arguments like this:
+
+`wp_dropdown_categories(array('show_option_all' => 'All people', 'name' => 'people', 'taxonomy' => 'people'));`
+
+This would do a dropdown box for the "People" taxonomy. The 'name' must be the keyword used in
+the URL, while 'taxonomy' has the name of the taxonomy.
 
 = Automatic indexing =
 Relevanssi indexes changes in documents as soon as they happen. However, changes in shortcoded
@@ -315,6 +340,10 @@ removing those words helps to make the index smaller and searching faster.
 * Warren Tape for 2.5.5 fixes.
 
 == Changelog ==
+
+= 2.7.3 =
+* IMPORTANT SECURITY UPDATE: Earlier versions of Relevanssi have a cross-site scripting (XSS) vulnerability. Please install this update as soon as possible.
+* Added instructions of doing a category dropdown in the search form in the FAQ.
 
 = 2.7.2 =
 * A silly typo caused the caching not to work. That's fixed now.
