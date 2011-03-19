@@ -1,10 +1,10 @@
 === Relevanssi - A Better Search ===
 Contributors: msaari
-Donate link: http://www.mikkosaari.fi/en/relevanssi-search/
+Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 3.0.5
-Stable tag: 2.7.3
+Tested up to: 3.1
+Stable tag: 2.7.4
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -13,6 +13,9 @@ Relevanssi replaces the default search with a partial-match search that sorts re
 Relevanssi replaces the standard WordPress search with a better search engine, with lots of features
 and configurable options. You'll get better results, better presentation of results - your users
 will thank you.
+
+This is the free version of Relevanssi. There's also Relevanssi Premium, which has added features.
+For more information about Premium, see [Relevanssi.com](http://www.relevanssi.com/).
 
 = Key features =
 * Search results sorted in the order of relevance, not by date.
@@ -32,6 +35,13 @@ will thank you.
 * Google-style "Did you mean?" suggestions based on successful user searches.
 * Automatic support for [WPML multi-language plugin](http://wpml.org/)
 * Advanced filtering to help hacking the search results the way you want.
+
+= Premium features (only in Relevanssi Premium) =
+* Search result throttling to improve performance on large databases.
+* Improved spelling correction in "Did you mean?" suggestions.
+* Multisite support.
+* Search and index user profiles.
+* Assign weights to post types.
 
 = Relevanssi in Facebook =
 You can find [Relevanssi in Facebook](http://www.facebook.com/relevanssi).
@@ -111,6 +121,9 @@ or shortcode expansion in Relevanssi while indexing. After indexing, you can act
 again.
 
 == Frequently Asked Questions ==
+
+= Knowledge Base =
+You can find solutions and answers at the [Relevanssi Knowledge Base](http://www.relevanssi.com/category/knowledge-base/).
 
 = Where are the user search logs? =
 See the top of the admin menu. There's 'User searches'. There. If the logs are empty, please note
@@ -246,9 +259,9 @@ with the name of your taxonomy.
 If you want to restrict the search to categories using a dropdown box on the search form, use
 a code like this:
 
-`<form method="post">
+`<form method="get" action="<?php bloginfo('url'); ?>">
 	<div><label class="screen-reader-text" for="s">Search</label>
-	<input type="text" value="" name="s" id="s" />
+	<input type="text" value="<?php the_search_query(); ?>" name="s" id="s" />
 <?php
 	wp_dropdown_categories(array('show_option_all' => 'All categories'));
 ?>
@@ -333,13 +346,23 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: User searches page requires MySQL 5.
 * To-do: Option to set the number of search results returned.
 * To-do: Tool to export and import Relevanssi settings.
+* For more features to come, see [Feature list](http://www.relevanssi.com/features/).
 
 == Thanks ==
 * Cristian Damm for tag indexing, comment indexing, post/page exclusion and general helpfulness.
 * Marcus Dalgren for UTF-8 fixing.
 * Warren Tape for 2.5.5 fixes.
+* Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.7.4 =
+* Improved the fallback to fuzzy search if no hits are found with regular search.
+* AND searches sometimes failed to work properly, causing unnecessary fallback to OR search. Fixed.
+* When using WPML, it's now possible to choose if the searches are limited to current language.
+* Adding stopwords from the list of 25 common words didn't work. It works now.
+* The instructions to add a category dropdown to search form weren't quite correct. They are now.
+* Small fix that makes shortcodes in posts more compatible with Relevanssi.
 
 = 2.7.3 =
 * IMPORTANT SECURITY UPDATE: Earlier versions of Relevanssi have a cross-site scripting (XSS) vulnerability. Please install this update as soon as possible.
