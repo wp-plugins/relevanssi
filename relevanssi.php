@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.7.4
+Version: 2.7.5
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -908,6 +908,12 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 				WHERE term_id=$t_cat");
 			if ($term_tax_id) {
 				$exclude ? $ex_term_tax_ids[] = $term_tax_id : $inc_term_tax_ids[] = $term_tax_id;
+				$children = get_term_children($term_tax_id, 'category');
+				if (is_array($children)) {
+					foreach ($children as $child) {
+						$exclude ? $ex_term_tax_ids[] = $child : $inc_term_tax_ids[] = $child;
+					}
+				}
 			}
 		}
 		
@@ -1980,6 +1986,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	if (isset($post->post_excerpt) && ("on" == get_option("relevanssi_index_excerpt") || "attachment" == $post->post_type)) { // include excerpt for attachments which use post_excerpt for captions - modified by renaissancehack
 		$post->post_content .= ' ' . $post->post_excerpt;
 	}
+
+	$contents = relevanssi_strip_invisibles($post->post_content);
 	
 	if ('on' == get_option('relevanssi_expand_shortcodes')) {
 		if (function_exists("do_shortcode")) {
@@ -1993,7 +2001,6 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 		}
 	}
 	
-	$contents = relevanssi_strip_invisibles($post->post_content);
 	$contents = strip_tags($contents);
 	$contents = relevanssi_tokenize($contents);
 	
