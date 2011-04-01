@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.1
-Stable tag: 2.7.4
+Stable tag: 2.7.5
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -36,12 +36,19 @@ For more information about Premium, see [Relevanssi.com](http://www.relevanssi.c
 * Automatic support for [WPML multi-language plugin](http://wpml.org/)
 * Advanced filtering to help hacking the search results the way you want.
 
+Relevanssi is available in two versions, regular and Premium. Regular Relevanssi is and will remain
+free to download and use. Relevanssi Premium comes with a cost, but will get all the new features.
+Standard Relevanssi will be updated to fix bugs, but new features will mostly appear in Premium.
+Also, support for standard Relevanssi depends very much on my mood and available time. Premium
+pricing includes support.
+
 = Premium features (only in Relevanssi Premium) =
 * Search result throttling to improve performance on large databases.
 * Improved spelling correction in "Did you mean?" suggestions.
 * Multisite support.
 * Search and index user profiles.
 * Assign weights to post types.
+* Highlighting search terms for visitors from external search engines.
 
 = Relevanssi in Facebook =
 You can find [Relevanssi in Facebook](http://www.facebook.com/relevanssi).
@@ -259,7 +266,11 @@ with the name of your taxonomy.
 If you want to restrict the search to categories using a dropdown box on the search form, use
 a code like this:
 
+<<<<<<< .mine
+`<form method="post" action="<?php bloginfo('home'); ?>">
+=======
 `<form method="get" action="<?php bloginfo('url'); ?>">
+>>>>>>> .r362902
 	<div><label class="screen-reader-text" for="s">Search</label>
 	<input type="text" value="<?php the_search_query(); ?>" name="s" id="s" />
 <?php
@@ -355,6 +366,10 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.7.5 =
+* There was a bug that caused shortcodes to fail in 2.7.4. That's fixed now.
+* Category search will now include subcategories as well, both when including and excluding.
 
 = 2.7.4 =
 * Improved the fallback to fuzzy search if no hits are found with regular search.
