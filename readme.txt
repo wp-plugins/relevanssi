@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 3.1
-Stable tag: 2.7.5
+Tested up to: 3.1.1
+Stable tag: 2.8
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -105,6 +105,10 @@ To avoid trouble, use the function like this:
 
 See Frequently Asked Questions for more instructions on what you can do with
 Relevanssi.
+
+= The advanced hacker option =
+If you're doing something unusual with your search and Relevanssi doesn't work, try
+using `relevanssi_do_query()`. See [Knowledge Base](http://www.relevanssi.com/knowledge-base/relevanssi_do_query/).
 
 = Uninstalling =
 To uninstall the plugin, first click the "Remove plugin data" button on the plugin settins page
@@ -366,6 +370,12 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.8 =
+* There's now a way to truncate the cache (sorry it took so long). Expired cache data is now automatically removed from the database every day. There's also an option to clear the caches.
+* Highlights didn't work properly with non-ASCII alphabets. Now there's an option to make them work.
+* Title highlight option now affects external search term highlights as well.
+* There were some bugs on the options page.
 
 = 2.7.5 =
 * There was a bug that caused shortcodes to fail in 2.7.4. That's fixed now.

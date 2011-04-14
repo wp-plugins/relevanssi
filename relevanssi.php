@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.7.5
+Version: 2.8
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -121,8 +121,30 @@ function relevanssi_init() {
 		}
 		add_action('admin_notices', 'relevanssi_mb_warning');
 	}
-	
+
+	if (!wp_next_scheduled('relevanssi_truncate_cache')) {
+		wp_schedule_event(time(), 'daily', 'relevanssi_truncate_cache');
+	}
+
 	return;
+}
+
+function relevanssi_truncate_cache($all = false) {
+	global $relevanssi_cache, $relevanssi_excerpt_cache, $wpdb;
+		
+	if ($all) {
+		$query = "TRUNCATE TABLE $relevanssi_excerpt_cache";
+		$wpdb->query($query);
+
+		$query = "TRUNCATE TABLE $relevanssi_cache";
+	}
+	else {
+		$time = get_option('relevanssi_cache_seconds', 172800);
+		$query = "DELETE FROM $relevanssi_cache
+			WHERE UNIX_TIMESTAMP() - UNIX_TIMESTAMP(tstamp) > $time";
+		// purge all expired cache data
+	}
+	$wpdb->query($query);
 }
 
 function relevanssi_didyoumean($query, $pre, $post, $n = 5) {
@@ -280,12 +302,15 @@ function relevanssi_install() {
 	add_option('relevanssi_enable_cache', 'off');
 	add_option('relevanssi_min_word_length', 3);
 	add_option('relevanssi_wpml_only_current', 'on');
+	add_option('relevanssi_word_boundaries', 'on');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
 	$relevanssi_table = $wpdb->prefix . "relevanssi";
 	$stopword_table = $wpdb->prefix . "relevanssi_stopwords";
 	$log_table = $wpdb->prefix . "relevanssi_log";
+	$relevanssi_cache = $wpdb->prefix . 'relevanssi_cache';
+	$relevanssi_excerpt_cache = $wpdb->prefix . 'relevanssi_excerpt_cache';
 	
 	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_table'") != $relevanssi_table) {
 		$sql = "CREATE TABLE " . $relevanssi_table . " (id mediumint(9) NOT NULL AUTO_INCREMENT, "
@@ -297,10 +322,7 @@ function relevanssi_install() {
 
 		dbDelta($sql);
 		
-		$sql = "ALTER TABLE $relevanssi_table ADD INDEX (doc)";
-		$wpdb->query($sql);
-
-		$sql = "ALTER TABLE $relevanssi_table ADD INDEX (term)";
+		$sql = "CREATE INDEX terms ON $relevanssi_table (term(20))";
 		$wpdb->query($sql);
 	}
 
@@ -326,8 +348,6 @@ function relevanssi_install() {
 		dbDelta($sql);
 	}
 
-	$relevanssi_cache = $wpdb->prefix . 'relevanssi_cache';
-
 	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_cache'") != $relevanssi_cache) {
 		$sql = "CREATE TABLE " . $relevanssi_cache . " (param varchar(32) NOT NULL, "
 		. "hits text NOT NULL, "
@@ -336,8 +356,6 @@ function relevanssi_install() {
 
 		dbDelta($sql);
 	}
-
-	$relevanssi_excerpt_cache = $wpdb->prefix . 'relevanssi_excerpt_cache';
 
 	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_excerpt_cache'") != $relevanssi_excerpt_cache) {
 		$sql = "CREATE TABLE " . $relevanssi_excerpt_cache . " (query varchar(100) NOT NULL, "
@@ -401,9 +419,20 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_enable_cache');
 	delete_option('relevanssi_min_word_length');
 	delete_option('relevanssi_wpml_only_current');
+	delete_option('relevanssi_word_boundaries', 'on');
+
+	wp_clear_scheduled_hook('relevanssi_truncate_cache');
+
+	$relevanssi_table = $wpdb->prefix . "relevanssi";	
+	$stopword_table = $wpdb->prefix . "relevanssi_stopwords";
+	$log_table = $wpdb->prefix . "relevanssi_log";
+	$relevanssi_cache = $wpdb->prefix . 'relevanssi_cache';
+	$relevanssi_excerpt_cache = $wpdb->prefix . 'relevanssi_excerpt_cache';
 	
-	$sql = "DROP TABLE $stopword_table";
-	$wpdb->query($sql);
+	if($wpdb->get_var("SHOW TABLES LIKE '$stopword_table'") == $stopword_table) {
+		$sql = "DROP TABLE $stopword_table";
+		$wpdb->query($sql);
+	}
 
 	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_table'") == $relevanssi_table) {
 		$sql = "DROP TABLE $relevanssi_table";
@@ -412,6 +441,16 @@ function relevanssi_uninstall() {
 
 	if($wpdb->get_var("SHOW TABLES LIKE '$log_table'") == $log_table) {
 		$sql = "DROP TABLE $log_table";
+		$wpdb->query($sql);
+	}
+
+	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_cache'") == $relevanssi_cache) {
+		$sql = "DROP TABLE $relevanssi_cache";
+		$wpdb->query($sql);
+	}
+
+	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_excerpt_cache'") == $relevanssi_excerpt_cache) {
+		$sql = "DROP TABLE $relevanssi_excerpt_cache";
 		$wpdb->query($sql);
 	}
 	
@@ -695,6 +734,7 @@ function relevanssi_do_query(&$query) {
 	}
 	
 	$query->posts = $posts;
+	$query->post_count = count($posts);
 	
 	return $posts;
 }
@@ -743,7 +783,7 @@ function relevanssi_store_hits($param, $data) {
 	$data = mysql_real_escape_string($data);
 	$wpdb->query("INSERT INTO $relevanssi_cache (param, hits)
 		VALUES ('$param', '$data')
-		ON DUPLICATE KEY UPDATE data = '$data'");
+		ON DUPLICATE KEY UPDATE hits = '$data'");
 }
 
 // thanks to rvencu
@@ -1515,17 +1555,19 @@ function relevanssi_strip_invisibles($text) {
             '@<applet[^>]*?.*?</applet>@siu',
             '@<noscript[^>]*?.*?</noscript>@siu',
             '@<noembed[^>]*?.*?</noembed>@siu',
+			'@<iframe[^>]*?.*?</iframe>@siu',
+			'@<del[^>]*?.*?</del>@siu',
         ),
-        array(
-            ' ', ' ', ' ', ' ', ' ', ' ', ' ',
-        ),
+		' ',
         $text );
     return $text;
 }
 
 if (get_option('relevanssi_highlight_docs', 'off') != 'off') {
 	add_filter('the_content', 'relevanssi_highlight_in_docs', 11);
-	add_filter('the_title', 'relevanssi_highlight_in_docs');
+	if (get_option('relevanssi_hilite_title', 'off') != 'off') {
+		add_filter('the_title', 'relevanssi_highlight_in_docs');
+	}
 }
 if (get_option('relevanssi_highlight_comments', 'off') != 'off') {
 	add_filter('comment_text', 'relevanssi_highlight_in_docs', 11);
@@ -1617,8 +1659,14 @@ function relevanssi_highlight_terms($excerpt, $query) {
 
 	usort($terms, 'relevanssi_strlen_sort');
 
+	get_option('relevanssi_word_boundaries', 'on') == 'on' ? $word_boundaries = true : $word_boundaries = false;
 	foreach ($terms as $term) {
-		$excerpt = preg_replace("/(\b$term|$term\b)(?!([^<]+)?>)/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
+		if ($word_boundaries) {
+			$excerpt = preg_replace("/(\b$term|$term\b)(?!([^<]+)?>)/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
+		}
+		else {
+			$excerpt = preg_replace("/($term|$term)(?!([^<]+)?>)/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
+		}
 		// thanks to http://pureform.wordpress.com/2008/01/04/matching-a-word-characters-outside-of-html-tags/
 	}
 
@@ -2214,6 +2262,11 @@ function relevanssi_options() {
 		if (isset($_REQUEST['removeallstopwords'])) {
 			relevanssi_remove_all_stopwords();
 		}
+
+		if (isset($_REQUEST['truncate'])) {
+			$clear_all = true;
+			relevanssi_truncate_cache($clear_all);
+		}
 	}
 	relevanssi_options_form();
 	
@@ -2261,7 +2314,7 @@ function relevanssi_truncate_logs() {
 	global $wpdb, $log_table;
 	
 	$query = "TRUNCATE $log_table";
-	mysql_query($query);
+	$wpdb->query($query);
 	
 	echo "<div id='relevanssi-warning' class='updated fade'>Logs clear!</div>";
 }
@@ -2362,6 +2415,10 @@ function update_relevanssi_options() {
 		$_REQUEST['relevanssi_wpml_only_current'] = "off";
 	}
 
+	if (!isset($_REQUEST['relevanssi_word_boundaries'])) {
+		$_REQUEST['relevanssi_word_boundaries'] = "off";
+	}
+
 	if (isset($_REQUEST['relevanssi_excerpt_length'])) {
 		$value = intval($_REQUEST['relevanssi_excerpt_length']);
 		if ($value != 0) {
@@ -2417,6 +2474,7 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_respect_exclude'])) update_option('relevanssi_respect_exclude', $_REQUEST['relevanssi_respect_exclude']);
 	if (isset($_REQUEST['relevanssi_enable_cache'])) update_option('relevanssi_enable_cache', $_REQUEST['relevanssi_enable_cache']);
 	if (isset($_REQUEST['relevanssi_wpml_only_current'])) update_option('relevanssi_wpml_only_current', $_REQUEST['relevanssi_wpml_only_current']);
+	if (isset($_REQUEST['relevanssi_word_boundaries'])) update_option('relevanssi_word_boundaries', $_REQUEST['relevanssi_word_boundaries']);
 }
 
 function relevanssi_add_stopword($term) {
@@ -2623,6 +2681,7 @@ function relevanssi_options_form() {
 
 	$docs_count = $wpdb->get_var("SELECT COUNT(DISTINCT doc) FROM $relevanssi_table");
 	$biggest_doc = $wpdb->get_var("SELECT doc FROM $relevanssi_table ORDER BY doc DESC LIMIT 1");
+	$cache_count = $wpdb->get_var("SELECT COUNT(tstamp) FROM $relevanssi_cache");
 	
 	$title_boost = get_option('relevanssi_title_boost');
 	$tag_boost = get_option('relevanssi_tag_boost');
@@ -2662,6 +2721,7 @@ function relevanssi_options_form() {
 	
 	$highlight = get_option('relevanssi_highlight');
 	$highlight_none = "";
+	$highlight_mark = "";
 	$highlight_em = "";
 	$highlight_strong = "";
 	$highlight_col = "";
@@ -2673,7 +2733,7 @@ function relevanssi_options_form() {
 			$highlight_none = 'selected="selected"';
 			break;
 		case "mark":
-			$highlight_em = 'selected="selected"';
+			$highlight_mark = 'selected="selected"';
 			break;
 		case "em":
 			$highlight_em = 'selected="selected"';
@@ -2783,6 +2843,8 @@ function relevanssi_options_form() {
 	
 	$wpml_only_current = ('on' == get_option('relevanssi_wpml_only_current') ? 'checked="checked"' : ''); 
 
+	$word_boundaries = ('on' == get_option('relevanssi_word_boundaries') ? 'checked="checked"' : ''); 
+
 ?>
 <div class='postbox-container' style='width:70%;'>
 	<form method='post'>
@@ -2820,15 +2882,15 @@ function relevanssi_options_form() {
 	
 	<label for='relevanssi_title_boost'><?php _e('Title weight:', 'relevanssi'); ?> 
 	<input type='text' name='relevanssi_title_boost' size='4' value='<?php echo $title_boost ?>' /></label>
-	<small><?php printf(__('Default: %d', 'relevanssi'), $title_boost_default); ?></small>
+	<small><?php printf(__('Default: %s', 'relevanssi'), $title_boost_default); ?></small>
 	<br />
 	<label for='relevanssi_tag_boost'><?php _e('Tag weight:', 'relevanssi'); ?> 
 	<input type='text' name='relevanssi_tag_boost' size='4' value='<?php echo $tag_boost ?>' /></label>
-	<small><?php printf(__('Default: %d', 'relevanssi'), $tag_boost_default); ?></small>
+	<small><?php printf(__('Default: %s', 'relevanssi'), $tag_boost_default); ?></small>
 	<br />
 	<label for='relevanssi_comment_boost'><?php _e('Comment weight:', 'relevanssi'); ?> 
 	<input type='text' name='relevanssi_comment_boost' size='4' value='<?php echo $comment_boost ?>' /></label>
-	<small><?php printf(__('Default: %d', 'relevanssi'), $comment_boost_default); ?></small>
+	<small><?php printf(__('Default: %s', 'relevanssi'), $comment_boost_default); ?></small>
 
 	<br /><br />
 	<label for='relevanssi_admin_search'><?php _e('Use search for admin:', 'relevanssi'); ?>
@@ -2943,7 +3005,7 @@ function relevanssi_options_form() {
 	<label for='relevanssi_highlight'><?php _e("Highlight query terms in search results:", 'relevanssi'); ?>
 	<select name='relevanssi_highlight'>
 	<option value='no' <?php echo $highlight_none ?>><?php _e('No highlighting', 'relevanssi'); ?></option>
-	<option value='mark' <?php echo $highlight_em ?>>&lt;mark&gt;</option>
+	<option value='mark' <?php echo $highlight_mark ?>>&lt;mark&gt;</option>
 	<option value='em' <?php echo $highlight_em ?>>&lt;em&gt;</option>
 	<option value='strong' <?php echo $highlight_strong ?>>&lt;strong&gt;</option>
 	<option value='col' <?php echo $highlight_col ?>><?php _e('Text color', 'relevanssi'); ?></option>
@@ -2970,6 +3032,12 @@ function relevanssi_options_form() {
 	<label for='relevanssi_highlight_comments'><?php _e("Highlight query terms in comments:", 'relevanssi'); ?>
 	<input type='checkbox' name='relevanssi_highlight_comments' <?php echo $highlight_coms ?> /></label>
 	<small><?php _e("Highlights hits in comments when user opens the post from search results.", "relevanssi"); ?></small>
+
+	<br />
+	
+	<label for='relevanssi_word_boundaries'><?php _e("Uncheck this if you use non-ASCII characters:", 'relevanssi'); ?>
+	<input type='checkbox' name='relevanssi_word_boundaries' <?php echo $word_boundaries ?> /></label>
+	<small><?php _e("If you use non-ASCII characters (like Cyrillic alphabet) and the highlights don't work, uncheck this option to make highlights work.", "relevanssi"); ?></small>
 
 	<br /><br />
 	</div>
@@ -3105,6 +3173,14 @@ function relevanssi_options_form() {
 	<label for='relevanssi_cache_seconds'><?php _e("Cache expire (in seconds):", "relevanssi"); ?>
 	<input type='text' name='relevanssi_cache_seconds' size='30' value='<?php echo $cache_seconds ?>' /></label><br />
 	<small><?php _e("86400 = day", "relevanssi"); ?></small>
+
+	<br /><br />
+	
+	Entries in the cache: <?php echo $cache_count; ?>
+
+	<br /><br />
+	
+	<input type='submit' name='truncate' value='<?php _e('Clear all caches', 'relevanssi'); ?>' />
 
 	<h3 id="synonyms"><?php _e("Synonyms", "relevanssi"); ?></h3>
 	
