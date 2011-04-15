@@ -1665,7 +1665,7 @@ function relevanssi_highlight_terms($excerpt, $query) {
 			$excerpt = preg_replace("/(\b$term|$term\b)(?!([^<]+)?>)/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
 		}
 		else {
-			$excerpt = preg_replace("/($term|$term)(?!([^<]+)?>)/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
+			$excerpt = preg_replace("/($term)(?!([^<]+)?>)/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
 		}
 		// thanks to http://pureform.wordpress.com/2008/01/04/matching-a-word-characters-outside-of-html-tags/
 	}
