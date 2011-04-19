@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.8
+Version: 2.8.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -103,7 +103,8 @@ function relevanssi_menu() {
 }
 
 function relevanssi_init() {
-	if (!get_option('relevanssi_indexed') && !$_POST['index']) {
+	isset($_POST['index']) ? $index = true : $index = false;
+	if (!get_option('relevanssi_indexed') && !$index) {
 		function relevanssi_warning() {
 			echo "<div id='relevanssi-warning' class='updated fade'><p><strong>"
 			   . sprintf(__('Relevanssi needs attention: Remember to build the index (you can do it at <a href="%1$s">the settings page</a>), otherwise searching won\'t work.'), "options-general.php?page=relevanssi/relevanssi.php")
@@ -2672,7 +2673,7 @@ function relevanssi_date_queries($d, $version = 'good') {
 }
 
 function relevanssi_options_form() {
-	global $title_boost_default, $tag_boost_default, $comment_boost_default, $wpdb, $relevanssi_table;
+	global $title_boost_default, $tag_boost_default, $comment_boost_default, $wpdb, $relevanssi_table, $relevanssi_cache;
 	
 	wp_enqueue_style('dashboard');
 	wp_print_styles('dashboard');

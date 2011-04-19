@@ -371,6 +371,9 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 2.8.1 =
+* Fixed two small mistakes that caused error notices.
+
 = 2.8 =
 * There's now a way to truncate the cache (sorry it took so long). Expired cache data is now automatically removed from the database every day. There's also an option to clear the caches.
 * Highlights didn't work properly with non-ASCII alphabets. Now there's an option to make them work.
