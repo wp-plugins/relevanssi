@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.1.1
-Stable tag: 2.8
+Stable tag: 2.8.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -373,6 +373,7 @@ removing those words helps to make the index smaller and searching faster.
 
 = 2.8.1 =
 * Fixed two small mistakes that caused error notices.
+* Custom post types, particularly those created by More Types plugin, were causing problems.
 
 = 2.8 =
 * There's now a way to truncate the cache (sorry it took so long). Expired cache data is now automatically removed from the database every day. There's also an option to clear the caches.
