@@ -995,7 +995,9 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 
 	if (!$post_type && get_option('relevanssi_respect_exclude') == 'on') {
 		if (function_exists('get_post_types')) {
-			$post_type = implode(',', get_post_types(array('exclude_from_search' => false)));
+			$pt_1 = get_post_types(array('exclude_from_search' => '0'));
+			$pt_2 = get_post_types(array('exclude_from_search' => false));
+			$post_type = implode(',', array_merge($pt_1, $pt_2));
 		}
 	}
 	
@@ -1771,7 +1773,9 @@ function relevanssi_build_index($extend = false) {
 			break;
 		case "public":
 			if (function_exists('get_post_types')) {
-				$custom_types = implode(',', get_post_types(array('exclude_from_search' => false)));
+				$pt_1 = get_post_types(array('exclude_from_search' => '0'));
+				$pt_2 = get_post_types(array('exclude_from_search' => false));
+				$custom_types = implode(',', array_merge($pt_1, $pt_2));
 				$allow_custom_types = false;
 			}
 			$restriction = "";
@@ -1927,7 +1931,9 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 			break;
 		case 'public';
 			if (function_exists('get_post_types')) {
-				$public_types = get_post_types(array('exclude_from_search' => false));
+				$pt_1 = get_post_types(array('exclude_from_search' => '0'));
+				$pt_2 = get_post_types(array('exclude_from_search' => false));
+				$public_types = array_merge($pt_1, $pt_2);
 				if (in_array($post->post_type, $public_types)) $index_this_post = true;
 			}
 			else {
