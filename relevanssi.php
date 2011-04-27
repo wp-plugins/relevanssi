@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.8.1
+Version: 2.8.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -808,6 +808,7 @@ function relevanssi_wpml_filter($data) {
  * Function by Matthew Hood http://my.php.net/manual/en/function.sort.php#75036
  */
 function objectSort(&$data, $key, $dir = 'desc') {
+	$dir = strtolower($dir);
     for ($i = count($data) - 1; $i >= 0; $i--) {
 		$swapped = false;
       	for ($j = 0; $j < $i; $j++) {
