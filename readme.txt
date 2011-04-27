@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.1.1
-Stable tag: 2.8.2
+Stable tag: 2.8.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
