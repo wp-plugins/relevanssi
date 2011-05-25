@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.8.2
+Version: 2.8.3
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -56,6 +56,7 @@ add_action('transition_post_status', 'relevanssi_update_child_posts',99,3);
 // END added by renaissancehack
 add_action('init', 'relevanssi_init');
 add_filter('relevanssi_hits_filter', 'relevanssi_wpml_filter');
+add_filter('relevanssi_remove_punctuation', 'relevanssi_remove_punct');
 
 $plugin_dir = basename(dirname(__FILE__));
 load_plugin_textdomain( 'relevanssi', 'wp-content/plugins/' . $plugin_dir, $plugin_dir);
@@ -531,6 +532,14 @@ function relevanssi_fetch_stopwords() {
 	return $stopword_list;
 }
 
+add_filter('query_vars', 'relevanssi_query_vars');
+function relevanssi_query_vars($qv) {
+	$qv[] = 'cats';
+	$qv[] = 'post_types';
+
+	return $qv;
+}
+
 function relevanssi_query($posts, $query = false) {
 	$admin_search = get_option('relevanssi_admin_search');
 	($admin_search == 'on') ? $admin_search = true : $admin_search = false;
@@ -573,6 +582,9 @@ function relevanssi_do_query(&$query) {
 	if (isset($query->query_vars["cat"])) {
 		$cat = $query->query_vars["cat"];
 	}
+	if (isset($query->query_vars["cats"])) {
+		$cat = $query->query_vars["cats"];
+	}
 	if (!$cat) {
 		$cat = get_option('relevanssi_cat');
 		if (0 == $cat) {
@@ -595,10 +607,14 @@ function relevanssi_do_query(&$query) {
 	}
 
 	$post_type = false;
+
 	if (isset($query->query_vars["post_type"]) && $query->query_vars["post_type"] != 'any') {
 		$post_type = $query->query_vars["post_type"];
 	}
-
+	if (isset($query->query_vars["post_types"])) {
+		$post_type = $query->query_vars["post_types"];
+	}
+	
 	$expids = get_option("relevanssi_exclude_posts");
 
 	if (is_admin()) {
@@ -866,7 +882,7 @@ function relevanssi_update_log($query, $hits) {
 		if (in_array($user->ID, $omit)) return;
 	}
 	
-	$query = htmlentities($query, ENT_QUOTES);
+	$query = htmlentities($query, ENT_QUOTES, 'utf-8');
 	
 	$q = $wpdb->prepare("INSERT INTO $log_table (query, hits) VALUES (%s, %d)", $query, intval($hits));
 	$wpdb->query($q);
@@ -2143,7 +2159,7 @@ function relevanssi_tokenize($str, $remove_stops = true) {
 	if ($remove_stops) {
 		$stopword_list = relevanssi_fetch_stopwords();
 	}
-	$str = mb_strtolower(relevanssi_remove_punct($str));
+	$str = mb_strtolower(apply_filters('relevanssi_remove_punctuation', $str));
 
 	$tokens = array();
 
@@ -3304,7 +3320,6 @@ comparison</a> and <a href="http://www.relevanssi.com/buy-premium/">license pric
 			
 			<p>- <a href="http://wordpress.org/tags/relevanssi?forum_id=10">WordPress.org forum</a><br />
 			- <a href="http://www.relevanssi.com/category/knowledge-base/">Knowledge base</a></p>
-			- <a href="http://www.relevanssi.com/support/">Support page</a></p>
 			</div>
 		</div>
 	</div>
