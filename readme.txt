@@ -379,8 +379,14 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 2.8.3 =
+* Fixed a bug that caused Cyrillic searches in the log to get corrupted.
+* Punctuation removal function is now triggered with a filter call and can thus be replaced.
+
 = 2.8.2 =
 * The `order` parameter was case sensitive. It isn't anymore.
+* WordPress didn't support searching for multiple categories with the `cat` query variable. There's now new `cats` which can take multiple categories.
+* Similar to `cats` vs `cat`, you can use `post_types` to restrict the search to multiple post types.
 
 = 2.8.1 =
 * Fixed two small mistakes that caused error notices.
