@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 3.1.1
-Stable tag: 2.8
+Tested up to: 3.1.2
+Stable tag: 2.8.2
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -48,6 +48,7 @@ pricing includes support.
 * Multisite support.
 * Search and index user profiles.
 * Assign weights to post types.
+* Adjust weights manually with a filter hook.
 * Highlighting search terms for visitors from external search engines.
 
 = Relevanssi in Facebook =
@@ -135,6 +136,11 @@ again.
 
 = Knowledge Base =
 You can find solutions and answers at the [Relevanssi Knowledge Base](http://www.relevanssi.com/category/knowledge-base/).
+
+= Relevanssi doesn't work =
+If you the results don't change after installing and activating Relevanssi, the most likely 
+reason is that you have a call to `query_posts()` on your search results template. This confuses
+Relevanssi. Try removing the query_posts call and see what happens.
 
 = Where are the user search logs? =
 See the top of the admin menu. There's 'User searches'. There. If the logs are empty, please note
@@ -263,6 +269,11 @@ tags, since those are pretty much the same). Just add a hidden input field named
 search form and list the desired category or tag IDs in the `value` field - positive numbers
 include those categories and tags, negative numbers exclude them.
 
+This input field can only take one category or tag id (a restriction caused by WordPress, not
+Relevanssi). If you need more, use `cats` and use a comma-separated list of category IDs.
+
+The same works with post types. The input fields are called `post_type` and `post_types`.
+
 You can also set the restriction from general plugin settings (and then override it in individual
 search forms with the special field). This works with custom taxonomies as well, just replace `cat`
 with the name of your taxonomy.
@@ -270,11 +281,7 @@ with the name of your taxonomy.
 If you want to restrict the search to categories using a dropdown box on the search form, use
 a code like this:
 
-<<<<<<< .mine
-`<form method="post" action="<?php bloginfo('home'); ?>">
-=======
 `<form method="get" action="<?php bloginfo('url'); ?>">
->>>>>>> .r362902
 	<div><label class="screen-reader-text" for="s">Search</label>
 	<input type="text" value="<?php the_search_query(); ?>" name="s" id="s" />
 <?php
@@ -371,8 +378,13 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 2.8.2 =
+* WordPress didn't support searching for multiple categories with the `cat` query variable. There's now new `cats` which can take multiple categories.
+* Similar to `cats` vs `cat`, you can use `post_types` to restrict the search to multiple post types.
+
 = 2.8.1 =
 * Fixed two small mistakes that caused error notices.
+* Custom post types, particularly those created by More Types plugin, were causing problems.
 
 = 2.8 =
 * There's now a way to truncate the cache (sorry it took so long). Expired cache data is now automatically removed from the database every day. There's also an option to clear the caches.

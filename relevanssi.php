@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.8.1
+Version: 2.8.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -531,6 +531,14 @@ function relevanssi_fetch_stopwords() {
 	return $stopword_list;
 }
 
+add_filter('query_vars', 'relevanssi_query_vars');
+function relevanssi_query_vars($qv) {
+	$qv[] = 'cats';
+	$qv[] = 'post_types';
+
+	return $qv;
+}
+
 function relevanssi_query($posts, $query = false) {
 	$admin_search = get_option('relevanssi_admin_search');
 	($admin_search == 'on') ? $admin_search = true : $admin_search = false;
@@ -573,6 +581,9 @@ function relevanssi_do_query(&$query) {
 	if (isset($query->query_vars["cat"])) {
 		$cat = $query->query_vars["cat"];
 	}
+	if (isset($query->query_vars["cats"])) {
+		$cat = $query->query_vars["cats"];
+	}
 	if (!$cat) {
 		$cat = get_option('relevanssi_cat');
 		if (0 == $cat) {
@@ -595,10 +606,14 @@ function relevanssi_do_query(&$query) {
 	}
 
 	$post_type = false;
+
 	if (isset($query->query_vars["post_type"]) && $query->query_vars["post_type"] != 'any') {
 		$post_type = $query->query_vars["post_type"];
 	}
-
+	if (isset($query->query_vars["post_types"])) {
+		$post_type = $query->query_vars["post_types"];
+	}
+	
 	$expids = get_option("relevanssi_exclude_posts");
 
 	if (is_admin()) {
@@ -808,6 +823,7 @@ function relevanssi_wpml_filter($data) {
  * Function by Matthew Hood http://my.php.net/manual/en/function.sort.php#75036
  */
 function objectSort(&$data, $key, $dir = 'desc') {
+	$dir = strtolower($dir);
     for ($i = count($data) - 1; $i >= 0; $i--) {
 		$swapped = false;
       	for ($j = 0; $j < $i; $j++) {
@@ -995,7 +1011,9 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 
 	if (!$post_type && get_option('relevanssi_respect_exclude') == 'on') {
 		if (function_exists('get_post_types')) {
-			$post_type = implode(',', get_post_types(array('exclude_from_search' => false)));
+			$pt_1 = get_post_types(array('exclude_from_search' => '0'));
+			$pt_2 = get_post_types(array('exclude_from_search' => false));
+			$post_type = implode(',', array_merge($pt_1, $pt_2));
 		}
 	}
 	
@@ -1771,7 +1789,9 @@ function relevanssi_build_index($extend = false) {
 			break;
 		case "public":
 			if (function_exists('get_post_types')) {
-				$custom_types = implode(',', get_post_types(array('exclude_from_search' => false)));
+				$pt_1 = get_post_types(array('exclude_from_search' => '0'));
+				$pt_2 = get_post_types(array('exclude_from_search' => false));
+				$custom_types = implode(',', array_merge($pt_1, $pt_2));
 				$allow_custom_types = false;
 			}
 			$restriction = "";
@@ -1927,7 +1947,9 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 			break;
 		case 'public';
 			if (function_exists('get_post_types')) {
-				$public_types = get_post_types(array('exclude_from_search' => false));
+				$pt_1 = get_post_types(array('exclude_from_search' => '0'));
+				$pt_2 = get_post_types(array('exclude_from_search' => false));
+				$public_types = array_merge($pt_1, $pt_2);
 				if (in_array($post->post_type, $public_types)) $index_this_post = true;
 			}
 			else {
