@@ -122,10 +122,8 @@ Relevanssi doesn't work with plugins that rely on standard WP search. Those plug
 access the MySQL queries, for example. That won't do with Relevanssi. [Search Light](http://wordpress.org/extend/plugins/search-light/),
 for example, won't work with Relevanssi.
 
-[Dave's WordPress Live Search](http://wordpress.org/extend/plugins/daves-wordpress-live-search/) is
-an AJAX instant search plugin that works with Relevanssi. Versions up to 1.17 won't work, but
-the next version after that should, as long as you have at least Relevanssi 2.5. The Live Search
-will cause some strange search logs, but the search itself works.
+[ThreeWP Ajax Search](http://wordpress.org/extend/plugins/threewp-ajax-search/) is
+an AJAX instant search plugin that works with Relevanssi.
 
 Some plugins cause problems when indexing documents. These are generally plugins that use shortcodes
 to do something somewhat complicated. One such plugin is [MapPress Easy Google Maps](http://wordpress.org/extend/plugins/mappress-google-maps-for-wordpress/).
