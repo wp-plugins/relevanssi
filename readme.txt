@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 3.1.2
-Stable tag: 2.8.2
+Tested up to: 3.1.3
+Stable tag: 2.9
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -377,9 +377,14 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
-= 2.8.3 =
+= 2.9 =
 * Fixed a bug that caused Cyrillic searches in the log to get corrupted.
 * Punctuation removal function is now triggered with a filter call and can thus be replaced.
+* Google Adsense caused double hits to the user search logs. That's now fixed thanks to Justin Klein.
+* User search log is available to user with `edit_post` capabilities (editor role). There's also an option to remove Relevanssi branding from the user search logs. Thanks to John Blackbourn.
+* A proper database collation is now set. Thanks to John Blackbourn.
+* UI looks better. Thanks to John Blackbourn.
+* Lots of small fixes here and there.
 
 = 2.8.2 =
 * The `order` parameter was case sensitive. It isn't anymore.
