@@ -2886,7 +2886,7 @@ function relevanssi_options_form() {
 	$word_boundaries = ('on' == get_option('relevanssi_word_boundaries') ? 'checked="checked"' : ''); 
 
 	$hidesponsor = get_option('relevanssi_hidesponsor', 'false');
-	if (!$hidesponsor) {
+	if ($hidesponsor == 'false') {
 ?>
 <script type="text/javascript">
 var psHost = (("https:" == document.location.protocol) ? "https://" : "http://");
