@@ -381,7 +381,7 @@ removing those words helps to make the index smaller and searching faster.
 * Fixed a bug that caused Cyrillic searches in the log to get corrupted.
 * Punctuation removal function is now triggered with a filter call and can thus be replaced.
 * Google Adsense caused double hits to the user search logs. That's now fixed thanks to Justin Klein.
-* User search log is available to user with `edit_post` capabilities (editor role). There's also an option to remove Relevanssi branding from the user search logs. Thanks to John Blackbourn.
+* User search log is available to user with `edit_post` capabilities (editor role). Thanks to John Blackbourn.
 * A proper database collation is now set. Thanks to John Blackbourn.
 * UI looks better. Thanks to John Blackbourn.
 * Lots of small fixes here and there.
