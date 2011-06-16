@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.1.3
-Stable tag: 2.9
+Stable tag: 2.9.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -51,6 +51,8 @@ pricing includes support.
 * Assign weights to post types.
 * Adjust weights manually with a filter hook.
 * Highlighting search terms for visitors from external search engines.
+* Export and import settings.
+* Disable indexing of post content and post titles with a simple filter hook.
 
 = Relevanssi in Facebook =
 You can find [Relevanssi in Facebook](http://www.facebook.com/relevanssi).
@@ -365,8 +367,6 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: There are reported problems with custom posts combined with custom taxonomies, the taxonomy restriction doesn't necessarily work.
 * Known issue: Phrase matching is only done to post content; phrases don't match to category titles and other content.
 * Known issue: User searches page requires MySQL 5.
-* To-do: Option to set the number of search results returned.
-* To-do: Tool to export and import Relevanssi settings.
 * For more features to come, see [Feature list](http://www.relevanssi.com/features/).
 
 == Thanks ==
@@ -376,6 +376,11 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.9.1 =
+* It is now possible to change the default result order from relevance to post date.
+* Fixed a bug that caused wrong $post object to be set in indexing.
+* Added a new hook `relevanssi_excerpt_content`; see [Knowledge Base](http://www.relevanssi.com/category/knowledge-base/) for details.
 
 = 2.9 =
 * Fixed a bug that caused Cyrillic searches in the log to get corrupted.

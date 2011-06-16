@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9
+Version: 2.9.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -306,6 +306,7 @@ function relevanssi_install() {
 	add_option('relevanssi_wpml_only_current', 'on');
 	add_option('relevanssi_word_boundaries', 'on');
 	add_option('relevanssi_hidesponsor', 'false');
+	add_option('relevanssi_default_orderby', 'relevance');
 	
 	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -326,7 +327,7 @@ function relevanssi_install() {
 		$sql = "CREATE TABLE " . $relevanssi_table . " (id mediumint(9) NOT NULL AUTO_INCREMENT, "
 		. "doc bigint(20) NOT NULL, "
 		. "term varchar(50) NOT NULL, "
-		. "tf mediumint(9) NOT NULL, "
+		. "tf mediumint(9) NOT NULL DEFAULT '0', "
 		. "title tinyint(1) NOT NULL, "
 	    . "UNIQUE KEY id (id)) $charset_collate;";
 
@@ -431,6 +432,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_wpml_only_current');
 	delete_option('relevanssi_word_boundaries');
 	delete_option('relevanssi_hidesponsor');
+	delete_option('relevanssi_default_orderby');
 	
 	wp_clear_scheduled_hook('relevanssi_truncate_cache');
 
@@ -1281,7 +1283,8 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	}
 
 	global $wp;	
-	isset($wp->query_vars["orderby"]) ? $orderby = $wp->query_vars["orderby"] : $orderby = 'relevance';
+	$default_order = get_option('relevanssi_default_orderby', 'relevance');
+	isset($wp->query_vars["orderby"]) ? $orderby = $wp->query_vars["orderby"] : $orderby = $default_order;
 	isset($wp->query_vars["order"]) ? $order = $wp->query_vars["order"] : $order = 'desc';
 	if ($orderby != 'relevance')
 		objectSort($hits, $orderby, $order);
@@ -1409,6 +1412,8 @@ function relevanssi_do_excerpt($post, $query) {
 	$terms = relevanssi_tokenize($query, $remove_stopwords);
 
 	$content = apply_filters('the_content', $post->post_content);
+	
+	$content = apply_filters('relevanssi_excerpt_content', $post->post_content, $post, $query);
 	
 	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
 	if ('on' == get_option('relevanssi_expand_shortcodes')) {
@@ -1921,7 +1926,15 @@ function relevanssi_remove_doc($id) {
 //  that need to know what post is calling them to access $post->ID
 function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields = false) {
 	global $wpdb, $relevanssi_table, $post;
-    $post = $indexpost;
+	$post_was_null = false;
+	
+	if (!isset($post)) {
+		$post_was_null = true;
+		if (is_object($indexpost)) {
+			$post = $indexpost;
+		}
+	}
+
 // END modified by renaissancehack
 	if (!is_object($post)) {
 // BEGIN modified by renaissancehack
@@ -2062,7 +2075,7 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 			if ("" == $values) continue;
 			foreach ($values as $value) {
 				// Custom field values are simply tacked to the end of the post content
-				$post->post_content .= ' ' . $value;
+				$post->post_content .= ' ' . (is_array($value) ? implode(' ', $value) : $value);
 			}
 		}
 	}
@@ -2110,6 +2123,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 			VALUES ($post->ID, '$content', $count, 0)");
 		}
 	}
+
+	if ($post_was_null) $post = null;
 
 	return $n;
 }
@@ -2515,6 +2530,7 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_enable_cache'])) update_option('relevanssi_enable_cache', $_REQUEST['relevanssi_enable_cache']);
 	if (isset($_REQUEST['relevanssi_wpml_only_current'])) update_option('relevanssi_wpml_only_current', $_REQUEST['relevanssi_wpml_only_current']);
 	if (isset($_REQUEST['relevanssi_word_boundaries'])) update_option('relevanssi_word_boundaries', $_REQUEST['relevanssi_word_boundaries']);
+	if (isset($_REQUEST['relevanssi_default_orderby'])) update_option('relevanssi_default_orderby', $_REQUEST['relevanssi_default_orderby']);
 }
 
 function relevanssi_add_stopword($term) {
@@ -2826,6 +2842,10 @@ function relevanssi_options_form() {
 	
 	$cat = get_option('relevanssi_cat');
 	$excat = get_option('relevanssi_excat');
+
+	$orderby = get_option('relevanssi_default_orderby');
+	$orderby_relevance = ('relevance' == $orderby ? 'selected="selected"' : '');
+	$orderby_date = ('post_date' == orderby ? 'selected="selected"' : '');
 	
 	$fuzzy_sometimes = ('sometimes' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
 	$fuzzy_always = ('always' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
@@ -2961,6 +2981,14 @@ document.write(unescape("%3Cscript src='" + psHost + "pluginsponsors.com/direct/
 	<label for='relevanssi_disable_or_fallback'><?php _e("Disable OR fallback:", "relevanssi"); ?>
 	<input type='checkbox' name='relevanssi_disable_or_fallback' <?php echo $disablefallback ?> /></label>
 	<small><?php _e("If you don't want Relevanssi to fall back to OR search when AND search gets no hits, check this option. For most cases, leave this one unchecked.", 'relevanssi'); ?></small>
+
+	<br /><br />
+
+	<label for='relevanssi_default_orderby'><?php _e('Default order for results:', 'relevanssi'); ?>
+	<select name='relevanssi_default_orderby'>
+	<option value='relevancy' <?php echo $orderby_relevancy ?>><?php _e("Relevancy (highly recommended)", "relevanssi"); ?></option>
+	<option value='post_date' <?php echo $orderby_date ?>><?php _e("Post date", "relevanssi"); ?></option>
+	</select></label><br />
 
 	<br /><br />
 
@@ -3213,6 +3241,9 @@ document.write(unescape("%3Cscript src='" + psHost + "pluginsponsors.com/direct/
 	<input type='submit' name='index_extend' value='<?php _e("Continue indexing", 'relevanssi'); ?>'  class="button" />
 
 	<h3 id="caching"><?php _e("Caching", "relevanssi"); ?></h3>
+	
+	<p>Do not use the cache unless you have a good reason and know what you're doing. In many cases
+	the cache isn't helpful at all and in some cases caching is actively harmful.</p>
 
 	<label for='relevanssi_enable_cache'><?php _e('Enable result and excerpt caching:', 'relevanssi'); ?>
 	<input type='checkbox' name='relevanssi_enable_cache' <?php echo $enable_cache ?> /></label><br />
