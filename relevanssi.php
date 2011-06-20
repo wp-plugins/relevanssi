@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.1
+Version: 2.9.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -35,14 +35,14 @@ register_activation_hook(__FILE__,'relevanssi_install');
 add_action('admin_menu', 'relevanssi_menu');
 add_filter('the_posts', 'relevanssi_query');
 add_filter('post_limits', 'relevanssi_getLimit');
-add_action('edit_post', 'relevanssi_edit');
-add_action('edit_page', 'relevanssi_edit');
-add_action('save_post', 'relevanssi_edit');
+//add_action('edit_post', 'relevanssi_edit');
+//add_action('edit_page', 'relevanssi_edit');
+//add_action('save_post', 'relevanssi_edit');
 add_action('save_post', 'relevanssi_publish');				// thanks to Brian D Gajus
 add_action('delete_post', 'relevanssi_delete');
-add_action('publish_post', 'relevanssi_publish');
-add_action('publish_page', 'relevanssi_publish');
-add_action('future_publish_post', 'relevanssi_publish');
+//add_action('publish_post', 'relevanssi_publish');
+//add_action('publish_page', 'relevanssi_publish');
+//add_action('future_publish_post', 'relevanssi_publish');
 add_action('comment_post', 'relevanssi_comment_index'); 	//added by OdditY
 add_action('edit_comment', 'relevanssi_comment_edit'); 		//added by OdditY 
 add_action('delete_comment', 'relevanssi_comment_remove'); 	//added by OdditY
@@ -95,8 +95,8 @@ function relevanssi_menu() {
 		'relevanssi_options'
 	);
 	add_dashboard_page(
-		'User searches',
-		'User searches',
+		__('User searches', 'relevanssi'),
+		__('User searches', 'relevanssi'),
 		'edit_pages',
 		__FILE__,
 		'relevanssi_search_stats'
@@ -214,13 +214,16 @@ function relevanssi_edit($post) {
 	// Check if the post is public
 	global $wpdb;
 
-	$post_status = $wpdb->get_var("SELECT post_status FROM $wpdb->posts WHERE ID=$post");
+	$post_status = get_post_status($post);
+	if ('auto-draft' == $post_status) return;
+
 // BEGIN added by renaissancehack
     //  if post_status is "inherit", get post_status from parent
     if ($post_status == 'inherit') {
         $post_type = $wpdb->get_var("SELECT post_type FROM $wpdb->posts WHERE ID=$post");
     	$post_status = $wpdb->get_var("SELECT p.post_status FROM $wpdb->posts p, $wpdb->posts c WHERE c.ID=$post AND c.post_parent=p.ID");
     }
+
 // END added by renaissancehack
 	if ($post_status != 'publish') {
 		// The post isn't public anymore, remove it from index
@@ -248,6 +251,11 @@ function relevanssi_delete($post) {
 }
 
 function relevanssi_publish($post) {
+	global $relevanssi_publish_doc;
+	
+	$post_status = get_post_status($post);
+	if ('auto-draft' == $post_status) return;
+
 	relevanssi_add($post);
 }
 
@@ -701,13 +709,16 @@ function relevanssi_do_query(&$query) {
 		relevanssi_update_log($q, sizeof($hits));
 	}
 	
-	if ($wpSearch_high > sizeof($hits)) $wpSearch_high = sizeof($hits) - 1;
-	
 	$make_excerpts = get_option('relevanssi_excerpts');
 
-	if ($wpSearch_low == 0 && $wpSearch_high == 0) {
-		$wpSearch_high = sizeof($hits) - 1;
+	if (is_paged()) {
+		$wpSearch_low = ($query->query['paged'] - 1) * $query->query_vars["posts_per_page"];
 	}
+	else {
+		$wpSearch_low = 0;
+	}
+	$wpSearch_high = $wpSearch_low + $query->query_vars["posts_per_page"] - 1;
+	if ($wpSearch_high > sizeof($hits)) $wpSearch_high = sizeof($hits) - 1;
 	
 	for ($i = $wpSearch_low; $i <= $wpSearch_high; $i++) {
 		if (isset($hits[intval($i)])) {
@@ -898,23 +909,6 @@ function relevanssi_update_log($query, $hits) {
 	
 	$q = $wpdb->prepare("INSERT INTO $log_table (query, hits) VALUES (%s, %d)", $query, intval($hits));
 	$wpdb->query($q);
-}
-
-// This function is from Kenny Katzgrau
-function relevanssi_getLimit($limit) {
-	global $wpSearch_low;
-	global $wpSearch_high;
-
-	if(is_search()) {
-		$temp 			= str_replace("LIMIT", "", $limit);
-		$temp 			= explode(",", $temp);
-		$wpSearch_low 	= intval($temp[0]);
-		if ($wpSearch_high == 0) {
-			$wpSearch_high 	= intval($wpSearch_low + intval($temp[1]) - 1);
-		}
-	}
-	
-	return $limit;
 }
 
 // This is my own magic working.
@@ -1270,6 +1264,8 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 						$post_ok = true;
 					}
 				}
+			} else if ('publish' != $status) {
+				$post_ok = false;
 			}
 			if ($post_ok) $hits[intval($i++)] = get_post($doc);
 		}
@@ -1426,6 +1422,7 @@ function relevanssi_do_excerpt($post, $query) {
 			$content = strip_shortcodes($content);
 		}
 	}
+
 	$content = strip_tags($content); // this removes the tags, but leaves the content
 	
 	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
@@ -1725,8 +1722,17 @@ function relevanssi_remove_nested_highlights($s, $a, $b) {
 	$string = "";
 	$bits = explode($a, $s);
 	$new_bits = array($bits[0]);
+	$in = false;
 	for ($i = 1; $i < count($bits); $i++) {
 		if ($bits[$i] == '') continue;
+		
+		if (!$in) {
+			array_push($new_bits, $a);
+			$in = true;
+		}
+		if (substr_count($bits[$i], $b) > 0) {
+			$in = false;
+		}
 		if (substr_count($bits[$i], $b) > 1) {
 			$more_bits = explode($b, $bits[$i]);
 			$j = 0;
@@ -1739,9 +1745,9 @@ function relevanssi_remove_nested_highlights($s, $a, $b) {
 			}
 			$bits[$i] = $whole_bit;
 		}
-		$new_bits[] = $bits[$i];
+		array_push($new_bits, $bits[$i]);
 	}
-	$whole = implode($a, $new_bits);
+	$whole = implode('', $new_bits);
 	
 	return $whole;
 }
@@ -1934,6 +1940,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 			$post = $indexpost;
 		}
 	}
+	
+	$post = get_post($post->ID);	
 
 // END modified by renaissancehack
 	if (!is_object($post)) {
@@ -1981,6 +1989,9 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 			else {
 				$index_this_post = true;
 			}
+			break;
+		case 'custom':
+			if (in_array($post->post_type, $custom_types)) $index_this_post = true;
 			break;
 		case 'both':
 			$index_this_post = true;
@@ -2823,6 +2834,9 @@ function relevanssi_options_form() {
 		case "pages":
 			$index_type_pages = 'selected="selected"';
 			break;
+		case "custom":
+			$index_type_custom = 'selected="selected"';
+			break;
 		case "public":
 			$index_type_public = 'selected="selected"';
 			break;
@@ -2986,7 +3000,7 @@ document.write(unescape("%3Cscript src='" + psHost + "pluginsponsors.com/direct/
 
 	<label for='relevanssi_default_orderby'><?php _e('Default order for results:', 'relevanssi'); ?>
 	<select name='relevanssi_default_orderby'>
-	<option value='relevancy' <?php echo $orderby_relevancy ?>><?php _e("Relevancy (highly recommended)", "relevanssi"); ?></option>
+	<option value='relevance' <?php echo $orderby_relevance ?>><?php _e("Relevance (highly recommended)", "relevanssi"); ?></option>
 	<option value='post_date' <?php echo $orderby_date ?>><?php _e("Post date", "relevanssi"); ?></option>
 	</select></label><br />
 
@@ -3159,22 +3173,34 @@ document.write(unescape("%3Cscript src='" + psHost + "pluginsponsors.com/direct/
 	<select name='relevanssi_index_type'>
 	<option value='both' <?php echo $index_type_both ?>><?php _e("Everything", "relevanssi"); ?></option>
 	<option value='public' <?php echo $index_type_public ?>><?php _e("All public post types", "relevanssi"); ?></option>
-	<option value='posts' <?php echo $index_type_posts ?>><?php _e("Just posts", "relevanssi"); ?></option>
-	<option value='pages' <?php echo $index_type_pages ?>><?php _e("Just pages", "relevanssi"); ?></option>
+	<option value='posts' <?php echo $index_type_posts ?>><?php _e("Posts", "relevanssi"); ?></option>
+	<option value='pages' <?php echo $index_type_pages ?>><?php _e("Pages", "relevanssi"); ?></option>
+	<option value='custom' <?php echo $index_type_custom ?>><?php _e("Custom, set below", "relevanssi"); ?></option>
 	</select></label><br />
-	<small><?php _e("This determines which post types are included in the index. Choosing 'everything' will include posts, pages and all custom post types. 'All public post types' includes all registered post types that don't have the 'exclude_from_search' set to true. This includes post, page, and possible custom types. 'All public types' requires at least WP 2.9, otherwise it's the same as 'everything'. Note: attachments are covered with a separate option below.", "relevanssi"); ?></small>
+	<small><?php _e("This determines which post types are included in the index. Choosing 'everything'
+	will include posts, pages and all custom post types. 'All public post types' includes all
+	registered post types that don't have the 'exclude_from_search' set to true. This includes post,
+	page, and possible custom types. 'All public types' requires at least WP 2.9, otherwise it's the
+	same as 'everything'. If you choose 'Custom', only the post types listed below are indexed.
+	Note: attachments are covered with a separate option below.", "relevanssi"); ?></small>
 
 	<br /><br />
 	
-	<label for='relevanssi_min_word_length'><?php _e("Minimum word length to index", "relevanssi"); ?>:
-	<input type='text' name='relevanssi_min_word_length' size='30' value='<?php echo $min_word_length ?>' /></label><br />
-	<small><?php _e("Words shorter than this number will not be indexed.", "relevanssi"); ?></small>
+	<label for='relevanssi_custom_types'><?php _e("Custom post types to index", "relevanssi"); ?>:
+	<input type='text' name='relevanssi_custom_types' size='30' value='<?php echo $custom_types ?>' /></label><br />
+	<small><?php _e("If you don't want to index all custom post types, list here the custom post types
+	you want to see indexed. List comma-separated post type names (as used in the database). You can
+	also use a hidden field in the search form to restrict the search to a certain post type:
+	<code>&lt;input type='hidden' name='post_type' value='comma-separated list of post types'
+	/&gt;</code>. If you choose 'All public post types' or 'Everything' above, this option has no
+	effect. You can exclude custom post types with the minus notation, for example '-foo,bar,-baz'
+	would include 'bar' and exclude 'foo' and 'baz'.", "relevanssi"); ?></small>
 
 	<br /><br />
 
-	<label for='relevanssi_custom_types'><?php _e("Custom post types to index", "relevanssi"); ?>:
-	<input type='text' name='relevanssi_custom_types' size='30' value='<?php echo $custom_types ?>' /></label><br />
-	<small><?php _e("If you don't want to index all custom post types, list here the custom post types you want to see indexed. List comma-separated post type names (as used in the database). You can also use a hidden field in the search form to restrict the search to a certain post type: <code>&lt;input type='hidden' name='post_type' value='comma-separated list of post types' /&gt;</code>. If you choose 'All public post types' or 'Everything' above, this option has no effect. You can exclude custom post types with the minus notation, for example '-foo,bar,-baz' would include 'bar' and exclude 'foo' and 'baz'.", "relevanssi"); ?></small>
+	<label for='relevanssi_min_word_length'><?php _e("Minimum word length to index", "relevanssi"); ?>:
+	<input type='text' name='relevanssi_min_word_length' size='30' value='<?php echo $min_word_length ?>' /></label><br />
+	<small><?php _e("Words shorter than this number will not be indexed.", "relevanssi"); ?></small>
 
 	<br /><br />
 
@@ -3241,10 +3267,9 @@ document.write(unescape("%3Cscript src='" + psHost + "pluginsponsors.com/direct/
 	<input type='submit' name='index_extend' value='<?php _e("Continue indexing", 'relevanssi'); ?>'  class="button" />
 
 	<h3 id="caching"><?php _e("Caching", "relevanssi"); ?></h3>
-	
-	<p>Do not use the cache unless you have a good reason and know what you're doing. In many cases
-	the cache isn't helpful at all and in some cases caching is actively harmful.</p>
 
+	<p><php _e("Warning: In many cases caching is not useful, and in some cases can be even harmful. Do not activate cache unless you have a good reason to do so.", 'relevanssi'); ?></p>
+	
 	<label for='relevanssi_enable_cache'><?php _e('Enable result and excerpt caching:', 'relevanssi'); ?>
 	<input type='checkbox' name='relevanssi_enable_cache' <?php echo $enable_cache ?> /></label><br />
 	<small><?php _e("If checked, Relevanssi will cache search results and post excerpts.", 'relevanssi'); ?></small>
