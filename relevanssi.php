@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.2
+Version: 2.9.3
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -34,15 +34,8 @@ Author URI: http://www.mikkosaari.fi/
 register_activation_hook(__FILE__,'relevanssi_install');
 add_action('admin_menu', 'relevanssi_menu');
 add_filter('the_posts', 'relevanssi_query');
-add_filter('post_limits', 'relevanssi_getLimit');
-//add_action('edit_post', 'relevanssi_edit');
-//add_action('edit_page', 'relevanssi_edit');
-//add_action('save_post', 'relevanssi_edit');
 add_action('save_post', 'relevanssi_publish');				// thanks to Brian D Gajus
 add_action('delete_post', 'relevanssi_delete');
-//add_action('publish_post', 'relevanssi_publish');
-//add_action('publish_page', 'relevanssi_publish');
-//add_action('future_publish_post', 'relevanssi_publish');
 add_action('comment_post', 'relevanssi_comment_index'); 	//added by OdditY
 add_action('edit_comment', 'relevanssi_comment_edit'); 		//added by OdditY 
 add_action('delete_comment', 'relevanssi_comment_remove'); 	//added by OdditY
@@ -95,8 +88,8 @@ function relevanssi_menu() {
 		'relevanssi_options'
 	);
 	add_dashboard_page(
-		__('User searches', 'relevanssi'),
-		__('User searches', 'relevanssi'),
+		'User searches',
+		'User searches',
 		'edit_pages',
 		__FILE__,
 		'relevanssi_search_stats'
@@ -3268,7 +3261,8 @@ document.write(unescape("%3Cscript src='" + psHost + "pluginsponsors.com/direct/
 
 	<h3 id="caching"><?php _e("Caching", "relevanssi"); ?></h3>
 
-	<p><php _e("Warning: In many cases caching is not useful, and in some cases can be even harmful. Do not activate cache unless you have a good reason to do so.", 'relevanssi'); ?></p>
+	<p>Warning: In many cases caching is not useful, and in some cases can be even harmful. Do not
+	activate cache unless you have a good reason to do so.</p>
 	
 	<label for='relevanssi_enable_cache'><?php _e('Enable result and excerpt caching:', 'relevanssi'); ?>
 	<input type='checkbox' name='relevanssi_enable_cache' <?php echo $enable_cache ?> /></label><br />

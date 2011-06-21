@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.1.3
-Stable tag: 2.9.2
+Stable tag: 2.9.3
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -376,6 +376,9 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.9.3 =
+* A call to a non-existing function in 2.9.2 made all sorts of mess. This release fixes all problems with broken loops. I'm sorry about the bug.
 
 = 2.9.2 =
 * It's now possible to adjust the number of search results per page. See [Changing posts_per_page](http://www.relevanssi.com/knowledge-base/posts-per-page/) for instructions.
