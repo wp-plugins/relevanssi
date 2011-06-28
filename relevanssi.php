@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.3
+Version: 2.9.4
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -88,8 +88,8 @@ function relevanssi_menu() {
 		'relevanssi_options'
 	);
 	add_dashboard_page(
-		'User searches',
-		'User searches',
+		__('User searches', 'relevanssi'),
+		__('User searches', 'relevanssi'),
 		'edit_pages',
 		__FILE__,
 		'relevanssi_search_stats'
@@ -1049,6 +1049,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	$phrases = relevanssi_recognize_phrases($q);
 
 	$terms = relevanssi_tokenize($q, $remove_stopwords);
+	
 	if (count($terms) < 1) {
 		// Tokenizer killed all the search terms.
 		return $hits;
@@ -1156,6 +1157,8 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 				$no_matches = false;
 			}
 			
+			relevanssi_populate_array($matches);
+			
 			$total_hits += count($matches);
 	
 			$query = "SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table WHERE $term_cond $query_restrictions";
@@ -1239,7 +1242,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 				// doc didn't match all terms, so it's discarded
 				continue;
 			}
-			$status = get_post_status($doc);
+			$status = relevanssi_get_post_status($doc);
 			$post_ok = true;
 			if ('private' == $status) {
 				$post_ok = false;
@@ -1251,7 +1254,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 				}
 				else {
 					// Basic WordPress version
-					$type = get_post_type($doc);
+					$type = relevanssi_get_post_type($doc);
 					$cap = 'read_private_' . $type . 's';
 					if (current_user_can($cap)) {
 						$post_ok = true;
@@ -1260,7 +1263,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 			} else if ('publish' != $status) {
 				$post_ok = false;
 			}
-			if ($post_ok) $hits[intval($i++)] = get_post($doc);
+			if ($post_ok) $hits[intval($i++)] = relevanssi_get_post($doc);
 		}
 	}
 
@@ -1283,6 +1286,44 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		'term_hits' => $term_hits, 'query' => $q);
 
 	return $return;
+}
+
+function relevanssi_get_post($id) {
+	global $relevanssi_post_array;
+	
+	if (isset($relevanssi_post_array[$id])) {
+		$post = $relevanssi_post_array[$id];
+	}
+	else {
+		$post = get_post($id);
+	}
+	return $post;
+}
+
+function relevanssi_populate_array($matches) {
+	global $relevanssi_post_array, $wpdb;
+	
+	$ids = array();
+	foreach ($matches as $match) {
+		array_push($ids, $match->doc);
+	}
+	
+	$ids = implode(',', $ids);
+	$posts = $wpdb->get_results("SELECT * FROM $wpdb->posts WHERE id IN ($ids)");
+	foreach ($posts as $post) {
+		$relevanssi_post_array[$post->ID] = $post;
+	}
+}
+
+function relevanssi_get_post_status($id) {
+	global $relevanssi_post_array;
+	
+	if (isset($relevanssi_post_array[$id])) {
+		return $relevanssi_post_array[$id]->post_status;
+	}
+	else {
+		return get_post_status($id);
+	}
 }
 
 /**
@@ -1415,7 +1456,6 @@ function relevanssi_do_excerpt($post, $query) {
 			$content = strip_shortcodes($content);
 		}
 	}
-
 	$content = strip_tags($content); // this removes the tags, but leaves the content
 	
 	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
@@ -1815,6 +1855,10 @@ function relevanssi_build_index($extend = false) {
 			break;
 		case "both": 								// really should be "everything"
 			$restriction = "";
+			$allow_custom_types = false;
+			break;
+		case "custom":
+			$restriction = "";
 			$allow_custom_types = true;
 			break;
 		default:
@@ -1927,6 +1971,10 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	global $wpdb, $relevanssi_table, $post;
 	$post_was_null = false;
 	
+	if (is_array($post)) {
+		$post = $post['ID'];
+	}
+	
 	if (!isset($post)) {
 		$post_was_null = true;
 		if (is_object($indexpost)) {
@@ -1934,6 +1982,7 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 		}
 	}
 	
+	if ($post == NULL) return;
 	$post = get_post($post->ID);	
 
 // END modified by renaissancehack
@@ -2004,18 +2053,19 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	if (!$index_this_post) return;
 
 	$n = 0;	
+	$min_word_length = get_option('relevanssi_min_word_length', 3);
 	$titles = relevanssi_tokenize($post->post_title);
 
 	//Added by OdditY - INDEX COMMENTS of the POST ->
 	if ("none" != get_option("relevanssi_index_comments")) {
 		$pcoms = relevanssi_get_comments($post->ID);
-		if( $pcoms != "" ){
+		if ($pcoms != "") {
 			$pcoms = relevanssi_strip_invisibles($pcoms);
 			$pcoms = strip_tags($pcoms);
 			$pcoms = relevanssi_tokenize($pcoms);		
 			if (count($pcoms) > 0) {
 				foreach ($pcoms as $pcom => $count) {
-					if (strlen($pcom) < 2) continue;
+					if (strlen($pcom) < $min_word_length) continue;
 					$n++;
 					$wpdb->query("INSERT INTO $relevanssi_table (doc, term, tf, title)
 					VALUES ($post->ID, '$pcom', $count, 3)");
@@ -2053,7 +2103,7 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 				$cat_name = apply_filters("single_cat_title", $p_cat->cat_name);
 				$cat_tokens = relevanssi_tokenize($cat_name);
 				foreach ($cat_tokens as $pcat => $count) {
-					if (strlen($pcat) < 2) continue;
+					if (strlen($pcat) < $min_word_length) continue;
 					$n++;
 					$wpdb->query("INSERT INTO $relevanssi_table (doc, term, tf, title)
 					VALUES ($post->ID, '$pcat', $count, 4)");
@@ -2107,7 +2157,7 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	
 	if (count($titles) > 0) {
 		foreach ($titles as $title => $count) {
-			if (strlen($title) < 2) continue;
+			if (strlen($title) < $min_word_length) continue;
 			$n++;
 			
 			$wpdb->query("INSERT INTO $relevanssi_table (doc, term, tf, title)
@@ -2116,8 +2166,6 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 			// a slightly clumsy way to handle titles, I'll try to come up with something better
 		}
 	}
-	
-	$min_word_length = get_option('relevanssi_min_word_length', 3);
 	
 	if (count($contents) > 0) {
 		foreach ($contents as $content => $count) {
@@ -2149,6 +2197,7 @@ function index_taxonomy_terms($post = null, $taxonomy = "") {
 	if (null == $post) return 0;
 	if ("" == $taxonomy) return 0;
 	
+	$min_word_length = get_option('relevanssi_min_word_length', 3);
 	$ptagobj = get_the_terms($post->ID, $taxonomy);
 	if ($ptagobj !== FALSE) { 
 		$tagstr = "";
@@ -2161,7 +2210,7 @@ function index_taxonomy_terms($post = null, $taxonomy = "") {
 		$ptags = relevanssi_tokenize($tagstr);		
 		if (count($ptags) > 0) {
 			foreach ($ptags as $ptag => $count) {
-				if (strlen($ptag) < 2) continue;
+				if (strlen($ptag) < $min_word_length) continue;
 				$n++;
 				$wpdb->query("INSERT INTO $relevanssi_table (doc, term, tf, title)
 				VALUES ($post->ID, '$ptag', $count, 2)");
@@ -2208,6 +2257,7 @@ function relevanssi_tokenize($str, $remove_stops = true) {
 			}
 		}
 		if ($accept) {
+			$t = trim($t, "\xC2\xA0 ");
 			if (!isset($tokens[$t])) {
 				$tokens[$t] = 1;
 			}
@@ -2229,11 +2279,19 @@ function relevanssi_remove_punct($a) {
 		$a = str_replace("'", '', $a);
 		$a = str_replace("´", '', $a);
 		$a = str_replace("’", '', $a);
+		$a = str_replace("‘", '', $a);
+		$a = str_replace("„", '', $a);
+		$a = str_replace("·", '', $a);
+		$a = str_replace("”", '', $a);
+		$a = str_replace("“", '', $a);
+		$a = str_replace("…", '', $a);
+		$a = str_replace("€", '', $a);
 		$a = str_replace("&shy;", '', $a);
 
-		$a = str_replace("—", " ", $a);
+		$a = str_replace("—", ' ', $a);
+		$a = str_replace("–", ' ', $a);
+		$a = str_replace("×", ' ', $a);
         $a = preg_replace('/[[:punct:]]+/u', ' ', $a);
-		$a = str_replace("”", " ", $a);
 
         $a = preg_replace('/[[:space:]]+/', ' ', $a);
 		$a = trim($a);
@@ -2396,7 +2454,7 @@ function update_relevanssi_options() {
 
 	if (isset($_REQUEST['relevanssi_min_word_length'])) {
 		$value = intval($_REQUEST['relevanssi_min_word_length']);
-		if ($value == 0) $value = 2;
+		if ($value == 0) $value = 3;
 		update_option('relevanssi_min_word_length', $value);
 	}
 
@@ -2852,7 +2910,7 @@ function relevanssi_options_form() {
 
 	$orderby = get_option('relevanssi_default_orderby');
 	$orderby_relevance = ('relevance' == $orderby ? 'selected="selected"' : '');
-	$orderby_date = ('post_date' == orderby ? 'selected="selected"' : '');
+	$orderby_date = ('post_date' == $orderby ? 'selected="selected"' : '');
 	
 	$fuzzy_sometimes = ('sometimes' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
 	$fuzzy_always = ('always' == get_option('relevanssi_fuzzy') ? 'selected="selected"' : '');
@@ -3261,8 +3319,8 @@ document.write(unescape("%3Cscript src='" + psHost + "pluginsponsors.com/direct/
 
 	<h3 id="caching"><?php _e("Caching", "relevanssi"); ?></h3>
 
-	<p>Warning: In many cases caching is not useful, and in some cases can be even harmful. Do not
-	activate cache unless you have a good reason to do so.</p>
+	<p><?php _e("Warning: In many cases caching is not useful, and in some cases can be even harmful. Do not
+	activate cache unless you have a good reason to do so.", 'relevanssi'); ?></p>
 	
 	<label for='relevanssi_enable_cache'><?php _e('Enable result and excerpt caching:', 'relevanssi'); ?>
 	<input type='checkbox' name='relevanssi_enable_cache' <?php echo $enable_cache ?> /></label><br />
@@ -3276,7 +3334,7 @@ document.write(unescape("%3Cscript src='" + psHost + "pluginsponsors.com/direct/
 
 	<br /><br />
 	
-	Entries in the cache: <?php echo $cache_count; ?>
+	<?php _e("Entries in the cache", 'relevanssi'); ?>: <?php echo $cache_count; ?>
 
 	<br /><br />
 	
@@ -3334,15 +3392,26 @@ function relevanssi_show_stopwords() {
 	
 	echo "<ul>";
 	$results = $wpdb->get_results("SELECT * FROM $stopword_table");
+	$exportlist = array();
 	foreach ($results as $stopword) {
 		$sw = $stopword->stopword; 
 		printf('<li style="display: inline;"><input type="submit" name="removestopword" value="%s"/></li>', $sw, $src, $sw);
+		array_push($exportlist, $sw);
 	}
 	echo "</ul>";
 	
 ?>
 <p><input type="submit" name="removeallstopwords" value="<?php _e('Remove all stopwords', 'relevanssi'); ?>" class='button' /></p>
 <?php
+
+	$exportlist = implode(", ", $exportlist);
+	
+?>
+<p><?php _e("Here's a list of stopwords you can use to export the stopwords to another blog.", "relevanssi"); ?></p>
+
+<textarea name="stopwords" rows="2" cols="40"><?php echo $exportlist; ?></textarea>
+<?php
+
 }
 
 function relevanssi_sidebar() {
