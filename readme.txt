@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 3.1.1
-Stable tag: 2.8.1
+Tested up to: 3.1.3
+Stable tag: 2.9.4
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -47,8 +47,12 @@ pricing includes support.
 * Improved spelling correction in "Did you mean?" suggestions.
 * Multisite support.
 * Search and index user profiles.
+* Search and index taxonomy term pages (categories, tags, custom taxonomies).
 * Assign weights to post types.
+* Adjust weights manually with a filter hook.
 * Highlighting search terms for visitors from external search engines.
+* Export and import settings.
+* Disable indexing of post content and post titles with a simple filter hook.
 
 = Relevanssi in Facebook =
 You can find [Relevanssi in Facebook](http://www.facebook.com/relevanssi).
@@ -120,10 +124,8 @@ Relevanssi doesn't work with plugins that rely on standard WP search. Those plug
 access the MySQL queries, for example. That won't do with Relevanssi. [Search Light](http://wordpress.org/extend/plugins/search-light/),
 for example, won't work with Relevanssi.
 
-[Dave's WordPress Live Search](http://wordpress.org/extend/plugins/daves-wordpress-live-search/) is
-an AJAX instant search plugin that works with Relevanssi. Versions up to 1.17 won't work, but
-the next version after that should, as long as you have at least Relevanssi 2.5. The Live Search
-will cause some strange search logs, but the search itself works.
+[ThreeWP Ajax Search](http://wordpress.org/extend/plugins/threewp-ajax-search/) is
+an AJAX instant search plugin that works with Relevanssi.
 
 Some plugins cause problems when indexing documents. These are generally plugins that use shortcodes
 to do something somewhat complicated. One such plugin is [MapPress Easy Google Maps](http://wordpress.org/extend/plugins/mappress-google-maps-for-wordpress/).
@@ -135,6 +137,11 @@ again.
 
 = Knowledge Base =
 You can find solutions and answers at the [Relevanssi Knowledge Base](http://www.relevanssi.com/category/knowledge-base/).
+
+= Relevanssi doesn't work =
+If you the results don't change after installing and activating Relevanssi, the most likely 
+reason is that you have a call to `query_posts()` on your search results template. This confuses
+Relevanssi. Try removing the query_posts call and see what happens.
 
 = Where are the user search logs? =
 See the top of the admin menu. There's 'User searches'. There. If the logs are empty, please note
@@ -263,6 +270,11 @@ tags, since those are pretty much the same). Just add a hidden input field named
 search form and list the desired category or tag IDs in the `value` field - positive numbers
 include those categories and tags, negative numbers exclude them.
 
+This input field can only take one category or tag id (a restriction caused by WordPress, not
+Relevanssi). If you need more, use `cats` and use a comma-separated list of category IDs.
+
+The same works with post types. The input fields are called `post_type` and `post_types`.
+
 You can also set the restriction from general plugin settings (and then override it in individual
 search forms with the special field). This works with custom taxonomies as well, just replace `cat`
 with the name of your taxonomy.
@@ -270,11 +282,7 @@ with the name of your taxonomy.
 If you want to restrict the search to categories using a dropdown box on the search form, use
 a code like this:
 
-<<<<<<< .mine
-`<form method="post" action="<?php bloginfo('home'); ?>">
-=======
 `<form method="get" action="<?php bloginfo('url'); ?>">
->>>>>>> .r362902
 	<div><label class="screen-reader-text" for="s">Search</label>
 	<input type="text" value="<?php the_search_query(); ?>" name="s" id="s" />
 <?php
@@ -359,8 +367,6 @@ removing those words helps to make the index smaller and searching faster.
 * Known issue: There are reported problems with custom posts combined with custom taxonomies, the taxonomy restriction doesn't necessarily work.
 * Known issue: Phrase matching is only done to post content; phrases don't match to category titles and other content.
 * Known issue: User searches page requires MySQL 5.
-* To-do: Option to set the number of search results returned.
-* To-do: Tool to export and import Relevanssi settings.
 * For more features to come, see [Feature list](http://www.relevanssi.com/features/).
 
 == Thanks ==
@@ -371,8 +377,44 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 2.9.4 =
+* Relevanssi should now be much lighter on server.
+* Post date selection didn't work properly. Fixed that.
+* Stopwords can be exported.
+* Restricting indexing on custom post types works better.
+* Minimum word length is properly enforced in indexing.
+* Punctuation removal is more efficient.
+* Fixed a MySQL error that was triggered by a media upload.
+* Fixed a bug that caused an error when quick editing a post.
+
+= 2.9.3 =
+* A call to a non-existing function in 2.9.2 made all sorts of mess. This release fixes all problems with broken loops. I'm sorry about the bug.
+
+= 2.9.2 =
+* It's now possible to adjust the number of search results per page. See [Changing posts_per_page](http://www.relevanssi.com/knowledge-base/posts-per-page/) for instructions.
+* Somebody reported revisions appearing in the search results. Added an extra check to prevent that.
+* Improved the indexing procedure to prevent MySQL errors from appearing and to streamline the process.
+* Improved the way custom post types can be handled in indexing.
+* Improved the method of removing nested highlights.
+
+= 2.9.1 =
+* It is now possible to change the default result order from relevance to post date.
+* Fixed a bug that caused wrong $post object to be set in indexing.
+* Added a new hook `relevanssi_excerpt_content`; see [Knowledge Base](http://www.relevanssi.com/category/knowledge-base/) for details.
+
+= 2.9 =
+* Fixed a bug that caused Cyrillic searches in the log to get corrupted.
+* Punctuation removal function is now triggered with a filter call and can thus be replaced.
+* Google Adsense caused double hits to the user search logs. That's now fixed thanks to Justin Klein.
+* User search log is available to user with `edit_post` capabilities (editor role). Thanks to John Blackbourn.
+* A proper database collation is now set. Thanks to John Blackbourn.
+* UI looks better. Thanks to John Blackbourn.
+* Lots of small fixes here and there.
+
 = 2.8.2 =
 * The `order` parameter was case sensitive. It isn't anymore.
+* WordPress didn't support searching for multiple categories with the `cat` query variable. There's now new `cats` which can take multiple categories.
+* Similar to `cats` vs `cat`, you can use `post_types` to restrict the search to multiple post types.
 
 = 2.8.1 =
 * Fixed two small mistakes that caused error notices.
