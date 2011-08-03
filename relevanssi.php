@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.5
+Version: 2.9.6
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -30,6 +30,8 @@ Author URI: http://www.mikkosaari.fi/
 //error_reporting(E_ALL);
 //ini_set("display_errors", 1); 
 //define('WP-DEBUG', true);
+//global $wpdb;
+//$wpdb->show_errors();
 
 register_activation_hook(__FILE__,'relevanssi_install');
 add_action('admin_menu', 'relevanssi_menu');
@@ -1878,9 +1880,10 @@ function relevanssi_build_index($extend = false) {
 
 	$negative_restriction = "";
 	
+	$custom_types = "";	
 	if ($allow_custom_types) $custom_types = get_option("relevanssi_custom_types");
 	
-	if ("" != $custom_types) {
+	if (!empty($custom_types)) {
 		$types = explode(",", $custom_types);
 		if ("" == $restriction) {
 			$restriction = " AND (";
@@ -1994,7 +1997,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	}
 	
 	if ($post == NULL) return;
-	$post = get_post($post->ID);	
+	is_object($post) ? $ID = $post->ID : $ID = $post;
+	$post = get_post($ID);
 
 // END modified by renaissancehack
 	if (!is_object($post)) {
