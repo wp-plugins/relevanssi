@@ -867,10 +867,10 @@ function objectSort(&$data, $key, $dir = 'desc') {
 }
 
 function relevanssi_show_matches($data, $hit) {
-	isset($data['body_matches'][$hit]) ? $body = $data['body_matches'][$hit] : $body = "";
-	isset($data['title_matches'][$hit]) ? $title = $data['title_matches'][$hit] : $title = "";
-	isset($data['tag_matches'][$hit]) ? $tag = $data['tag_matches'][$hit] : $tag = "";
-	isset($data['comment_matches'][$hit]) ? $comment = $data['comment_matches'][$hit] : $comment = "";
+	isset($data['body_matches'][$hit]) ? $body = $data['body_matches'][$hit] : $body = 0;
+	isset($data['title_matches'][$hit]) ? $title = $data['title_matches'][$hit] : $title = 0;
+	isset($data['tag_matches'][$hit]) ? $tag = $data['tag_matches'][$hit] : $tag = 0;
+	isset($data['comment_matches'][$hit]) ? $comment = $data['comment_matches'][$hit] : $comment = 0;
 	isset($data['scores'][$hit]) ? $score = round($data['scores'][$hit], 2) : $score = 0;
 	isset($data['term_hits'][$hit]) ? $term_hits_a = $data['term_hits'][$hit] : $term_hits_a = array();
 	arsort($term_hits_a);
