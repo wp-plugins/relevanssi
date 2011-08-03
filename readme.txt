@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 3.1.4
-Stable tag: 2.9.5
+Tested up to: 3.2.1
+Stable tag: 2.9.6
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -376,6 +376,10 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.9.6 =
+* Fixed a problem causing "Attempt to modify property of non-object" errors.
+* Fixed a warning message.
 
 = 2.9.5 =
 * Searching for private posts caused an error message.
