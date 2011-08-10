@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.6
+Version: 2.9.7
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -707,7 +707,7 @@ function relevanssi_do_query(&$query) {
 	$make_excerpts = get_option('relevanssi_excerpts');
 
 	if (is_paged()) {
-		$wpSearch_low = ($query->query['paged'] - 1) * $query->query_vars["posts_per_page"];
+		$wpSearch_low = ($query->query_vars['paged'] - 1) * $query->query_vars["posts_per_page"];
 	}
 	else {
 		$wpSearch_low = 0;
@@ -1003,7 +1003,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		$term_tax_id = null;
 		$term_tax_id = $wpdb->get_var($wpdb->prepare("SELECT term_taxonomy_id FROM $wpdb->terms
 			JOIN $wpdb->term_taxonomy USING(`term_id`)
-				WHERE `slug` LIKE %s AND `taxonomy` LIKE %s", $taxonomy_term, $taxonomy));
+				WHERE `slug` LIKE %s AND `taxonomy` LIKE %s", "%$taxonomy_term%", $taxonomy));
 		if ($term_tax_id) {
 			$taxonomy = $term_tax_id;
 		} else {
@@ -1455,10 +1455,8 @@ function relevanssi_do_excerpt($post, $query) {
 	$terms = relevanssi_tokenize($query, $remove_stopwords);
 
 	$content = apply_filters('the_content', $post->post_content);
+	$content = apply_filters('relevanssi_excerpt_content', $content, $post, $query);
 	
-	$content = apply_filters('relevanssi_excerpt_content', $post->post_content, $post, $query);
-	
-	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
 	if ('on' == get_option('relevanssi_expand_shortcodes')) {
 		if (function_exists("do_shortcode")) {
 			$content = do_shortcode($content);
@@ -1469,6 +1467,7 @@ function relevanssi_do_excerpt($post, $query) {
 			$content = strip_shortcodes($content);
 		}
 	}
+	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
 	$content = strip_tags($content); // this removes the tags, but leaves the content
 	
 	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
@@ -2152,8 +2151,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	if (isset($post->post_excerpt) && ("on" == get_option("relevanssi_index_excerpt") || "attachment" == $post->post_type)) { // include excerpt for attachments which use post_excerpt for captions - modified by renaissancehack
 		$post->post_content .= ' ' . $post->post_excerpt;
 	}
-
-	$contents = relevanssi_strip_invisibles($post->post_content);
+	
+	$contents = $post->post_content;
 	
 	if ('on' == get_option('relevanssi_expand_shortcodes')) {
 		if (function_exists("do_shortcode")) {
@@ -2166,6 +2165,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 			$contents = strip_shortcodes($contents);
 		}
 	}
+
+	$contents = relevanssi_strip_invisibles($contents);
 	
 	$contents = strip_tags($contents);
 	$contents = relevanssi_tokenize($contents);
