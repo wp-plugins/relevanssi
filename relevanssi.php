@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.6
+Version: 2.9.8
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -52,6 +52,7 @@ add_action('transition_post_status', 'relevanssi_update_child_posts',99,3);
 add_action('init', 'relevanssi_init');
 add_filter('relevanssi_hits_filter', 'relevanssi_wpml_filter');
 add_filter('relevanssi_remove_punctuation', 'relevanssi_remove_punct');
+add_filter('relevanssi_post_ok', 'relevanssi_default_post_ok');
 
 $plugin_dir = basename(dirname(__FILE__));
 load_plugin_textdomain( 'relevanssi', 'wp-content/plugins/' . $plugin_dir, $plugin_dir);
@@ -707,7 +708,7 @@ function relevanssi_do_query(&$query) {
 	$make_excerpts = get_option('relevanssi_excerpts');
 
 	if (is_paged()) {
-		$wpSearch_low = ($query->query['paged'] - 1) * $query->query_vars["posts_per_page"];
+		$wpSearch_low = ($query->query_vars['paged'] - 1) * $query->query_vars["posts_per_page"];
 	}
 	else {
 		$wpSearch_low = 0;
@@ -1003,7 +1004,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		$term_tax_id = null;
 		$term_tax_id = $wpdb->get_var($wpdb->prepare("SELECT term_taxonomy_id FROM $wpdb->terms
 			JOIN $wpdb->term_taxonomy USING(`term_id`)
-				WHERE `slug` LIKE %s AND `taxonomy` LIKE %s", $taxonomy_term, $taxonomy));
+				WHERE `slug` LIKE %s AND `taxonomy` LIKE %s", "%$taxonomy_term%", $taxonomy));
 		if ($term_tax_id) {
 			$taxonomy = $term_tax_id;
 		} else {
@@ -1246,25 +1247,8 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 			}
 			$status = relevanssi_get_post_status($doc);
 			$post_ok = true;
-			if ('private' == $status) {
-				$post_ok = false;
+			$post_ok = apply_filters('relevanssi_post_ok', $doc);
 
-				if (function_exists('awp_user_can')) {
-					// Role-Scoper
-					$current_user = wp_get_current_user();
-					$post_ok = awp_user_can('read_post', $doc, $current_user->ID);
-				}
-				else {
-					// Basic WordPress version
-					$type = relevanssi_get_post_type($doc);
-					$cap = 'read_private_' . $type . 's';
-					if (current_user_can($cap)) {
-						$post_ok = true;
-					}
-				}
-			} else if ('publish' != $status) {
-				$post_ok = false;
-			}
 			if ($post_ok) $hits[intval($i++)] = relevanssi_get_post($doc);
 		}
 	}
@@ -1288,6 +1272,36 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		'term_hits' => $term_hits, 'query' => $q);
 
 	return $return;
+}
+
+function relevanssi_default_post_ok($doc) {
+	$post_ok = true;
+	$status = relevanssi_get_post_status($doc);
+	if ('private' == $status) {
+		$post_ok = false;
+
+		if (function_exists('awp_user_can')) {
+			// Role-Scoper
+			$current_user = wp_get_current_user();
+			$post_ok = awp_user_can('read_post', $doc, $current_user->ID);
+		}
+		else {
+			// Basic WordPress version
+			$type = relevanssi_get_post_type($doc);
+			$cap = 'read_private_' . $type . 's';
+			if (current_user_can($cap)) {
+				$post_ok = true;
+			}
+		}
+	} else if ('publish' != $status) {
+		$post_ok = false;
+	}
+	if (function_exists('is_permitted_by_s2member')) {
+		// s2member
+		$current_user = wp_get_current_user();
+		$post_ok = is_permitted_by_s2member($doc, 'singular');
+	}
+	return $post_ok;
 }
 
 function relevanssi_get_post($id) {
@@ -1455,10 +1469,8 @@ function relevanssi_do_excerpt($post, $query) {
 	$terms = relevanssi_tokenize($query, $remove_stopwords);
 
 	$content = apply_filters('the_content', $post->post_content);
+	$content = apply_filters('relevanssi_excerpt_content', $content, $post, $query);
 	
-	$content = apply_filters('relevanssi_excerpt_content', $post->post_content, $post, $query);
-	
-	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
 	if ('on' == get_option('relevanssi_expand_shortcodes')) {
 		if (function_exists("do_shortcode")) {
 			$content = do_shortcode($content);
@@ -1469,6 +1481,7 @@ function relevanssi_do_excerpt($post, $query) {
 			$content = strip_shortcodes($content);
 		}
 	}
+	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
 	$content = strip_tags($content); // this removes the tags, but leaves the content
 	
 	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
@@ -2152,8 +2165,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	if (isset($post->post_excerpt) && ("on" == get_option("relevanssi_index_excerpt") || "attachment" == $post->post_type)) { // include excerpt for attachments which use post_excerpt for captions - modified by renaissancehack
 		$post->post_content .= ' ' . $post->post_excerpt;
 	}
-
-	$contents = relevanssi_strip_invisibles($post->post_content);
+	
+	$contents = $post->post_content;
 	
 	if ('on' == get_option('relevanssi_expand_shortcodes')) {
 		if (function_exists("do_shortcode")) {
@@ -2166,6 +2179,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 			$contents = strip_shortcodes($contents);
 		}
 	}
+
+	$contents = relevanssi_strip_invisibles($contents);
 	
 	$contents = strip_tags($contents);
 	$contents = relevanssi_tokenize($contents);
@@ -2249,6 +2264,14 @@ function relevanssi_get_custom_fields() {
 }
 
 function relevanssi_tokenize($str, $remove_stops = true) {
+	$tokens = array();
+	if (is_array($str)) {
+		foreach ($str as $part) {
+			$tokens = array_merge($tokens, relevanssi_tokenize($part, $remove_stops));
+		}
+	}
+	if (is_array($str)) return $tokens;
+
 	mb_internal_encoding("UTF-8");
 
 	if ($remove_stops) {
