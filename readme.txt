@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.2.1
-Stable tag: 2.9.6
+Stable tag: 2.9.9
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -33,7 +33,8 @@ For more information about Premium, see [Relevanssi.com](http://www.relevanssi.c
 * Index custom post types and custom taxonomies.
 * Index the contents of shortcodes.
 * Google-style "Did you mean?" suggestions based on successful user searches.
-* Automatic support for [WPML multi-language plugin](http://wpml.org/)
+* Automatic support for [WPML multi-language plugin](http://wpml.org/).
+* Automatic support for [s2member membership plugin](http://www.s2member.com/).
 * Advanced filtering to help hacking the search results the way you want.
 
 Relevanssi is available in two versions, regular and Premium. Regular Relevanssi is and will remain
@@ -376,6 +377,22 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.9.9 =
+* Removed warnings about undefined functions and missing $wpdb.
+* Fixed a bug that removed 'à' from search terms.
+* Phrases are recognized from custom field searches.
+
+= 2.9.8 =
+* Support for s2member membership plugin. Search won't show posts that the current user isn't allowed to see.
+* New filter `relevanssi_post_ok` can be used to add support for other membership plugins.
+* Post meta fields that contain arrays are now indexed properly, expanding all the arrays.
+
+= 2.9.7 =
+* Fixed a bug that causes problems when paging search results.
+* Taxonomy term restrictions didn't work most of the time.
+* the_content filters didn't run on excerpts.
+* Style data and other extra elements created by short codes are now stripped.
 
 = 2.9.6 =
 * Fixed a problem causing "Attempt to modify property of non-object" errors.
