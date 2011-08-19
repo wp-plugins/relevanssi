@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.8
+Version: 2.9.9
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -30,7 +30,7 @@ Author URI: http://www.mikkosaari.fi/
 //error_reporting(E_ALL);
 //ini_set("display_errors", 1); 
 //define('WP-DEBUG', true);
-//global $wpdb;
+global $wpdb;
 //$wpdb->show_errors();
 
 register_activation_hook(__FILE__,'relevanssi_install');
@@ -1419,6 +1419,23 @@ function relevanssi_recognize_phrases($q) {
 					$phrase_matches[$phrase][] = $doc->ID;
 				}
 			}
+
+			//added by continent7 to make phrase-search in custom field available
+			$query = "SELECT ID
+				FROM $wpdb->posts AS p, $wpdb->postmeta AS m
+				WHERE p.ID = m.post_id
+				AND m.meta_value LIKE '%$phrase%'
+				AND p.post_status = 'publish'";
+
+			$docs = $wpdb->get_results($query);
+			if (is_array($docs)) {
+				foreach ($docs as $doc) {
+					if (!isset($phrase_matches[$phrase])) {
+						$phrase_matches[$phrase] = array();
+					}
+					$phrase_matches[$phrase][] = $doc->ID;
+				}
+			}
 		}
 		
 		if (count($phrase_matches) < 1) {
@@ -2295,7 +2312,7 @@ function relevanssi_tokenize($str, $remove_stops = true) {
 			}
 		}
 		if ($accept) {
-			$t = trim($t, "\xC2\xA0 ");
+			$t = relevanssi_mb_trim($t);
 			if (!isset($tokens[$t])) {
 				$tokens[$t] = 1;
 			}
@@ -2308,6 +2325,11 @@ function relevanssi_tokenize($str, $remove_stops = true) {
 
 	return $tokens;
 }
+
+function relevanssi_mb_trim($string) { 
+    $string = preg_replace( "/(^\s+)|(\s+$)/us", "", $string ); 
+    return $string; 
+} 
 
 function relevanssi_remove_punct($a) {
 		$a = strip_tags($a);
@@ -2915,6 +2937,7 @@ function relevanssi_options_form() {
 	$index_type_posts = "";
 	$index_type_pages = "";
 	$index_type_public = "";
+	$index_type_custom = "";
 	$index_type_both = "";
 	switch ($index_type) {
 		case "posts":
@@ -3483,10 +3506,22 @@ comparison</a> and <a href="http://www.relevanssi.com/buy-premium/">license pric
 			</div>
 		</div>
 	</div>
-	
+
 		<div class="meta-box-sortables" style="min-height: 0">
 			<div id="relevanssi_donate" class="postbox">
-			<h3 class="hndle"><span>Relevanssi in Facebook!</span></h3>
+				<h3 class="hndle"><span>Earn money with Relevanssi!</span></h3>
+				<div class="inside">
+					<p>Relevanssi Premium has an affiliate program.
+					Earn 50% commission on Premium licenses you sell!</p>
+			
+					<p><a href="http://www.relevanssi.com/affiliates/">More info here</a></p>
+				</div>
+			</div>
+		</div>
+		
+		<div class="meta-box-sortables" style="min-height: 0">
+			<div id="relevanssi_donate" class="postbox">
+			<h3 class="hndle"><span>Relevanssi in Facebook</span></h3>
 			<div class="inside">
 			<div style="float: left; margin-right: 5px"><img src="$facebooklogo" width="45" height="43" alt="Facebook" /></div>
 			<p><a href="http://www.facebook.com/relevanssi">Check
@@ -3506,6 +3541,7 @@ comparison</a> and <a href="http://www.relevanssi.com/buy-premium/">license pric
 			</div>
 		</div>
 	</div>
+	
 </div>
 </div>
 EOH;
