@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.9
+Version: 2.9.10
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -174,9 +174,16 @@ function relevanssi_didyoumean($query, $pre, $post, $n = 5) {
 	}
 	
 	if ($distance > 0) {
-		$url = get_bloginfo('url');
-		echo "$pre<a href='$url/?s=$closest'>$closest</a>$post";
-	}
+
+ 		$url = get_bloginfo('url');
+		$url = esc_attr(add_query_arg(array(
+			's' => urlencode($closest)
+
+			), $url ));
+		echo "$pre<a href='$url'>$closest</a>$post";
+ 	}
+ 
+
 }
 
 // BEGIN added by renaissancehack
@@ -825,16 +832,28 @@ function relevanssi_store_hits($param, $data) {
 function relevanssi_wpml_filter($data) {
 	$use_filter = get_option('relevanssi_wpml_only_current');
 	if ('on' == $use_filter) {
-		if (function_exists('icl_object_id')) {
-			$filtered_hits = array();
-    		foreach ($data[0] as $hit) {
-        		if ($hit->ID == icl_object_id($hit->ID, $hit->post_type,false,ICL_LANGUAGE_CODE))
-            	    $filtered_hits[] = $hit;
-		    }
-		    return array($filtered_hits, $data[1]);
+		//save current blog language
+		$lang = get_bloginfo('language');
+		$filtered_hits = array();
+		foreach ($data[0] as $hit) {
+			if (isset($hit->blog_id)) {
+				switch_to_blog($hit->blog_id);
+			}
+			if (function_exists('icl_object_id')) {
+				if ($hit->ID == icl_object_id($hit->ID, $hit->post_type,false,ICL_LANGUAGE_CODE))
+   	        	    $filtered_hits[] = $hit;
+			}
+			// if there is no WPML but the target blog has identical language with current blog,
+			// we use the hits. Note en-US is not identical to en-GB!
+			elseif (get_bloginfo('language') == $lang) {
+				$filtered_hits[] = $hit;
+			}
+			if (isset($hit->blog_id)) {
+				restore_current_blog();
+			}
 		}
+		return array($filtered_hits, $data[1]);
 	}
-	
 	return $data;
 }
 
@@ -1233,7 +1252,12 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	} while ($search_again);
 	
 	$strip_stops = true;
-	$terms_without_stops = array_keys(relevanssi_tokenize(implode(' ', $terms), $strip_stops));
+	$temp_terms_without_stops = array_keys(relevanssi_tokenize(implode(' ', $terms), $strip_stops));
+	$terms_without_stops = array();
+	foreach ($temp_terms_without_stops as $temp_term) {
+		if (strlen($temp_term) >= $min_word_length)
+			array_push($terms_without_stops, $temp_term);
+	}
 	$total_terms = count($terms_without_stops);
 
 	if (isset($doc_weight) && count($doc_weight) > 0) {
@@ -1241,6 +1265,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		$i = 0;
 		foreach ($doc_weight as $doc => $weight) {
 			if (count($doc_terms[$doc]) < $total_terms && $operator == "AND") {
+			
 				// AND operator in action:
 				// doc didn't match all terms, so it's discarded
 				continue;
@@ -1296,12 +1321,38 @@ function relevanssi_default_post_ok($doc) {
 	} else if ('publish' != $status) {
 		$post_ok = false;
 	}
+
+	if (relevanssi_s2member_level($doc) == 0) $post_ok = false; // not ok with s2member
+
+	return $post_ok;
+}
+
+/**
+ * Return values:
+ *  2: full access to post
+ *  1: show title only
+ *  0: no access to post
+ * -1: s2member not active
+ */
+function relevanssi_s2member_level($doc) {
+	$return = -1;
 	if (function_exists('is_permitted_by_s2member')) {
 		// s2member
+		$alt_view_protect = $GLOBALS["WS_PLUGIN__"]["s2member"]["o"]["filter_wp_query"];
+		$completely_hide_protected_search_results = (strpos($alt_view_protect, "all") !== false || strpos($alt_view_protect, "searches") !== false) ? true : false;
 		$current_user = wp_get_current_user();
-		$post_ok = is_permitted_by_s2member($doc, 'singular');
+		if (is_permitted_by_s2member($doc)) {
+			$return = 2;
+	    }
+		else if(!is_permitted_by_s2member($doc) && $completely_hide_protected_search_results === false) {
+			$return = 1;
+    	}
+		else {
+			$return = 0;
+		}
 	}
-	return $post_ok;
+	
+	return $return;
 }
 
 function relevanssi_get_post($id) {
@@ -1501,7 +1552,7 @@ function relevanssi_do_excerpt($post, $query) {
 	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
 	$content = strip_tags($content); // this removes the tags, but leaves the content
 	
-	$content = ereg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
+	$content = preg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
 	
 	$excerpt_data = relevanssi_create_excerpt($content, $terms);
 	
@@ -1540,6 +1591,8 @@ function relevanssi_do_excerpt($post, $query) {
 	}
 	
 	$excerpt = $excerpt . "...";
+
+	if (relevanssi_s2member_level($post->ID) == 1) $excerpt = $post->post_excerpt;
 
 	return $excerpt;
 }

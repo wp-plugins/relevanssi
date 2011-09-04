@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.2.1
-Stable tag: 2.9.9
+Stable tag: 2.9.10
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -377,6 +377,12 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.9.10 =
+* AND search failed, when search query included terms that are shorter than the minimum word length.
+* Improved s2member support.
+* Fixed errors about deprecated ereg_replace.
+* Small fix to Did you mean suggestions.
 
 = 2.9.9 =
 * Removed warnings about undefined functions and missing $wpdb.
