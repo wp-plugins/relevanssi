@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.2.1
-Stable tag: 2.9.10
+Stable tag: 2.9.11
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -377,6 +377,11 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.9.11 =
+* Plugin now works properly without multibyte string functions.
+* Fixed s2member support for s2member versions 110912 and above. (Thanks to Jason Caldwell.)
+* Added support for 'tag' query variable.
 
 = 2.9.10 =
 * AND search failed, when search query included terms that are shorter than the minimum word length.

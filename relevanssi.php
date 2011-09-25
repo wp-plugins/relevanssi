@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.10
+Version: 2.9.11
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -614,6 +614,14 @@ function relevanssi_do_query(&$query) {
 		}
 	}
 
+	$tag = false;
+	if (isset($query->query_vars["tag"])) {
+		$tag = $query->query_vars["tag"];
+	}
+	if (isset($query->query_vars["tags"])) {
+		$tag = $query->query_vars["tags"];
+	}
+
 	$tax = false;
 	$tax_term = false;
 	if (isset($query->query_vars["taxonomy"])) {
@@ -644,6 +652,7 @@ function relevanssi_do_query(&$query) {
 		$cat = null;
 		$excat = null;
 		$expids = null;
+		$tag = null;
 		$tax = null;
 		$tax_term = null;
 	}
@@ -685,16 +694,16 @@ function relevanssi_do_query(&$query) {
 	$cache == 'on' ? $cache = true : $cache = false;
 	
 	if ($cache) {
-		$params = md5(serialize(array($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator)));
+		$params = md5(serialize(array($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator, $tag)));
 		$return = relevanssi_fetch_hits($params);
 		if (!$return) {
-			$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator);
+			$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator, $tag);
 			$return_ser = serialize($return);
 			relevanssi_store_hits($params, $return_ser);
 		}
 	}
 	else {
-		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator);
+		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator, $tag);
 	}
 
 	$hits = $return['hits'];
@@ -927,12 +936,13 @@ function relevanssi_update_log($query, $hits) {
 }
 
 // This is my own magic working.
-function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post_type = NULL, $taxonomy = NULL, $taxonomy_term = NULL, $operator = "AND") {
+function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post_type = NULL, $taxonomy = NULL, $taxonomy_term = NULL, $operator = "AND", $tag = NULL) {
 	global $relevanssi_table, $wpdb;
 
 	$values_to_filter = array(
 		'q' => $q,
 		'cat' => $cat,
+		'tag' => $tag,
 		'excat' => $excat,
 		'expost' => $expost,
 		'post_type' => $post_type,
@@ -944,6 +954,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	$q               = $filtered_values['q'];
 	$cat             = $filtered_values['cat'];
 	$excat           = $filtered_values['excat'];
+	$tag             = $filtered_values['tag'];
 	$expost          = $filtered_values['expost'];
 	$post_type       = $filtered_values['post_type'];
 	$taxonomy        = $filtered_values['taxonomy'];
@@ -957,6 +968,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	$o_cat = $cat;
 	$o_excat = $excat;
 	$o_expost = $expost;
+	$o_tag = $tag;
 	$o_post_type = $post_type;
 	$o_taxonomy = $taxonomy;
 	$o_taxonomy_term = $taxonomy_term;
@@ -1017,6 +1029,22 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 
 	if (isset($excat_temp)) {
 		$excat .= $excat_temp;
+	}
+
+	if ($tag) {
+		$tags = explode(",", $tag);
+		$inc_term_tax_ids = array();
+		$ex_term_tax_ids = array();
+		foreach ($tags as $t_tag) {
+			$t_tag = $wpdb->escape($t_tag);
+			$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->term_taxonomy
+				WHERE term_id=$t_tag");
+			if ($term_tax_id) {
+				$inc_term_tax_ids[] = $term_tax_id;
+			}
+		}
+		
+		$tag = implode(",", $inc_term_tax_ids);
 	}
 
 	if (!empty($taxonomy)) {
@@ -1106,6 +1134,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	if ($post_type) {
 		$query_restrictions .= " AND doc IN (SELECT DISTINCT(ID) FROM $wpdb->posts
 			WHERE post_type IN ($post_type))";
+	}
+	if ($tag) {
+		$query_restrictions .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
+		    WHERE term_taxonomy_id IN ($tag))";
 	}
 	if ($phrases) {
 		$query_restrictions .= " AND doc IN ($phrases)";
@@ -1339,15 +1371,22 @@ function relevanssi_s2member_level($doc) {
 	if (function_exists('is_permitted_by_s2member')) {
 		// s2member
 		$alt_view_protect = $GLOBALS["WS_PLUGIN__"]["s2member"]["o"]["filter_wp_query"];
-		$completely_hide_protected_search_results = (strpos($alt_view_protect, "all") !== false || strpos($alt_view_protect, "searches") !== false) ? true : false;
-		$current_user = wp_get_current_user();
+		
+		if (version_compare (WS_PLUGIN__S2MEMBER_VERSION, "110912", ">="))
+			$completely_hide_protected_search_results = (in_array ("all", $alt_view_protect) || in_array ("searches", $alt_view_protect)) ? true : false;
+		else /* Backward compatibility with versions of s2Member, prior to v110912. */
+			$completely_hide_protected_search_results = (strpos ($alt_view_protect, "all") !== false || strpos ($alt_view_protect, "searches") !== false) ? true : false;
+		
 		if (is_permitted_by_s2member($doc)) {
+			// Show title and excerpt, even full content if you like.
 			$return = 2;
-	    }
-		else if(!is_permitted_by_s2member($doc) && $completely_hide_protected_search_results === false) {
+		}
+		else if (!is_permitted_by_s2member($doc) && $completely_hide_protected_search_results === false) {
+			// Show title and excerpt. Alt View Protection is NOT enabled for search results. However, do NOT show full content body.
 			$return = 1;
-    	}
+		}
 		else {
+			// Hide this search result completely.
 			$return = 0;
 		}
 	}
@@ -1802,7 +1841,8 @@ function relevanssi_highlight_terms($excerpt, $query) {
 	
 	$start_emp_token = "*[/";
 	$end_emp_token = "\]*";
-	mb_internal_encoding("UTF-8");
+	if (function_exists('mb_internal_encoding'))
+		mb_internal_encoding("UTF-8");
 	
 	$terms = array_keys(relevanssi_tokenize($query, $remove_stopwords = true));
 
@@ -2342,7 +2382,8 @@ function relevanssi_tokenize($str, $remove_stops = true) {
 	}
 	if (is_array($str)) return $tokens;
 
-	mb_internal_encoding("UTF-8");
+	if (function_exists('mb_internal_encoding')) 
+		mb_internal_encoding("UTF-8");
 
 	if ($remove_stops) {
 		$stopword_list = relevanssi_fetch_stopwords();
@@ -3091,8 +3132,8 @@ function relevanssi_options_form() {
 var psHost = (("https:" == document.location.protocol) ? "https://" : "http://");
 document.write(unescape("%3Cscript src='" + psHost + "pluginsponsors.com/direct/spsn/display.php?client=relevanssi&spot=' type='text/javascript'%3E%3C/script%3E"));
 </script>
-<p style="float: right; font-size: 75%; margin: -0.75em 0 2em 0;"><a href="http://pluginsponsors.com/privacy.html">Privacy policy</a> |
-<a href="?page=relevanssi/relevanssi.php&hidesponsor=true">Hide these messages</a></p>
+<p style="float: right; font-size: 75%; margin: -0.75em 0 2em 0;"><a href="http://pluginsponsors.com/privacy.html"><?php _e('Privacy policy', 'relevanssi'); ?></a> |
+<a href="?page=relevanssi/relevanssi.php&hidesponsor=true"><?php _e('Hide these messages', 'relevanssi'); ?></a></p>
 <?php } ?>
 	
 <div class='postbox-container' style='width:70%;'>
@@ -3108,7 +3149,7 @@ document.write(unescape("%3Cscript src='" + psHost + "pluginsponsors.com/direct/
     <a href="#synonyms"><?php _e("Synonyms", "relevanssi"); ?></a> |
     <a href="#stopwords"><?php _e("Stopwords", "relevanssi"); ?></a> |
     <a href="#uninstall"><?php _e("Uninstalling", "relevanssi"); ?></a> |
-    <strong><a href="http://www.relevanssi.com/buy-premium/">Buy Relevanssi Premium</a></strong>
+    <strong><a href="http://www.relevanssi.com/buy-premium/?utm_source=plugin&utm_medium=link&utm_campaign=buy"><?php _e('Buy Relevanssi Premium', 'relevanssi'); ?></a></strong>
     </p>
 
 	<h3><?php _e('Quick tools', 'relevanssi') ?></h3>
@@ -3554,8 +3595,8 @@ function relevanssi_sidebar() {
 <p>Do you want more features? Support Relevanssi development? Get a
 better search experience for your users?</p>
 
-<p><strong>Go Premium!</strong> Buy Relevanssi Premium. See <a href="http://www.relevanssi.com/features/">feature
-comparison</a> and <a href="http://www.relevanssi.com/buy-premium/">license prices</a>.</p>
+<p><strong>Go Premium!</strong> Buy Relevanssi Premium. See <a href="http://www.relevanssi.com/features/?utm_source=plugin&utm_medium=link&utm_campaign=features">feature
+comparison</a> and <a href="http://www.relevanssi.com/buy-premium/?utm_source=plugin&utm_medium=link&utm_campaign=license">license prices</a>.</p>
 			</div>
 		</div>
 	</div>
@@ -3566,8 +3607,11 @@ comparison</a> and <a href="http://www.relevanssi.com/buy-premium/">license pric
 				<div class="inside">
 					<p>Relevanssi Premium has an affiliate program.
 					Earn 50% commission on Premium licenses you sell!</p>
+					
+					<p><span style="color: #228B22; font-weight: bold">$25 bonus</span> to all new
+					affiliates.</p>
 			
-					<p><a href="http://www.relevanssi.com/affiliates/">More info here</a></p>
+					<p><a href="http://www.relevanssi.com/affiliates/?utm_source=plugin&utm_medium=link&utm_campaign=affiliates">More info here</a></p>
 				</div>
 			</div>
 		</div>
@@ -3590,7 +3634,7 @@ comparison</a> and <a href="http://www.relevanssi.com/buy-premium/">license pric
 			<p>For Relevanssi support, see:</p>
 			
 			<p>- <a href="http://wordpress.org/tags/relevanssi?forum_id=10">WordPress.org forum</a><br />
-			- <a href="http://www.relevanssi.com/category/knowledge-base/">Knowledge base</a></p>
+			- <a href="http://www.relevanssi.com/category/knowledge-base/?utm_source=plugin&utm_medium=link&utm_campaign=kb">Knowledge base</a></p>
 			</div>
 		</div>
 	</div>
