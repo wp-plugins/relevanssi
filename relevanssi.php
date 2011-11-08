@@ -36,7 +36,7 @@ global $wpdb;
 register_activation_hook(__FILE__,'relevanssi_install');
 add_action('admin_menu', 'relevanssi_menu');
 add_filter('the_posts', 'relevanssi_query');
-add_action('save_post', 'relevanssi_publish');				// thanks to Brian D Gajus
+add_action('save_post', 'relevanssi_edit');				// thanks to Brian D Gajus
 add_action('delete_post', 'relevanssi_delete');
 add_action('comment_post', 'relevanssi_comment_index'); 	//added by OdditY
 add_action('edit_comment', 'relevanssi_comment_edit'); 		//added by OdditY 
@@ -237,7 +237,7 @@ function relevanssi_edit($post) {
 	// publish_post.
 // BEGIN added by renaissancehack
     // unless it is an attachment -- then it will not trigger publish_post
-    elseif (($post_type == 'attachment') && ($post_status == 'publish')) {
+    elseif ($post_status == 'publish') {
         relevanssi_publish($post);
 }
 // END added by renaissancehack
