@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.11
+Version: 2.9.12
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -122,6 +122,7 @@ function relevanssi_init() {
 
 	if (!wp_next_scheduled('relevanssi_truncate_cache')) {
 		wp_schedule_event(time(), 'daily', 'relevanssi_truncate_cache');
+		add_action('relevanssi_truncate_cache', 'relevanssi_truncate_cache');
 	}
 
 	return;
@@ -644,6 +645,12 @@ function relevanssi_do_query(&$query) {
 	if (isset($query->query_vars["post_types"])) {
 		$post_type = $query->query_vars["post_types"];
 	}
+
+	$author = false;
+	if (isset($query->query_vars["author"])) {
+		$author = $query->query_vars["author"];
+	}
+
 	
 	$expids = get_option("relevanssi_exclude_posts");
 
@@ -694,16 +701,16 @@ function relevanssi_do_query(&$query) {
 	$cache == 'on' ? $cache = true : $cache = false;
 	
 	if ($cache) {
-		$params = md5(serialize(array($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator, $tag)));
+		$params = md5(serialize(array($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator, $tag, $author)));
 		$return = relevanssi_fetch_hits($params);
 		if (!$return) {
-			$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator, $tag);
+			$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator, $tag, $author);
 			$return_ser = serialize($return);
 			relevanssi_store_hits($params, $return_ser);
 		}
 	}
 	else {
-		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator, $tag);
+		$return = relevanssi_search($q, $cat, $excat, $expids, $post_type, $tax, $tax_term, $operator, $tag, $author);
 	}
 
 	$hits = $return['hits'];
@@ -936,7 +943,7 @@ function relevanssi_update_log($query, $hits) {
 }
 
 // This is my own magic working.
-function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post_type = NULL, $taxonomy = NULL, $taxonomy_term = NULL, $operator = "AND", $tag = NULL) {
+function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post_type = NULL, $taxonomy = NULL, $taxonomy_term = NULL, $operator = "AND", $tag = NULL, $author = NULL) {
 	global $relevanssi_table, $wpdb;
 
 	$values_to_filter = array(
@@ -949,6 +956,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 		'taxonomy' => $taxonomy,
 		'taxonomy_term' => $taxonomy_term,
 		'operator' => $operator,
+		'author' => $author,
 		);
 	$filtered_values = apply_filters( 'relevanssi_search_filters', $values_to_filter );
 	$q               = $filtered_values['q'];
@@ -960,6 +968,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	$taxonomy        = $filtered_values['taxonomy'];
 	$taxonomy_term   = $filtered_values['taxonomy_term'];
 	$operator        = $filtered_values['operator'];
+	$author        	 = $filtered_values['author'];
 
 	$hits = array();
 	
@@ -972,6 +981,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	$o_post_type = $post_type;
 	$o_taxonomy = $taxonomy;
 	$o_taxonomy_term = $taxonomy_term;
+	$o_author = $author;
 	
 	if ("custom" == $cat) {
 		$custom_field = "custom";
@@ -1029,6 +1039,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 
 	if (isset($excat_temp)) {
 		$excat .= $excat_temp;
+	}
+
+	if ($author) {
+		$author = esc_sql($author);
 	}
 
 	if ($tag) {
@@ -1148,6 +1162,10 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	if ($taxonomy) {
 		$query_restrictions .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 			WHERE term_taxonomy_id IN ($taxonomy))";
+	}
+	if ($author) {
+		$query_restrictions .= " AND doc IN (SELECT DISTINCT(ID) FROM $wpdb->posts
+		    WHERE post_author IN ($author))";
 	}
 
 	if (isset($_REQUEST['by_date'])) {
@@ -1312,7 +1330,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 
 	if (count($hits) < 1) {
 		if ($operator == "AND" AND get_option('relevanssi_disable_or_fallback') != 'on') {
-			$return = relevanssi_search($q, $o_cat, $o_excat, $o_expost, $o_post_type, $o_taxonomy, $o_taxonomy_term, "OR");
+			$return = relevanssi_search($q, $o_cat, $o_excat, $o_expost, $o_post_type, $o_taxonomy, $o_taxonomy_term, "OR", $o_tag, $o_author);
 			extract($return);
 		}
 	}
@@ -1973,6 +1991,7 @@ function relevanssi_build_index($extend = false) {
 	
 	$type = get_option("relevanssi_index_type");
 	$allow_custom_types = true;
+	$custom_types = "";	
 	switch ($type) {
 		case "posts":
 			$restriction = " AND (post.post_type = 'post'"; // add table alias to column for modified query - modified by renaissancehack
@@ -2003,7 +2022,6 @@ function relevanssi_build_index($extend = false) {
 
 	$negative_restriction = "";
 	
-	$custom_types = "";	
 	if ($allow_custom_types) $custom_types = get_option("relevanssi_custom_types");
 	
 	if (!empty($custom_types)) {
@@ -2486,7 +2504,7 @@ add_shortcode('search', 'relevanssi_shortcode');
 function relevanssi_options() {
 	$options_txt = __('Relevanssi Search Options', 'relevanssi');
 
-	printf("<div class='wrap'><h2>%s</h2>", $options_txt);
+	printf("<div class='wrap'><?php screen_icon(); ?><h2>%s</h2>", $options_txt);
 	if (!empty($_REQUEST)) {
 		if (isset($_REQUEST['hidesponsor'])) {
 			update_option('relevanssi_hidesponsor', 'true');

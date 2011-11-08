@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
 Tested up to: 3.2.1
-Stable tag: 2.9.11
+Stable tag: 2.9.12
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -60,8 +60,14 @@ You can find [Relevanssi in Facebook](http://www.facebook.com/relevanssi).
 Become a fan to follow the development of the plugin, I'll post updates on bugs, new features and
 new versions to the Facebook page.
 
+= Other search plugins =
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
-Katzgrau.
+Katzgrau. Relevanssi was built to replace wpSearch, when it started to fail.
+
+Search Unleashed is a popular search plugin, but it hasn't been updated since 2010. Relevanssi
+is in active development and does what Search Unleashed does.
+
+
 
 == Installation ==
 
@@ -377,6 +383,11 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.9.12 =
+* Scheduled cache truncate wasn't scheduled properly. It is now.
+* Added support for 'author' query variable.
+* Fixed a bug with indexing custom post types.
 
 = 2.9.11 =
 * Plugin now works properly without multibyte string functions.
