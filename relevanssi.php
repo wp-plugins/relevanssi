@@ -3143,16 +3143,7 @@ function relevanssi_options_form() {
 
 	$word_boundaries = ('on' == get_option('relevanssi_word_boundaries') ? 'checked="checked"' : ''); 
 
-	$hidesponsor = get_option('relevanssi_hidesponsor', 'false');
-	if ($hidesponsor == 'false') {
 ?>
-<script type="text/javascript">
-var psHost = (("https:" == document.location.protocol) ? "https://" : "http://");
-document.write(unescape("%3Cscript src='" + psHost + "pluginsponsors.com/direct/spsn/display.php?client=relevanssi&spot=' type='text/javascript'%3E%3C/script%3E"));
-</script>
-<p style="float: right; font-size: 75%; margin: -0.75em 0 2em 0;"><a href="http://pluginsponsors.com/privacy.html"><?php _e('Privacy policy', 'relevanssi'); ?></a> |
-<a href="?page=relevanssi/relevanssi.php&hidesponsor=true"><?php _e('Hide these messages', 'relevanssi'); ?></a></p>
-<?php } ?>
 	
 <div class='postbox-container' style='width:70%;'>
 	<form method='post'>
