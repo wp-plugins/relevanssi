@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.12
+Version: 2.9.13
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -1594,7 +1594,6 @@ function relevanssi_do_excerpt($post, $query) {
 	$terms = relevanssi_tokenize($query, $remove_stopwords);
 
 	$content = apply_filters('the_content', $post->post_content);
-	$content = apply_filters('relevanssi_excerpt_content', $content, $post, $query);
 	
 	if ('on' == get_option('relevanssi_expand_shortcodes')) {
 		if (function_exists("do_shortcode")) {
@@ -1606,6 +1605,8 @@ function relevanssi_do_excerpt($post, $query) {
 			$content = strip_shortcodes($content);
 		}
 	}
+
+	$content = apply_filters('relevanssi_excerpt_content', $content, $post, $query);
 	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
 	$content = strip_tags($content); // this removes the tags, but leaves the content
 	

@@ -1,9 +1,9 @@
 === Relevanssi - A Better Search ===
-Contributors: msaari
+Contributors: msaari, comprock
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.5
-Tested up to: 3.2.1
+Tested up to: 3.3.1
 Stable tag: 2.9.12
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
