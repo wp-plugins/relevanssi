@@ -392,6 +392,7 @@ removing those words helps to make the index smaller and searching faster.
 * When continuing indexing, Relevanssi now tells if there's more to index. (Thanks to mrose17.)
 * Fixed problems with searching attachments. Indexing attachments still has some problems. When you build the index, attachments are indexed properly.
 * Improved WPML support.
+* The `relevanssi_index_doc()` function has a new parameter that allows you to bypass global $post and force the function to index the document given as a parameter (see 2.9.13 release notes at Relevanssi.com for more details).
 
 = 2.9.12 =
 * Scheduled cache truncate wasn't scheduled properly. It is now.
