@@ -2,9 +2,9 @@
 Contributors: msaari, comprock
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
-Requires at least: 2.5
+Requires at least: 2.7
 Tested up to: 3.3.1
-Stable tag: 2.9.12
+Stable tag: 2.9.13
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -204,7 +204,7 @@ accepts $post variable attributes and order can be "asc" or "desc". The most rel
 here are most likely "post_date" and "comment_count".
 
 If you want to give your users the ability to sort search results by date, you can just add a link
-to http://www.yourblogdomain.com/?s=search-term&orderby=date&order=desc to your search result
+to http://www.yourblogdomain.com/?s=search-term&orderby=post_date&order=desc to your search result
 page.
 
 Order by relevance is either orderby=relevance or no orderby parameter at all.
@@ -383,6 +383,15 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.9.13 =
+* Stripping shortcodes from excerpts didn't work properly. Should work now.
+* Fixed a mistake in the FAQ: correct post date parameter is `post_date`, not `date`.
+* New filter `relevanssi_results` added. This filter will process an array with (post->ID => document weight) pairs.
+* Private and draft posts were deleted from the index when they were edited. This bug has been fixed. (Thanks to comprock.)
+* When continuing indexing, Relevanssi now tells if there's more to index. (Thanks to mrose17.)
+* Fixed problems with searching attachments. Indexing attachments still has some problems. When you build the index, attachments are indexed properly.
+* Improved WPML support.
 
 = 2.9.12 =
 * Scheduled cache truncate wasn't scheduled properly. It is now.

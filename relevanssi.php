@@ -55,7 +55,7 @@ add_filter('relevanssi_remove_punctuation', 'relevanssi_remove_punct');
 add_filter('relevanssi_post_ok', 'relevanssi_default_post_ok');
 
 $plugin_dir = basename(dirname(__FILE__));
-load_plugin_textdomain( 'relevanssi', 'wp-content/plugins/' . $plugin_dir, $plugin_dir);
+load_plugin_textdomain('relevanssi', false, $plugin_dir);
 
 global $wpSearch_low;
 global $wpSearch_high;
@@ -192,7 +192,8 @@ function relevanssi_update_child_posts($new_status, $old_status, $post) {
 // called by 'transition_post_status' action hook when a post is edited/published/deleted
 //  and calls appropriate indexing function on child posts/attachments
     global $wpdb;
-    $index_statuses = array('publish', 'private');
+
+    $index_statuses = array('publish', 'private', 'draft');
     if (($new_status == $old_status)
           || (in_array($new_status, $index_statuses) && in_array($old_status, $index_statuses))
           || (in_array($post->post_type, array('attachment', 'revision')))) {
@@ -219,6 +220,7 @@ function relevanssi_edit($post) {
 	global $wpdb;
 
 	$post_status = get_post_status($post);
+	
 	if ('auto-draft' == $post_status) return;
 
 // BEGIN added by renaissancehack
@@ -227,20 +229,16 @@ function relevanssi_edit($post) {
         $post_type = $wpdb->get_var("SELECT post_type FROM $wpdb->posts WHERE ID=$post");
     	$post_status = $wpdb->get_var("SELECT p.post_status FROM $wpdb->posts p, $wpdb->posts c WHERE c.ID=$post AND c.post_parent=p.ID");
     }
+// END added by renaissancehack
 
-// END added by renaissancehack
-	if ($post_status != 'publish') {
-		// The post isn't public anymore, remove it from index
-		relevanssi_remove_doc($post);
+	$index_statuses = array('publish', 'private', 'draft');
+	if (!in_array($post_status, $index_statuses)) {
+ 		// The post isn't supposed to be indexed anymore, remove it from index
+ 		relevanssi_remove_doc($post);
 	}
-	// No need to do anything else, because if the post is public, it'll trigger
-	// publish_post.
-// BEGIN added by renaissancehack
-    // unless it is an attachment -- then it will not trigger publish_post
-    elseif ($post_status == 'publish') {
-        relevanssi_publish($post);
-}
-// END added by renaissancehack
+	else {
+		relevanssi_publish($post);
+	}
 }
 
 function relevanssi_purge_excerpt_cache($post) {
@@ -260,10 +258,6 @@ function relevanssi_publish($post) {
 	$post_status = get_post_status($post);
 	if ('auto-draft' == $post_status) return;
 
-	relevanssi_add($post);
-}
-
-function relevanssi_add($post) {
 	$custom_fields = relevanssi_get_custom_fields();
 	relevanssi_index_doc($post, true, $custom_fields);
 }
@@ -645,7 +639,7 @@ function relevanssi_do_query(&$query) {
 	if (isset($query->query_vars["post_types"])) {
 		$post_type = $query->query_vars["post_types"];
 	}
-
+	
 	$author = false;
 	if (isset($query->query_vars["author"])) {
 		$author = $query->query_vars["author"];
@@ -855,9 +849,10 @@ function relevanssi_wpml_filter($data) {
 			if (isset($hit->blog_id)) {
 				switch_to_blog($hit->blog_id);
 			}
-			if (function_exists('icl_object_id')) {
-				if ($hit->ID == icl_object_id($hit->ID, $hit->post_type,false,ICL_LANGUAGE_CODE))
-   	        	    $filtered_hits[] = $hit;
+			global $sitepress;
+			if (function_exists('icl_object_id') && $sitepress->is_translated_post_type($hit->post_type)) {
+			    if ($hit->ID == icl_object_id($hit->ID, $hit->post_type,false,ICL_LANGUAGE_CODE))
+			        $filtered_hits[] = $hit;
 			}
 			// if there is no WPML but the target blog has identical language with current blog,
 			// we use the hits. Note en-US is not identical to en-GB!
@@ -1310,6 +1305,8 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 	}
 	$total_terms = count($terms_without_stops);
 
+	$doc_weight = apply_filters('relevanssi_results', $doc_weight);
+
 	if (isset($doc_weight) && count($doc_weight) > 0) {
 		arsort($doc_weight);
 		$i = 0;
@@ -1352,6 +1349,11 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $expost = NULL, $post
 function relevanssi_default_post_ok($doc) {
 	$post_ok = true;
 	$status = relevanssi_get_post_status($doc);
+	
+	if ('publish' != $status) {
+		$post_ok = false;
+	}
+
 	if ('private' == $status) {
 		$post_ok = false;
 
@@ -1368,8 +1370,11 @@ function relevanssi_default_post_ok($doc) {
 				$post_ok = true;
 			}
 		}
-	} else if ('publish' != $status) {
-		$post_ok = false;
+	}
+	
+	// only show drafts in admin search
+	if ('draft' == $status && is_admin()) {
+		$post_ok = true;
 	}
 
 	if (relevanssi_s2member_level($doc) == 0) $post_ok = false; // not ok with s2member
@@ -1443,12 +1448,18 @@ function relevanssi_get_post_status($id) {
 	global $relevanssi_post_array;
 	
 	if (isset($relevanssi_post_array[$id])) {
-		return $relevanssi_post_array[$id]->post_status;
+		$status = $relevanssi_post_array[$id]->post_status;
+		if ('inherit' == $status) {
+			$parent = $relevanssi_post_array[$id]->post_parent;
+			$status = relevanssi_get_post_status($parent);
+		}
+		return $status;
 	}
 	else {
 		return get_post_status($id);
 	}
 }
+
 
 function relevanssi_get_post_type($id) {
 	global $relevanssi_post_array;
@@ -2059,6 +2070,7 @@ function relevanssi_build_index($extend = false) {
 	}
 
 	$n = 0;
+	$size = 0;
 	
 	if (!$extend) {
 		// truncate table first
@@ -2082,6 +2094,7 @@ function relevanssi_build_index($extend = false) {
 		// extending, so no truncate and skip the posts already in the index
 		$limit = get_option('relevanssi_index_limit', 200);
 		if ($limit > 0) {
+			$size = $limit;
 			$limit = " LIMIT $limit";
 		}
 // BEGIN modified by renaissancehack
@@ -2109,7 +2122,9 @@ function relevanssi_build_index($extend = false) {
 		// n calculates the number of insert queries
 	}
 	
-	echo '<div id="message" class="updated fade"><p>' . __("Indexing complete!", "relevanssi") . '</p></div>';
+    echo '<div id="message" class="updated fade"><p>'
+		. __((($size == 0) || (count($content) < $size)) ? "Indexing complete!" : "More to index...", "relevanssi")
+		. '</p></div>';
 	update_option('relevanssi_indexed', 'done');
 }
 
@@ -2123,48 +2138,59 @@ function relevanssi_remove_doc($id) {
 // BEGIN modified by renaissancehack
 //  recieve $post argument as $indexpost, so we can make it the $post global.  This will allow shortcodes
 //  that need to know what post is calling them to access $post->ID
-function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields = false) {
+
+/*
+	Different cases:
+
+	- 	Build index:
+		global $post is NULL, $indexpost is a post object.
+		
+	-	Update post:
+		global $post has the original $post, $indexpost is the ID of revision.
+		
+	-	Quick edit:
+		global $post is an array, $indexpost is the ID of current revision.
+*/
+function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields = false, $bypassglobalpost = false) {
 	global $wpdb, $relevanssi_table, $post;
 	$post_was_null = false;
-	
-	if (is_array($post)) {
-		$post = $post['ID'];
+	$previous_post = NULL;
+
+	if ($bypassglobalpost) {
+		// if $bypassglobalpost is set, relevanssi_index_doc() will index the post object or post
+		// ID as specified in $indexpost
+		isset($post) ?
+			$previous_post = $post : $post_was_null = true;
+		is_object($indexpost) ?
+			$post = $indexpost : $post = get_post($indexpost);
 	}
-	
-	if (!isset($post)) {
-		$post_was_null = true;
-		if (is_object($indexpost)) {
-			$post = $indexpost;
+	else {
+		// Quick edit has an array in the global $post, so fetch the post ID for the post to edit.
+		if (is_array($post)) {
+			$post = $post['ID'];
 		}
+		
+		if (!isset($post)) {
+			// No $post set, so we need to use $indexpost, if it's a post object
+			$post_was_null = true;
+			if (is_object($indexpost)) {
+				$post = $indexpost;
+			}
+		}
+		else {
+			// $post was set, let's grab the previous value in case we need it
+			$previous_post = $post;
+		}
+		
+		// At this point we should have something in $post; if not, quit.
+		if ($post == NULL) return;
+		is_object($post) ? $ID = $post->ID : $ID = $post;
 	}
 	
-	if ($post == NULL) return;
-	is_object($post) ? $ID = $post->ID : $ID = $post;
+	// Finally fetch the post again by ID. Complicated, yes, but unless we do this, we might end
+	// up indexing the post before the updates come in.
 	$post = get_post($ID);
 
-// END modified by renaissancehack
-	if (!is_object($post)) {
-// BEGIN modified by renaissancehack
-//  modified query to get child records that inherit their post_status
-		get_option('relevanssi_index_attachments') == 'on' ? $attachments = '' : $attachments = "AND post.post_type!='attachment'";
-		$post = $wpdb->get_row("SELECT *,parent.post_status
-			FROM $wpdb->posts parent, $wpdb->posts post WHERE
-            (parent.post_status='publish' OR parent.post_status='private')
-			AND post.ID=$post
-            AND (
-                (post.post_status='inherit'
-                AND post.post_parent=parent.ID)
-                OR
-                (parent.ID=post.ID)
-            )
-            AND post.post_type!='nav_menu_item' AND post.post_type!='revision' $attachments");
-// END modified by renaissancehack
-		if (!$post) {
-			// the post isn't public
-			return;
-		}
-	}
-	
 	$index_type = get_option('relevanssi_index_type');
 	$custom_types = explode(",", get_option('relevanssi_custom_types'));
 	
@@ -2195,6 +2221,11 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 		case 'both':
 			$index_this_post = true;
 			break;
+	}
+
+	if ($post->post_type == 'attachment') {
+		get_option('relevanssi_index_attachments') == 'on' ?
+			$index_this_post = true : $index_this_post = false;
 	}
 	
 	if ($remove_first) {
@@ -2335,7 +2366,9 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 		}
 	}
 
+	// Restore the global $post to whatever it was.
 	if ($post_was_null) $post = null;
+	if ($previous_post) $post = $previous_post;
 
 	return $n;
 }
