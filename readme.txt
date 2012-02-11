@@ -1,10 +1,10 @@
 === Relevanssi - A Better Search ===
-Contributors: msaari
+Contributors: msaari, comprock
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
-Requires at least: 2.5
-Tested up to: 3.2.1
-Stable tag: 2.9.6
+Requires at least: 2.7
+Tested up to: 3.3.1
+Stable tag: 2.9.13
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -33,7 +33,8 @@ For more information about Premium, see [Relevanssi.com](http://www.relevanssi.c
 * Index custom post types and custom taxonomies.
 * Index the contents of shortcodes.
 * Google-style "Did you mean?" suggestions based on successful user searches.
-* Automatic support for [WPML multi-language plugin](http://wpml.org/)
+* Automatic support for [WPML multi-language plugin](http://wpml.org/).
+* Automatic support for [s2member membership plugin](http://www.s2member.com/).
 * Advanced filtering to help hacking the search results the way you want.
 
 Relevanssi is available in two versions, regular and Premium. Regular Relevanssi is and will remain
@@ -59,8 +60,14 @@ You can find [Relevanssi in Facebook](http://www.facebook.com/relevanssi).
 Become a fan to follow the development of the plugin, I'll post updates on bugs, new features and
 new versions to the Facebook page.
 
+= Other search plugins =
 Relevanssi owes a lot to [wpSearch](http://wordpress.org/extend/plugins/wpsearch/) by Kenny
-Katzgrau.
+Katzgrau. Relevanssi was built to replace wpSearch, when it started to fail.
+
+Search Unleashed is a popular search plugin, but it hasn't been updated since 2010. Relevanssi
+is in active development and does what Search Unleashed does.
+
+
 
 == Installation ==
 
@@ -197,7 +204,7 @@ accepts $post variable attributes and order can be "asc" or "desc". The most rel
 here are most likely "post_date" and "comment_count".
 
 If you want to give your users the ability to sort search results by date, you can just add a link
-to http://www.yourblogdomain.com/?s=search-term&orderby=date&order=desc to your search result
+to http://www.yourblogdomain.com/?s=search-term&orderby=post_date&order=desc to your search result
 page.
 
 Order by relevance is either orderby=relevance or no orderby parameter at all.
@@ -376,6 +383,47 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 2.9.13 =
+* Stripping shortcodes from excerpts didn't work properly. Should work now.
+* Fixed a mistake in the FAQ: correct post date parameter is `post_date`, not `date`.
+* New filter `relevanssi_results` added. This filter will process an array with (post->ID => document weight) pairs.
+* Private and draft posts were deleted from the index when they were edited. This bug has been fixed. (Thanks to comprock.)
+* When continuing indexing, Relevanssi now tells if there's more to index. (Thanks to mrose17.)
+* Fixed problems with searching attachments. Indexing attachments still has some problems. When you build the index, attachments are indexed properly.
+* Improved WPML support.
+
+= 2.9.12 =
+* Scheduled cache truncate wasn't scheduled properly. It is now.
+* Added support for 'author' query variable.
+* Fixed a bug with indexing custom post types.
+
+= 2.9.11 =
+* Plugin now works properly without multibyte string functions.
+* Fixed s2member support for s2member versions 110912 and above. (Thanks to Jason Caldwell.)
+* Added support for 'tag' query variable.
+
+= 2.9.10 =
+* AND search failed, when search query included terms that are shorter than the minimum word length.
+* Improved s2member support.
+* Fixed errors about deprecated ereg_replace.
+* Small fix to Did you mean suggestions.
+
+= 2.9.9 =
+* Removed warnings about undefined functions and missing $wpdb.
+* Fixed a bug that removed 'à' from search terms.
+* Phrases are recognized from custom field searches.
+
+= 2.9.8 =
+* Support for s2member membership plugin. Search won't show posts that the current user isn't allowed to see.
+* New filter `relevanssi_post_ok` can be used to add support for other membership plugins.
+* Post meta fields that contain arrays are now indexed properly, expanding all the arrays.
+
+= 2.9.7 =
+* Fixed a bug that causes problems when paging search results.
+* Taxonomy term restrictions didn't work most of the time.
+* the_content filters didn't run on excerpts.
+* Style data and other extra elements created by short codes are now stripped.
 
 = 2.9.6 =
 * Fixed a problem causing "Attempt to modify property of non-object" errors.
