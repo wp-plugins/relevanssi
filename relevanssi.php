@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 2.9.13
+Version: 2.9.14
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -193,7 +193,7 @@ function relevanssi_update_child_posts($new_status, $old_status, $post) {
 //  and calls appropriate indexing function on child posts/attachments
     global $wpdb;
 
-    $index_statuses = array('publish', 'private', 'draft');
+    $index_statuses = array('publish', 'private', 'draft', 'pending', 'future');
     if (($new_status == $old_status)
           || (in_array($new_status, $index_statuses) && in_array($old_status, $index_statuses))
           || (in_array($post->post_type, array('attachment', 'revision')))) {
@@ -231,7 +231,7 @@ function relevanssi_edit($post) {
     }
 // END added by renaissancehack
 
-	$index_statuses = array('publish', 'private', 'draft');
+	$index_statuses = array('publish', 'private', 'draft', 'pending', 'future');
 	if (!in_array($post_status, $index_statuses)) {
  		// The post isn't supposed to be indexed anymore, remove it from index
  		relevanssi_remove_doc($post);
@@ -439,7 +439,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_word_boundaries');
 	delete_option('relevanssi_hidesponsor');
 	delete_option('relevanssi_default_orderby');
-	
+
 	wp_clear_scheduled_hook('relevanssi_truncate_cache');
 
 	$relevanssi_table = $wpdb->prefix . "relevanssi";	
@@ -1373,7 +1373,7 @@ function relevanssi_default_post_ok($doc) {
 	}
 	
 	// only show drafts in admin search
-	if ('draft' == $status && is_admin()) {
+	if (in_array($status, array('draft', 'pending', 'future')) && is_admin()) {
 		$post_ok = true;
 	}
 
@@ -2079,7 +2079,7 @@ function relevanssi_build_index($extend = false) {
 //  modified query to get child records that inherit their post_status
         $q = "SELECT *,parent.post_status as post_status
 		FROM $wpdb->posts parent, $wpdb->posts post WHERE
-        (parent.post_status='publish' OR parent.post_status='private')
+        (parent.post_status IN ('publish', 'private', 'draft', 'pending', 'future'))
         AND (
             (post.post_status='inherit'
             AND post.post_parent=parent.ID)
@@ -2101,7 +2101,7 @@ function relevanssi_build_index($extend = false) {
 //  modified query to get child records that inherit their post_status
         $q = "SELECT *,parent.post_status as post_status
 		FROM $wpdb->posts parent, $wpdb->posts post WHERE
-        (parent.post_status='publish' OR parent.post_status='private')
+        (parent.post_status IN ('publish', 'private', 'draft', 'pending', 'future'))
         AND (
             (post.post_status='inherit'
             AND post.post_parent=parent.ID)
@@ -2183,7 +2183,11 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 		}
 		
 		// At this point we should have something in $post; if not, quit.
-		if ($post == NULL) return;
+		if ($post == NULL) {
+			if ($post_was_null) $post = null;
+			if ($previous_post) $post = $previous_post;
+			return;
+		}
 		is_object($post) ? $ID = $post->ID : $ID = $post;
 	}
 	
@@ -2238,7 +2242,11 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	// a post that's in the index but shouldn't be there won't get removed. A remote chance,
 	// I mean who ever flips exclude_from_search between true and false once it's set, but
 	// I'd like to cover all bases.
-	if (!$index_this_post) return;
+	if (!$index_this_post) {
+		if ($post_was_null) $post = null;
+		if ($previous_post) $post = $previous_post;
+		return;
+	}
 
 	$n = 0;	
 	$min_word_length = get_option('relevanssi_min_word_length', 3);
