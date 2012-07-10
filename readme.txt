@@ -1,5 +1,5 @@
 === Relevanssi - A Better Search ===
-Contributors: msaari, comprock
+Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.7
@@ -383,6 +383,15 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 3.0 =
+* New filter: `relevanssi_modify_wp_query` lets you modify $wp_query before it is passed to Relevanssi.
+* New filter: `relevanssi_search_ok` lets you adjust when search is enabled.
+* New filter: `relevanssi_pre_excerpt_content` lets you adjust post content before excerpt creation.
+* New filter: `relevanssi_excerpt_content` lets you adjust post content before excerpt creation, but after `the_content`.
+* New filter: `relevanssi_ellipsis` lets you change the default '...' in excerpts to something else.
+* Relevanssi can handle certain whitespace characters better in indexing.
+* Apostrophes are now replaced with whitespace instead of being removed.
 
 = 2.9.14 =
 * Relevanssi will now index pending and future posts. These posts are only shown in the admin search.
