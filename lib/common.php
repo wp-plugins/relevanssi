@@ -467,7 +467,7 @@ function relevanssi_s2member_level($doc) {
 }
 
 function relevanssi_populate_array($matches) {
-	global $relevanssi_post_array, $wpdb;
+	global $relevanssi_post_array, $relevanssi_post_types, $wpdb;
 	
 	$ids = array();
 	foreach ($matches as $match) {
@@ -478,6 +478,7 @@ function relevanssi_populate_array($matches) {
 	$posts = $wpdb->get_results("SELECT * FROM $wpdb->posts WHERE id IN ($ids)");
 	foreach ($posts as $post) {
 		$relevanssi_post_array[$post->ID] = $post;
+		$relevanssi_post_types[$post->ID] = $post->post_type;
 	}
 }
 
@@ -1115,4 +1116,1195 @@ function relevanssi_prevent_default_request( $request, $query ) {
 }
 add_filter('posts_request', 'relevanssi_prevent_default_request', 10, 2 );
 
+function relevanssi_create_database_tables($relevanssi_db_version) {
+	global $wpdb;
+	
+	require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+
+	$charset_collate_bin_column = '';
+	$charset_collate = '';
+
+	if (!empty($wpdb->charset)) {
+        $charset_collate_bin_column = "CHARACTER SET $wpdb->charset";
+		$charset_collate = "DEFAULT $charset_collate_bin_column";
+	}
+	if (strpos($wpdb->collate, "_") > 0) {
+        $charset_collate_bin_column .= " COLLATE " . substr($wpdb->collate, 0, strpos($wpdb->collate, '_')) . "_bin";
+        $charset_collate .= " COLLATE $wpdb->collate";
+    } else {
+    	if ($wpdb->collate == '' && $wpdb->charset == "utf8") {
+	        $charset_collate_bin_column .= " COLLATE utf8_bin";
+	    }
+    }
+    
+	$relevanssi_table = $wpdb->prefix . "relevanssi";	
+	$relevanssi_stopword_table = $wpdb->prefix . "relevanssi_stopwords";
+	$relevanssi_log_table = $wpdb->prefix . "relevanssi_log";
+	$relevanssi_cache = $wpdb->prefix . 'relevanssi_cache';
+	$relevanssi_excerpt_cache = $wpdb->prefix . 'relevanssi_excerpt_cache';
+
+	if(get_option('relevanssi_db_version') != $relevanssi_db_version) {
+		if ($relevanssi_db_version == 1) {
+			$sql = "DROP TABLE $relevanssi_table";
+			$wpdb->query($sql);
+			delete_option('relevanssi_indexed');
+		}
+	
+		$sql = "CREATE TABLE " . $relevanssi_table . " (doc bigint(20) NOT NULL DEFAULT '0', 
+		term varchar(50) NOT NULL DEFAULT '0', 
+		content mediumint(9) NOT NULL DEFAULT '0', 
+		title mediumint(9) NOT NULL DEFAULT '0', 
+		comment mediumint(9) NOT NULL DEFAULT '0', 
+		tag mediumint(9) NOT NULL DEFAULT '0', 
+		link mediumint(9) NOT NULL DEFAULT '0', 
+		author mediumint(9) NOT NULL DEFAULT '0', 
+		category mediumint(9) NOT NULL DEFAULT '0', 
+		excerpt mediumint(9) NOT NULL DEFAULT '0', 
+		taxonomy mediumint(9) NOT NULL DEFAULT '0', 
+		customfield mediumint(9) NOT NULL DEFAULT '0', 
+		mysqlcolumn mediumint(9) NOT NULL DEFAULT '0',
+		taxonomy_detail longtext NOT NULL,
+		customfield_detail longtext NOT NULL,
+		mysqlcolumn_detail longtext NOT NULL,
+		type varchar(210) NOT NULL DEFAULT 'post', 
+		item bigint(20) NOT NULL DEFAULT '0', 
+	    UNIQUE KEY doctermitem (doc, term, item)) $charset_collate";
+		
+		dbDelta($sql);
+
+		$sql = "CREATE INDEX terms ON $relevanssi_table (term(20))";
+		$wpdb->query($sql);
+
+		$sql = "CREATE INDEX docs ON $relevanssi_table (doc)";
+		$wpdb->query($sql);
+
+		$sql = "CREATE TABLE " . $relevanssi_stopword_table . " (stopword varchar(50) $charset_collate_bin_column NOT NULL, "
+	    . "UNIQUE KEY stopword (stopword)) $charset_collate;";
+
+		dbDelta($sql);
+
+		$sql = "CREATE TABLE " . $relevanssi_log_table . " (id bigint(9) NOT NULL AUTO_INCREMENT, "
+		. "query varchar(200) NOT NULL, "
+		. "hits mediumint(9) NOT NULL DEFAULT '0', "
+		. "time timestamp NOT NULL, "
+		. "user_id bigint(20) NOT NULL DEFAULT '0', "
+		. "ip varchar(40) NOT NULL DEFAULT '', "
+	    . "UNIQUE KEY id (id)) $charset_collate;";
+
+		dbDelta($sql);
+	
+		$sql = "CREATE TABLE " . $relevanssi_cache . " (param varchar(32) $charset_collate_bin_column NOT NULL, "
+		. "hits text NOT NULL, "
+		. "tstamp timestamp NOT NULL, "
+	    . "UNIQUE KEY param (param)) $charset_collate;";
+
+		dbDelta($sql);
+
+		$sql = "CREATE TABLE " . $relevanssi_excerpt_cache . " (query varchar(100) $charset_collate_bin_column NOT NULL, "
+		. "post mediumint(9) NOT NULL, "
+		. "excerpt text NOT NULL, "
+	    . "UNIQUE (query, post)) $charset_collate;";
+
+		dbDelta($sql);
+
+		if (RELEVANSSI_PREMIUM && get_option('relevanssi_db_version') < 12) {
+			$charset_collate_bin_column = '';
+			$charset_collate = '';
+		
+			if (!empty($wpdb->charset)) {
+				$charset_collate_bin_column = "CHARACTER SET $wpdb->charset";
+				$charset_collate = "DEFAULT $charset_collate_bin_column";
+			}
+			if (strpos($wpdb->collate, "_") > 0) {
+				$charset_collate_bin_column .= " COLLATE " . substr($wpdb->collate, 0, strpos($wpdb->collate, '_')) . "_bin";
+				$charset_collate .= " COLLATE $wpdb->collate";
+			} else {
+				if ($wpdb->collate == '' && $wpdb->charset == "utf8") {
+					$charset_collate_bin_column .= " COLLATE utf8_bin";
+				}
+			}
+			
+			$sql = "ALTER TABLE $relevanssi_stopword_table MODIFY COLUMN stopword varchar(50) $charset_collate_bin_column NOT NULL";
+			$wpdb->query($sql);
+			$sql = "ALTER TABLE $relevanssi_log_table ADD COLUMN user_id bigint(20) NOT NULL DEFAULT '0'";
+			$wpdb->query($sql);
+			$sql = "ALTER TABLE $relevanssi_log_table ADD COLUMN ip varchar(40) NOT NULL DEFAULT ''";
+			$wpdb->query($sql);
+			$sql = "ALTER TABLE $relevanssi_cache MODIFY COLUMN param varchar(32) $charset_collate_bin_column NOT NULL";
+			$wpdb->query($sql);
+			$sql = "ALTER TABLE $relevanssi_excerpt_cache MODIFY COLUMN query(100) $charset_collate_bin_column NOT NULL";
+			$wpdb->query($sql);
+		}
+		
+		update_option('relevanssi_db_version', $relevanssi_db_version);
+	}
+	
+	if ($wpdb->get_var("SELECT COUNT(*) FROM $relevanssi_stopword_table WHERE 1") < 1) {
+		relevanssi_populate_stopwords();
+	}
+}
+
+function relevanssi_clear_database_tables() {
+	wp_clear_scheduled_hook('relevanssi_truncate_cache');
+
+	$relevanssi_table = $wpdb->prefix . "relevanssi";	
+	$stopword_table = $wpdb->prefix . "relevanssi_stopwords";
+	$log_table = $wpdb->prefix . "relevanssi_log";
+	$relevanssi_cache = $wpdb->prefix . 'relevanssi_cache';
+	$relevanssi_excerpt_cache = $wpdb->prefix . 'relevanssi_excerpt_cache';
+	
+	if($wpdb->get_var("SHOW TABLES LIKE '$stopword_table'") == $stopword_table) {
+		$sql = "DROP TABLE $stopword_table";
+		$wpdb->query($sql);
+	}
+
+	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_table'") == $relevanssi_table) {
+		$sql = "DROP TABLE $relevanssi_table";
+		$wpdb->query($sql);
+	}
+
+	if($wpdb->get_var("SHOW TABLES LIKE '$log_table'") == $log_table) {
+		$sql = "DROP TABLE $log_table";
+		$wpdb->query($sql);
+	}
+
+	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_cache'") == $relevanssi_cache) {
+		$sql = "DROP TABLE $relevanssi_cache";
+		$wpdb->query($sql);
+	}
+
+	if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_excerpt_cache'") == $relevanssi_excerpt_cache) {
+		$sql = "DROP TABLE $relevanssi_excerpt_cache";
+		$wpdb->query($sql);
+	}
+	
+	echo '<div id="message" class="updated fade"><p>' . __("Data wiped clean, you can now delete the plugin.", "relevanssi") . '</p></div>';
+}
+
+add_filter('query_vars', 'relevanssi_query_vars');
+function relevanssi_query_vars($qv) {
+	$qv[] = 'cats';
+	$qv[] = 'tags';
+	$qv[] = 'post_types';
+
+	return $qv;
+}
+
+function relevanssi_build_index($extend = false) {
+	global $wpdb, $relevanssi_table, $relevanssi_variables;
+	if (isset($relevanssi_variables['relevanssi_table'])) $relevanssi_table = $relevanssi_variables['relevanssi_table'];
+
+	set_time_limit(0);
+	
+	$post_types = array();
+	$types = get_option("relevanssi_index_post_types");
+	if (!is_array($types)) $types = array();
+	foreach ($types as $type) {
+		array_push($post_types, "'$type'");
+	}
+	
+	if (count($post_types) > 0) {
+		$restriction = " AND post.post_type IN (" . implode(', ', $post_types) . ') ';
+	}
+	else {
+		$restriction = "";
+	}
+
+	$n = 0;
+	$size = 0;
+	
+	if (!$extend) {
+		// truncate table first
+		$wpdb->query("TRUNCATE TABLE $relevanssi_table");
+
+		if (function_exists('relevanssi_index_taxonomies')) {
+			if (get_option('relevanssi_index_taxonomies') == 'on') {
+				relevanssi_index_taxonomies();
+			}
+		}
+
+		if (function_exists('relevanssi_index_users')) {
+			if (get_option('relevanssi_index_users') == 'on') {
+				relevanssi_index_users();
+			}
+		}
+
+        $q = "SELECT post.ID
+		FROM $wpdb->posts parent, $wpdb->posts post WHERE
+        (parent.post_status IN ('publish', 'draft', 'private', 'pending', 'future'))
+        AND (
+            (post.post_status='inherit'
+            AND post.post_parent=parent.ID)
+            OR
+            (parent.ID=post.ID)
+        )
+		$restriction";
+		update_option('relevanssi_index', '');
+	}
+	else {
+		// extending, so no truncate and skip the posts already in the index
+		$limit = get_option('relevanssi_index_limit', 200);
+		if ($limit > 0) {
+			$size = $limit;
+			$limit = " LIMIT $limit";
+		}
+        $q = "SELECT post.ID
+		FROM $wpdb->posts parent, $wpdb->posts post WHERE
+        (parent.post_status IN ('publish', 'draft', 'private', 'pending', 'future'))
+        AND (
+            (post.post_status='inherit'
+            AND post.post_parent=parent.ID)
+            OR
+            (parent.ID=post.ID)
+        )
+		AND post.ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table) $restriction $limit";
+	}
+
+	$custom_fields = relevanssi_get_custom_fields();
+
+	$content = $wpdb->get_results($q);
+	
+	foreach ($content as $post) {
+		$n += relevanssi_index_doc($post->ID, false, $custom_fields);
+		// n calculates the number of insert queries
+	}
+	
+    echo '<div id="message" class="updated fade"><p>'
+		. __((($size == 0) || (count($content) < $size)) ? "Indexing complete!" : "More to index...", "relevanssi")
+		. '</p></div>';
+	update_option('relevanssi_indexed', 'done');
+}
+
+// BEGIN modified by renaissancehack
+//  recieve $post argument as $indexpost, so we can make it the $post global.  This will allow shortcodes
+//  that need to know what post is calling them to access $post->ID
+/*
+	Different cases:
+
+	- 	Build index:
+		global $post is NULL, $indexpost is a post object.
+		
+	-	Update post:
+		global $post has the original $post, $indexpost is the ID of revision.
+		
+	-	Quick edit:
+		global $post is an array, $indexpost is the ID of current revision.
+*/
+function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields = false, $bypassglobalpost = false) {
+	global $wpdb, $relevanssi_table, $post, $relevanssi_variables;
+	if (isset($relevanssi_variables['relevanssi_table'])) $relevanssi_table = $relevanssi_variables['relevanssi_table'];
+	$post_was_null = false;
+	$previous_post = NULL;
+
+	if ($bypassglobalpost) {
+		// if $bypassglobalpost is set, relevanssi_index_doc() will index the post object or post
+		// ID as specified in $indexpost
+		isset($post) ?
+			$previous_post = $post : $post_was_null = true;
+		is_object($indexpost) ?
+			$post = $indexpost : $post = get_post($indexpost);
+	}
+	else {
+		// Quick edit has an array in the global $post, so fetch the post ID for the post to edit.
+		if (is_array($post)) {
+			$post = get_post($post['ID']);
+		}
+		
+		if (!isset($post)) {
+			// No $post set, so we need to use $indexpost, if it's a post object
+			$post_was_null = true;
+			if (is_object($indexpost)) {
+				$post = $indexpost;
+			}
+			else {
+				$post = get_post($indexpost);
+			}
+		}
+		else {
+			// $post was set, let's grab the previous value in case we need it
+			$previous_post = $post;
+		}
+	}
+	
+	if ($post == NULL) {
+		// At this point we should have something in $post; if not, quit.
+		if ($post_was_null) $post = null;
+		if ($previous_post) $post = $previous_post;
+		return;
+	}
+	
+	// Finally fetch the post again by ID. Complicated, yes, but unless we do this, we might end
+	// up indexing the post before the updates come in.
+	$post = get_post($post->ID);
+
+	if (function_exists('relevanssi_hide_post')) {
+		if (relevanssi_hide_post($post->ID)) {
+			if ($post_was_null) $post = null;
+			if ($previous_post) $post = $previous_post;
+			return;
+		}
+	}
+
+	if (true == apply_filters('relevanssi_do_not_index', false, $post->ID)) {
+		// filter says no
+		if ($post_was_null) $post = null;
+		if ($previous_post) $post = $previous_post;
+		return;
+	}
+
+	$post->indexing_content = true;
+	$index_types = get_option('relevanssi_index_post_types');
+	if (!is_array($index_types)) $index_types = array();
+	if (in_array($post->post_type, $index_types)) $index_this_post = true;
+
+	if ($remove_first) {
+		// we are updating a post, so remove the old stuff first
+		relevanssi_remove_doc($post->ID, true);
+		if (function_exists('relevanssi_remove_item')) {
+			relevanssi_remove_item($post->ID, 'post');
+		}
+		relevanssi_purge_excerpt_cache($post->ID);
+	}
+
+	// This needs to be here, after the call to relevanssi_remove_doc(), because otherwise
+	// a post that's in the index but shouldn't be there won't get removed. A remote chance,
+	// I mean who ever flips exclude_from_search between true and false once it's set, but
+	// I'd like to cover all bases.
+	if (!$index_this_post) {
+		if ($post_was_null) $post = null;
+		if ($previous_post) $post = $previous_post;
+		return;
+	}
+
+	$n = 0;	
+
+	$min_word_length = get_option('relevanssi_min_word_length', 3);
+	$insert_data = array();
+
+	//Added by OdditY - INDEX COMMENTS of the POST ->
+	if ("none" != get_option("relevanssi_index_comments")) {
+		$pcoms = relevanssi_get_comments($post->ID);
+		if ($pcoms != "") {
+			$pcoms = relevanssi_strip_invisibles($pcoms);
+			$pcoms = preg_replace('/<[a-zA-Z\/][^>]*>/', ' ', $pcoms);
+			$pcoms = strip_tags($pcoms);
+			$pcoms = relevanssi_tokenize($pcoms, true, $min_word_length);		
+			if (count($pcoms) > 0) {
+				foreach ($pcoms as $pcom => $count) {
+					$n++;
+					$insert_data[$pcom]['comment'] = $count;
+				}
+			}				
+		}
+	} //Added by OdditY END <-
+
+
+	$taxonomies = array();
+	//Added by OdditY - INDEX TAGs of the POST ->
+	if ("on" == get_option("relevanssi_include_tags")) {
+		array_push($taxonomies, "post_tag");
+	} // Added by OdditY END <- 
+
+	$custom_taxos = get_option("relevanssi_custom_taxonomies");
+	if ("" != $custom_taxos) {
+		$cts = explode(",", $custom_taxos);
+		foreach ($cts as $taxon) {
+			$taxon = trim($taxon);
+			array_push($taxonomies, $taxon);
+		}
+	}
+
+	// index categories
+	if ("on" == get_option("relevanssi_include_cats")) {
+		array_push($taxonomies, 'category');
+	}
+
+	// Then process all taxonomies, if any.
+	foreach ($taxonomies as $taxonomy) {
+		$insert_data = relevanssi_index_taxonomy_terms($post, $taxonomy, $insert_data);
+	}
+	
+	// index author
+	if ("on" == get_option("relevanssi_index_author")) {
+		$auth = $post->post_author;
+		$display_name = $wpdb->get_var("SELECT display_name FROM $wpdb->users WHERE ID=$auth");
+		$names = relevanssi_tokenize($display_name, false, $min_word_length);
+		foreach($names as $name => $count) {
+			isset($insert_data[$name]['author']) ? $insert_data[$name]['author'] += $count : $insert_data[$name]['author'] = $count;
+		}
+	}
+
+	if ($custom_fields) {
+		$remove_underscore_fields = false;
+		if ($custom_fields == 'all') 
+			$custom_fields = get_post_custom_keys($post->ID);
+		if ($custom_fields == 'visible') {
+			$custom_fields = get_post_custom_keys($post->ID);
+			$remove_underscore_fields = true;
+		}
+		foreach ($custom_fields as $field) {
+			if ($remove_underscore_fields) {
+				if (substr($field, 0, 1) == '_') continue;
+			}
+			$values = get_post_meta($post->ID, $field, false);
+			if ("" == $values) continue;
+			foreach ($values as $value) {
+				$value_tokens = relevanssi_tokenize($value, true, $min_word_length);
+				foreach ($value_tokens as $token => $count) {
+					isset($insert_data[$token]['customfield']) ? $insert_data[$token]['customfield'] += $count : $insert_data[$token]['customfield'] = $count;
+					if (function_exists('relevanssi_customfield_detail')) {
+						$insert_data = relevanssi_customfield_detail($insert_data, $token, $count, $field);
+					}
+				}
+			}
+		}
+	}
+
+	if (isset($post->post_excerpt) && ("on" == get_option("relevanssi_index_excerpt") || "attachment" == $post->post_type)) { // include excerpt for attachments which use post_excerpt for captions - modified by renaissancehack
+		$excerpt_tokens = relevanssi_tokenize($post->post_excerpt, true, $min_word_length);
+		foreach ($excerpt_tokens as $token => $count) {
+			isset($insert_data[$token]['excerpt']) ? $insert_data[$token]['excerpt'] += $count : $insert_data[$token]['excerpt'] = $count;
+		}
+	}
+
+	if (function_exists('relevanssi_index_mysqL_columns')) {
+		$insert_data = relevanssi_index_mysql_columns($insert_data, $post->ID);
+	}
+
+	$index_titles = true;
+	if (apply_filters('relevanssi_index_titles', $index_titles)) {
+		$titles = relevanssi_tokenize($post->post_title);
+
+		if (count($titles) > 0) {
+			foreach ($titles as $title => $count) {
+				if (strlen($title) < 2) continue;
+				$n++;
+				isset($insert_data[$title]['title']) ? $insert_data[$title]['title'] += $count : $insert_data[$title]['title'] = $count;
+			}
+		}
+	}
+	
+	$index_content = true;
+	if (apply_filters('relevanssi_index_content', $index_content)) {
+		remove_shortcode('noindex');
+		add_shortcode('noindex', 'relevanssi_noindex_shortcode_indexing');
+
+		$contents = $post->post_content;
+		
+		// Allow user to add extra content for Relevanssi to index
+		// Thanks to Alexander Gieg
+		$additional_content = trim(apply_filters('relevanssi_content_to_index', '', $post));
+		if ('' != $additional_content)
+			$contents .= ' '.$additional_content;		
+			
+		if ('on' == get_option('relevanssi_expand_shortcodes')) {
+			if (function_exists("do_shortcode")) {
+				$contents = do_shortcode($contents);
+			}
+		}
+		else {
+			if (function_exists("strip_shortcodes")) {
+				// WP 2.5 doesn't have the function
+				$contents = strip_shortcodes($contents);
+			}
+		}
+		
+		remove_shortcode('noindex');
+		add_shortcode('noindex', 'relevanssi_noindex_shortcode');
+
+		$contents = relevanssi_strip_invisibles($contents);
+	
+		if (function_exists('relevanssi_process_internal_links')) {
+			$contents = relevanssi_process_internal_links($contents, $post->ID);
+		}
+
+		$contents = preg_replace('/<[a-zA-Z\/][^>]*>/', ' ', $contents);
+		$contents = strip_tags($contents);
+		$contents = relevanssi_tokenize($contents, true, $min_word_length);
+	
+		if (count($contents) > 0) {
+			foreach ($contents as $content => $count) {
+		 		$n++;
+				isset($insert_data[$content]['content']) ? $insert_data[$content]['content'] += $count : $insert_data[$content]['content'] = $count;
+			}
+		}
+	}
+	
+	$type = 'post';
+	if ($post->post_type == 'attachment') $type = 'attachment';
+	
+	$values = array();
+	foreach ($insert_data as $term => $data) {
+		$content = 0;
+		$title = 0;
+		$comment = 0;
+		$tag = 0;
+		$link = 0;
+		$author = 0;
+		$category = 0;
+		$excerpt = 0;
+		$taxonomy = 0;
+		$customfield = 0;
+		$taxonomy_detail = '';
+		$customfield_detail = '';
+		$mysqlcolumn = 0;
+		extract($data);
+
+		$value = $wpdb->prepare("(%d, %s, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %s, %s, %s, %d)",
+			$post->ID, $term, $content, $title, $comment, $tag, $link, $author, $category, $excerpt, $taxonomy, $customfield, $type, $taxonomy_detail, $customfield_detail, $mysqlcolumn);
+
+		array_push($values, $value);
+	}
+	
+	if (!empty($values)) {
+		$values = implode(', ', $values);
+		$query = "INSERT IGNORE INTO $relevanssi_table (doc, term, content, title, comment, tag, link, author, category, excerpt, taxonomy, customfield, type, taxonomy_detail, customfield_detail, mysqlcolumn)
+			VALUES $values";
+		$wpdb->query($query);
+	}
+
+	if ($post_was_null) $post = null;
+	if ($previous_post) $post = $previous_post;
+
+	return $n;
+}
+
+/**
+ * Index taxonomy terms for given post and given taxonomy.
+ *
+ * @since 1.8
+ * @param object $post Post object.
+ * @param string $taxonomy Taxonomy name.
+ * @param array $insert_data Insert query data array.
+ * @return array Updated insert query data array.
+ */
+function relevanssi_index_taxonomy_terms($post = null, $taxonomy = "", $insert_data) {
+	global $wpdb, $relevanssi_table, $relevanssi_varibles;
+	if (isset($relevanssi_variables['relevanssi_table'])) $relevanssi_table = $relevanssi_variables['relevanssi_table'];
+
+	$n = 0;
+
+	if (null == $post) return 0;
+	if ("" == $taxonomy) return 0;
+	
+	$min_word_length = get_option('relevanssi_min_word_length', 3);
+	$ptagobj = get_the_terms($post->ID, $taxonomy);
+	if ($ptagobj !== FALSE) { 
+		$tagstr = "";
+		foreach ($ptagobj as $ptag) {
+			if (is_object($ptag)) {
+				$tagstr .= $ptag->name . ' ';
+			}
+		}		
+		$tagstr = trim($tagstr);
+		$ptags = relevanssi_tokenize($tagstr, true, $min_word_length);		
+		if (count($ptags) > 0) {
+			foreach ($ptags as $ptag => $count) {
+				$n++;
+				
+				if ('post_tags' == $taxonomy) {
+					$insert_data[$ptag]['tag'] = $count;
+				}
+				else if ('category' == $taxonomy) {
+					$insert_data[$ptag]['category'] = $count;
+				}
+				else {
+					if (isset($insert_data[$ptag]['taxonomy'])) {
+						$insert_data[$ptag]['taxonomy'] += $count;
+					}
+					else {
+						$insert_data[$ptag]['taxonomy'] = $count;
+					}
+				}
+				if (isset($insert_data[$ptag]['taxonomy_detail'])) {
+					$tax_detail = unserialize($insert_data[$ptag]['taxonomy_detail']);
+				}
+				else {
+					$tax_detail = array();
+				}
+				if (isset($tax_detail[$taxonomy])) {
+					$tax_detail[$taxonomy] += $count;
+				}
+				else {
+					$tax_detail[$taxonomy] = $count;
+				}
+				$insert_data[$ptag]['taxonomy_detail'] = serialize($tax_detail);
+			}
+		}	
+	}
+	return $insert_data;
+}
+
+add_shortcode('noindex', 'relevanssi_noindex_shortcode');
+function relevanssi_noindex_shortcode($atts, $content) {
+	// When in general use, make the shortcode disappear.
+	return $content;
+}
+
+function relevanssi_noindex_shortcode_indexing($atts, $content) {
+	// When indexing, make the text disappear.
+	return '';
+}
+
+function relevanssi_tokenize($str, $remove_stops = true, $min_word_length = -1) {
+	$tokens = array();
+	if (is_array($str)) {
+		foreach ($str as $part) {
+			$tokens = array_merge($tokens, relevanssi_tokenize($part, $remove_stops, $min_word_length));
+		}
+	}
+	if (is_array($str)) return $tokens;
+	
+	if ( function_exists('mb_internal_encoding') )
+		mb_internal_encoding("UTF-8");
+
+	if ($remove_stops) {
+		$stopword_list = relevanssi_fetch_stopwords();
+	}
+
+	if (function_exists('relevanssi_thousandsep')) {	
+		$str = relevanssi_thousandsep($str);
+	}
+
+	$str = apply_filters('relevanssi_remove_punctuation', $str);
+
+	if ( function_exists('mb_strtolower') )
+		$str = mb_strtolower($str);
+	else
+		$str = strtolower($str);
+	
+	$t = strtok($str, "\n\t ");
+	while ($t !== false) {
+		$accept = true;
+		if (strlen($t) < $min_word_length) {
+			$t = strtok("\n\t  ");
+			continue;
+		}
+		if ($remove_stops == false) {
+			$accept = true;
+		}
+		else {
+			if (count($stopword_list) > 0) {	//added by OdditY -> got warning when stopwords table was empty
+				if (in_array($t, $stopword_list)) {
+					$accept = false;
+				}
+			}
+		}
+
+		if (RELEVANSSI_PREMIUM) {
+			$t = apply_filters('relevanssi_premium_tokenizer', $t);
+		}
+		
+		if ($accept) {
+			$t = relevanssi_mb_trim($t);
+			if (!isset($tokens[$t])) {
+				$tokens[$t] = 1;
+			}
+			else {
+				$tokens[$t]++;
+			}
+		}
+		
+		$t = strtok("\n\t ");
+	}
+
+	return $tokens;
+}
+
+// This is my own magic working.
+function relevanssi_search($q, $cat = NULL, $excat = NULL, $tag = NULL, $expost = NULL, $post_type = NULL, $taxonomy = NULL, $taxonomy_term = NULL, $operator = "AND", $search_blogs = NULL, $customfield_key = NULL, $customfield_value = NULL, $author = NULL) {
+	global $relevanssi_table, $wpdb, $relevanssi_variables;
+	if (isset($relevanssi_variables['relevanssi_table'])) $relevanssi_table = $relevanssi_variables['relevanssi_table'];
+
+	$values_to_filter = array(
+		'q' => $q,
+		'cat' => $cat,
+		'excat' => $excat,
+		'tag' => $tag,
+		'expost' => $expost,
+		'post_type' => $post_type,
+		'taxonomy' => $taxonomy,
+		'taxonomy_term' => $taxonomy_term,
+		'operator' => $operator,
+		'search_blogs' => $search_blogs,
+		'customfield_key' => $customfield_key,
+		'customfield_value' => $customfield_value,
+		'author' => $author,
+		);
+	$filtered_values = apply_filters( 'relevanssi_search_filters', $values_to_filter );
+	$q               = $filtered_values['q'];
+	$cat             = $filtered_values['cat'];
+	$tag             = $filtered_values['tag'];
+	$excat           = $filtered_values['excat'];
+	$expost          = $filtered_values['expost'];
+	$post_type       = $filtered_values['post_type'];
+	$taxonomy        = $filtered_values['taxonomy'];
+	$taxonomy_term   = $filtered_values['taxonomy_term'];
+	$operator        = $filtered_values['operator'];
+	$search_blogs    = $filtered_values['search_blogs'];
+	$customfield_key = $filtered_values['customfield_key'];
+	$customfield_value = $filtered_values['customfield_value'];
+	$author	  	     = $filtered_values['author'];
+
+	$hits = array();
+
+	$o_cat = $cat;
+	$o_excat = $excat;
+	$o_tag = $tag;
+	$o_expost = $expost;
+	$o_post_type = $post_type;
+	$o_taxonomy = $taxonomy;
+	$o_taxonomy_term = $taxonomy_term;
+	$o_customfield_key = $customfield_key;
+	$o_customfield_value = $customfield_value;
+	$o_author = $author;
+
+	if (function_exists('relevanssi_process_customfield')) {
+		$customfield = relevanssi_process_customfield($customfield_key, $customfield_value);
+	}
+	else {
+		$customfield = false;
+	}
+	
+	if ($cat) {
+		$cats = explode(",", $cat);
+		$inc_term_tax_ids = array();
+		$ex_term_tax_ids = array();
+		foreach ($cats as $t_cat) {
+			$exclude = false;
+			if ($t_cat < 0) {
+				// Negative category, ie. exclusion
+				$exclude = true;
+				$t_cat = substr($t_cat, 1); // strip the - sign.
+			}
+			$t_cat = $wpdb->escape($t_cat);
+			$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->term_taxonomy
+				WHERE term_id=$t_cat");
+			if ($term_tax_id) {
+				$exclude ? $ex_term_tax_ids[] = $term_tax_id : $inc_term_tax_ids[] = $term_tax_id;
+				$children = get_term_children($term_tax_id, 'category');
+				if (is_array($children)) {
+					foreach ($children as $child) {
+						$exclude ? $ex_term_tax_ids[] = $child : $inc_term_tax_ids[] = $child;
+					}
+				}
+			}
+		}
+		
+		$cat = implode(",", $inc_term_tax_ids);
+		$excat_temp = implode(",", $ex_term_tax_ids);
+	}
+
+	if ($excat) {
+		$excats = explode(",", $excat);
+		$term_tax_ids = array();
+		foreach ($excats as $t_cat) {
+			$t_cat = $wpdb->escape(trim($t_cat, ' -'));
+			$term_tax_id = $wpdb->get_var("SELECT term_taxonomy_id FROM $wpdb->term_taxonomy
+				WHERE term_id=$t_cat");
+			if ($term_tax_id) {
+				$term_tax_ids[] = $term_tax_id;
+			}
+		}
+		
+		$excat = implode(",", $term_tax_ids);
+	}
+
+	if (isset($excat_temp)) {
+		$excat .= $excat_temp;
+	}
+
+	if ($tag) {
+		$tags = explode(",", $tag);
+		$inc_term_tax_ids = array();
+		$ex_term_tax_ids = array();
+		foreach ($tags as $t_tag) {
+			$t_tag = $wpdb->escape($t_tag);
+			$term_tax_id = $wpdb->get_var("
+				SELECT term_taxonomy_id
+					FROM $wpdb->term_taxonomy as a, $wpdb->terms as b
+					WHERE a.term_id = b.term_id AND
+						(a.term_id='$t_tag' OR b.name LIKE '$t_tag')");
+
+			if ($term_tax_id) {
+				$inc_term_tax_ids[] = $term_tax_id;
+			}
+		}
+		
+		$tag = implode(",", $inc_term_tax_ids);
+	}
+	
+	if ($author) {
+		$author = esc_sql($author);
+	}
+
+	if (!empty($taxonomy)) {
+		if (function_exists('relevanssi_process_taxonomies')) {
+			$taxonomy = relevanssi_process_taxonomies($taxonomy, $taxonomy_term);
+		}
+		else {
+			$term_tax_id = null;
+			$term_tax_id = $wpdb->get_var($wpdb->prepare("SELECT term_taxonomy_id FROM $wpdb->terms
+				JOIN $wpdb->term_taxonomy USING(`term_id`)
+					WHERE `slug` LIKE %s AND `taxonomy` LIKE %s", "%$taxonomy_term%", $taxonomy));
+			if ($term_tax_id) {
+				$taxonomy = $term_tax_id;
+			} else {
+				$taxonomy = null;
+			}
+		}
+	}
+
+	if (!$post_type && get_option('relevanssi_respect_exclude') == 'on') {
+		if (function_exists('get_post_types')) {
+			$pt_1 = get_post_types(array('exclude_from_search' => '0'));
+			$pt_2 = get_post_types(array('exclude_from_search' => false));
+			$post_type = implode(',', array_merge($pt_1, $pt_2));
+		}
+	}
+	
+	if ($post_type) {
+		if (!is_array($post_type)) {
+			$post_types = explode(',', $post_type);
+		}
+		else {
+			$post_types = $post_type;
+		}
+		$pt_array = array();
+		foreach ($post_types as $pt) {
+			$pt = "'" . trim(mysql_real_escape_string($pt)) . "'";
+			array_push($pt_array, $pt);
+		}
+		$post_type = implode(",", $pt_array);
+	}
+
+	//Added by OdditY:
+	//Exclude Post_IDs (Pages) for non-admin search ->
+	if ($expost) {
+		if ($expost != "") {
+			$aexpids = explode(",",$expost);
+			foreach ($aexpids as $exid){
+				$exid = $wpdb->escape(trim($exid, ' -'));
+				$postex .= " AND doc !='$exid'";
+			}
+		}	
+	}
+	// <- OdditY End
+
+	$remove_stopwords = false;
+	$phrases = relevanssi_recognize_phrases($q);
+
+	if (function_exists('relevanssi_recognize_negatives')) {
+		$negative_terms = relevanssi_recognize_negatives($q);
+	}
+	else {
+		$negative_terms = false;
+	}
+	
+	if (function_exists('relevanssi_recognize_positives')) {
+		$positive_terms = relevanssi_recognize_positives($q);
+	}
+	else {
+		$positive_terms = false;
+	}
+
+	$terms = relevanssi_tokenize($q, $remove_stopwords);
+	if (count($terms) < 1) {
+		// Tokenizer killed all the search terms.
+		return $hits;
+	}
+	$terms = array_keys($terms); // don't care about tf in query
+
+	if ($negative_terms) {	
+		$terms = array_diff($terms, $negative_terms);
+		if (count($terms) < 1) {
+			return $hits;
+		}
+	}
+	
+	$D = $wpdb->get_var("SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table");
+	
+	$total_hits = 0;
+		
+	$title_matches = array();
+	$tag_matches = array();
+	$comment_matches = array();
+	$link_matches = array();
+	$body_matches = array();
+	$scores = array();
+	$term_hits = array();
+
+	$fuzzy = get_option('relevanssi_fuzzy');
+
+	$query_restrictions = "";
+	if ($expost) { //added by OdditY
+		$query_restrictions .= $postex;
+	}
+
+	if (function_exists('relevanssi_negatives_positives')) {	
+		$query_restrictions .= relevanssi_negatives_positives($negative_terms, $positive_terms, $relevanssi_table);
+	}
+	
+	if ($cat) {
+		$query_restrictions .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
+		    WHERE term_taxonomy_id IN ($cat))";
+	}
+	if ($excat) {
+		$query_restrictions .= " AND doc NOT IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
+		    WHERE term_taxonomy_id IN ($excat))";
+	}
+	if ($tag) {
+		$query_restrictions .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
+		    WHERE term_taxonomy_id IN ($tag))";
+	}
+	if ($author) {
+		$query_restrictions .= " AND doc IN (SELECT DISTINCT(ID) FROM $wpdb->posts
+		    WHERE post_author IN ($author))";
+	}
+	if ($post_type) {
+		// the -1 is there to get user profiles and category pages
+		$query_restrictions .= " AND ((doc IN (SELECT DISTINCT(ID) FROM $wpdb->posts
+			WHERE post_type IN ($post_type))) OR (doc = -1))";
+	}
+	if ($phrases) {
+		$query_restrictions .= " AND doc IN ($phrases)";
+	}
+	if ($customfield) {
+		$query_restrictions .= " AND doc IN ($customfield)";
+	}
+	if (is_array($taxonomy)) {
+		foreach ($taxonomy as $tax) {
+			$taxonomy_in = implode(',',$tax);
+			$query_restrictions .= " AND doc IN (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
+				WHERE term_taxonomy_id IN ($taxonomy_in))";
+		}
+	}
+
+	if (isset($_REQUEST['by_date'])) {
+		$n = $_REQUEST['by_date'];
+
+		$u = substr($n, -1, 1);
+		switch ($u) {
+			case 'h':
+				$unit = "HOUR";
+				break;
+			case 'd':
+				$unit = "DAY";
+				break;
+			case 'm':
+				$unit = "MONTH";
+				break;
+			case 'y':
+				$unit = "YEAR";
+				break;
+			case 'w':
+				$unit = "WEEK";
+				break;
+			default:
+				$unit = "DAY";
+		}
+
+		$n = preg_replace('/[hdmyw]/', '', $n);
+
+		if (is_numeric($n)) {
+			$query_restrictions .= " AND doc IN (SELECT DISTINCT(ID) FROM $wpdb->posts
+				WHERE post_date > DATE_SUB(NOW(), INTERVAL $n $unit))";
+		}
+	}
+
+	$query_restrictions = apply_filters('relevanssi_where', $query_restrictions); // Charles St-Pierre
+
+	$no_matches = true;
+	if ("always" == $fuzzy) {
+		$o_term_cond = apply_filters('relevanssi_fuzzy_query', "(term LIKE '%#term#' OR term LIKE '#term#%') ");
+	}
+	else {
+		$o_term_cond = " term = '#term#' ";
+	}
+
+	$post_type_weights = get_option('relevanssi_post_type_weights');
+	if (function_exists('relevanssi_get_recency_bonus')) {
+		list($recency_bonus, $recency_cutoff_date) = relevanssi_get_recency_bonus();
+	}
+	else {
+		$recency_bonus = false;
+		$recency_cutoff_date = false;
+	}
+	$min_length = get_option('relevanssi_min_word_length');
+	
+	$search_again = false;
+	do {
+		foreach ($terms as $term) {
+			if (strlen($term) < $min_length) continue;
+			$term = $wpdb->escape(like_escape($term));
+			$term_cond = str_replace('#term#', $term, $o_term_cond);		
+			
+			$query = "SELECT *, title + content + comment + tag + link + author + category + excerpt + taxonomy + customfield + mysqlcolumn AS tf 
+					  FROM $relevanssi_table WHERE $term_cond $query_restrictions";
+			$query = apply_filters('relevanssi_query_filter', $query);
+
+			$matches = $wpdb->get_results($query);
+			if (count($matches) < 1) {
+				continue;
+			}
+			else {
+				$no_matches = false;
+			}
+			
+			relevanssi_populate_array($matches);
+			global $relevanssi_post_types;
+
+			$total_hits += count($matches);
+	
+			$query = "SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table WHERE $term_cond $query_restrictions";
+			$query = apply_filters('relevanssi_df_query_filter', $query);
+	
+			$df = $wpdb->get_var($query);
+	
+			if ($df < 1 && "sometimes" == $fuzzy) {
+				$query = "SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table
+					WHERE (term LIKE '%$term' OR term LIKE '$term%') $query_restrictions";
+				$query = apply_filters('relevanssi_df_query_filter', $query);
+				$df = $wpdb->get_var($query);
+			}
+			
+			$title_boost = floatval(get_option('relevanssi_title_boost'));
+			$link_boost = floatval(get_option('relevanssi_link_boost'));
+			$comment_boost = floatval(get_option('relevanssi_comment_boost'));
+			
+			$idf = log($D / (1 + $df));
+			$idf = $idf * $idf;
+			foreach ($matches as $match) {
+				if ('user' == $match->type) {
+					$match->doc = 'u_' . $match->item;
+				}
+
+				if ('taxonomy' == $match->type) {
+					$match->doc = 't_' . $match->item;
+				}
+
+				$match = relevanssi_match_taxonomy_detail($match, $post_type_weights);				
+				
+				$match->tf =
+					$match->title * $title_boost +
+					$match->content +
+					$match->comment * $comment_boost +
+					$match->link * $link_boost +
+					$match->author +
+					$match->excerpt +
+					$match->taxonomy_score +
+					$match->customfield +
+					$match->mysqlcolumn;
+
+				$term_hits[$match->doc][$term] =
+					$match->title +
+					$match->content +
+					$match->comment +
+					$match->tag +
+					$match->link +
+					$match->author +
+					$match->category +
+					$match->excerpt +
+					$match->taxonomy +
+					$match->customfield +
+					$match->mysqlcolumn;
+
+				$match->weight = $match->tf * $idf;
+				
+				if ($recency_bonus) {
+					$post = relevanssi_get_post($match->doc);
+					if (strtotime($post->post_date) > $recency_cutoff_date)
+						$match->weight = $match->weight * $recency_bonus['bonus'];
+				}
+
+				$body_matches[$match->doc] = $match->content;
+				$title_matches[$match->doc] = $match->title;
+				$tag_matches[$match->doc] = $match->tag;
+				$comment_matches[$match->doc] = $match->comment;
+	
+				$type = $relevanssi_post_types[$match->doc];
+				if (isset($post_type_weights[$type])) {
+					$match->weight = $match->weight * $post_type_weights[$type];
+				}
+
+				$match = apply_filters('relevanssi_match', $match, $idf);
+
+				if ($match->weight == 0) continue; // the filters killed the match
+
+				$post_ok = true;
+				$post_ok = apply_filters('relevanssi_post_ok', $post_ok, $match->doc);
+				
+				if ($post_ok) {
+					$doc_terms[$match->doc][$term] = true; // count how many terms are matched to a doc
+					isset($doc_weight[$match->doc]) ? $doc_weight[$match->doc] += $match->weight : $doc_weight[$match->doc] = $match->weight;
+					isset($scores[$match->doc]) ? $scores[$match->doc] += $match->weight : $scores[$match->doc] = $match->weight;
+				}
+			}
+		}
+
+		if (!isset($doc_weight)) $no_matches = true;
+
+		if ($no_matches) {
+			if ($search_again) {
+				// no hits even with fuzzy search!
+				$search_again = false;
+			}
+			else {
+				if ("sometimes" == $fuzzy) {
+					$search_again = true;
+					$o_term_cond = "(term LIKE '%#term#' OR term LIKE '#term#%') ";
+				}
+			}
+		}
+		else {
+			$search_again = false;
+		}
+	} while ($search_again);
+	
+	$strip_stops = true;
+	$temp_terms_without_stops = array_keys(relevanssi_tokenize(implode(' ', $terms), $strip_stops));
+	$terms_without_stops = array();
+	foreach ($temp_terms_without_stops as $temp_term) {
+		if (strlen($temp_term) >= $min_length)
+			array_push($terms_without_stops, $temp_term);
+	}
+	$total_terms = count($terms_without_stops);
+
+	if (isset($doc_weight))
+		$doc_weight = apply_filters('relevanssi_results', $doc_weight);
+
+	if (isset($doc_weight) && count($doc_weight) > 0) {
+		arsort($doc_weight);
+		$i = 0;
+		foreach ($doc_weight as $doc => $weight) {
+			if (count($doc_terms[$doc]) < $total_terms && $operator == "AND") {
+				// AND operator in action:
+				// doc didn't match all terms, so it's discarded
+				continue;
+			}
+			
+			$hits[intval($i++)] = relevanssi_get_post($doc);
+		}
+	}
+
+	if (count($hits) < 1) {
+		if ($operator == "AND" AND get_option('relevanssi_disable_or_fallback') != 'on') {
+			$return = relevanssi_search($q, $o_cat, $o_excat, $o_tag, $o_expost, $o_post_type, $o_taxonomy, $o_taxonomy_term, "OR", $search_blogs, $o_customfield_key, $o_customfield_value);
+			extract($return);
+		}
+	}
+
+	global $wp;	
+	$default_order = get_option('relevanssi_default_orderby', 'relevance');
+	isset($wp->query_vars["orderby"]) ? $orderby = $wp->query_vars["orderby"] : $orderby = $default_order;
+	isset($wp->query_vars["order"]) ? $order = $wp->query_vars["order"] : $order = 'desc';
+	if ($orderby != 'relevance')
+		relevanssi_object_sort($hits, $orderby, $order);
+
+	$return = array('hits' => $hits, 'body_matches' => $body_matches, 'title_matches' => $title_matches,
+		'tag_matches' => $tag_matches, 'comment_matches' => $comment_matches, 'scores' => $scores,
+		'term_hits' => $term_hits, 'query' => $q);
+
+	return $return;
+}
 ?>

@@ -390,6 +390,16 @@ removing those words helps to make the index smaller and searching faster.
 * New filter: `relevanssi_pre_excerpt_content` lets you adjust post content before excerpt creation.
 * New filter: `relevanssi_excerpt_content` lets you adjust post content before excerpt creation, but after `the_content`.
 * New filter: `relevanssi_ellipsis` lets you change the default '...' in excerpts to something else.
+* New filter: `relevanssi_do_not_index` is given a post ID and expects a boolean in return: should this post be indexed or not?
+* New filter: `relevanssi_match` lets you meddle with the matching engine.
+* New filter: `relevanssi_results` filters the result set from the search.
+* Changed filter: `relevanssi_post_ok` has different arguments, see source code for details.
+* New shortcode: use shortcode `noindex` to wrap parts of posts you want to keep from the index.
+* The database has been updated to match the more advanced structure in Relevanssi Premium. This requires a re-indexing of the database.
+* The indexing process is more efficient now.
+* Relevanssi now includes a throttle feature, which makes the searches more efficient.
+* Relevanssi now disables the default WP search.
+* The custom field search hack using `cat` set to "custom" doesn't work any more. If you wish to filter by custom field, you need Relevanssi Premium, which does it better anyway.
 * Relevanssi can handle certain whitespace characters better in indexing.
 * Apostrophes are now replaced with whitespace instead of being removed.
 
