@@ -2183,7 +2183,15 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $tag = NULL, $expost 
 					$match->doc = 't_' . $match->item;
 				}
 
-				$match = relevanssi_match_taxonomy_detail($match, $post_type_weights);				
+				if (isset($match->taxonomy_detail)) {
+					$match->taxonomy_score = 0;
+					$match->taxonomy_detail = unserialize($match->taxonomy_detail);
+					if (is_array($match->taxonomy_detail)) {
+						foreach ($match->taxonomy_detail as $tax => $count) {
+							$match->taxonomy_score += $count * $post_type_weights[$tax];
+						}
+					}
+				}
 				
 				$match->tf =
 					$match->title * $title_boost +
@@ -2307,4 +2315,128 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $tag = NULL, $expost 
 
 	return $return;
 }
+
+function relevanssi_get_post_status($id) {
+	global $relevanssi_post_array;
+	
+	$type = substr($id, 0, 2);
+	if ($type == 't_') {
+		return 'publish';
+	}
+	if ($type == 'u_') {
+		return 'publish';
+	}
+	
+	if (isset($relevanssi_post_array[$id])) {
+		$status = $relevanssi_post_array[$id]->post_status;
+		if ('inherit' == $status) {
+			$parent = $relevanssi_post_array[$id]->post_parent;
+			$status = relevanssi_get_post_status($parent);
+			if ($status == false) {
+				// attachment without a parent
+				// let's assume it's public
+				$status = 'publish';
+			}
+		}
+		return $status;
+	}
+	else {
+		return get_post_status($id);
+	}
+}
+
+function relevanssi_get_post_type($id) {
+	global $relevanssi_post_array;
+	
+	if (isset($relevanssi_post_array[$id])) {
+		return $relevanssi_post_array[$id]->post_type;
+	}
+	else {
+		return get_post_type($id);
+	}
+}
+
+function relevanssi_highlight_in_docs($content) {
+	if (is_singular()) {
+		$referrer = preg_replace('@(http|https)://@', '', stripslashes(urldecode($_SERVER['HTTP_REFERER'])));
+		$args     = explode('?', $referrer);
+		$query    = array();
+	
+		if ( count( $args ) > 1 )
+			parse_str( $args[1], $query );
+	
+		if (substr($referrer, 0, strlen($_SERVER['SERVER_NAME'])) == $_SERVER['SERVER_NAME'] && (isset($query['s']) || strpos($referrer, '/search/') !== false)) {
+			// Local search
+			$content = relevanssi_highlight_terms($content, $query['s']);
+		}
+		if (function_exists('relevanssi_nonlocal_highlighting')) {
+			$content = relevanssi_nonlocal_highlighting($referrer, $content, $query['q']);
+		}
+	}
+	
+	return $content;
+}
+
+function relevanssi_truncate_cache($all = false) {
+	global $relevanssi_cache, $relevanssi_excerpt_cache, $wpdb, $relevanssi_variables;
+	if (isset($relevanssi_variables['relevanssi_excerpt_cache'])) $relevanssi_excerpt_cache = $relevanssi_variables['relevanssi_excerpt_cache'];
+	if (isset($relevanssi_variables['relevanssi_cache'])) $relevanssi_cache = $relevanssi_variables['relevanssi_cache'];
+
+	if ($all) {
+		$query = "TRUNCATE TABLE $relevanssi_excerpt_cache";
+		$wpdb->query($query);
+
+		$query = "TRUNCATE TABLE $relevanssi_cache";
+	}
+	else {
+		$time = get_option('relevanssi_cache_seconds', 172800);
+		$query = "DELETE FROM $relevanssi_cache
+			WHERE UNIX_TIMESTAMP() - UNIX_TIMESTAMP(tstamp) > $time";
+		// purge all expired cache data
+	}
+	$wpdb->query($query);
+}
+
+function relevanssi_init() {
+	global $pagenow;
+
+	isset($_POST['index']) ? $index = true : $index = false;
+	if (!get_option('relevanssi_indexed') && !$index) {
+		function relevanssi_warning() {
+			echo "<div id='relevanssi-warning' class='updated fade'><p><strong>"
+			   . sprintf(__('Relevanssi needs attention: Remember to build the index (you can do it at <a href="%1$s">the settings page</a>), otherwise searching won\'t work.'), "options-general.php?page=relevanssi-premium/relevanssi.php")
+			   . "</strong></p></div>";
+		}
+		add_action('admin_notices', 'relevanssi_warning');
+	}
+	
+	if (!function_exists('mb_internal_encoding')) {
+		function relevanssi_mb_warning() {
+			echo "<div id='relevanssi-warning' class='updated fade'><p><strong>"
+			   . "Multibyte string functions are not available. Relevanssi may not work well without them. "
+			   . "Please install (or ask your host to install) the mbstring extension."
+			   . "</strong></p></div>";
+		}
+		if ( 'options-general.php' == $pagenow and isset( $_GET['page'] ) and plugin_basename( __FILE__ ) == $_GET['page'] )
+			add_action('admin_notices', 'relevanssi_mb_warning');
+	}
+
+	if (!wp_next_scheduled('relevanssi_truncate_cache')) {
+		wp_schedule_event(time(), 'daily', 'relevanssi_truncate_cache');
+		add_action('relevanssi_truncate_cache', 'relevanssi_truncate_cache');
+	}
+
+	if (get_option('relevanssi_highlight_docs', 'off') != 'off') {
+		add_filter('the_content', 'relevanssi_highlight_in_docs', 11);
+		if (get_option('relevanssi_hilite_title', 'off') != 'off') {
+			add_filter('the_title', 'relevanssi_highlight_in_docs');
+		}
+	}
+	if (get_option('relevanssi_highlight_comments', 'off') != 'off') {
+		add_filter('comment_text', 'relevanssi_highlight_in_docs', 11);
+	}
+
+	return;
+}
+
 ?>
