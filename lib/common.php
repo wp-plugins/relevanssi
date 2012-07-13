@@ -5,6 +5,32 @@ Relevanssi common functions library
 - Free 3.0
 */
 
+register_activation_hook(__FILE__,'relevanssi_install');
+add_action('admin_menu', 'relevanssi_menu');
+add_filter('the_posts', 'relevanssi_query');
+add_action('save_post', 'relevanssi_edit', 99, 1);				// thanks to Brian D Gajus
+add_action('delete_post', 'relevanssi_delete');
+add_action('comment_post', 'relevanssi_comment_index'); 	//added by OdditY
+add_action('edit_comment', 'relevanssi_comment_edit'); 		//added by OdditY 
+add_action('delete_comment', 'relevanssi_comment_remove'); 	//added by OdditY
+add_action('wp_insert_post', 'relevanssi_insert_edit', 99, 1 ); // added by lumpysimon
+// BEGIN added by renaissancehack
+// *_page and *_post hooks do not trigger on attachments
+add_action('delete_attachment', 'relevanssi_delete');
+add_action('add_attachment', 'relevanssi_publish');
+add_action('edit_attachment', 'relevanssi_edit');
+// When a post status changes, check child posts that inherit their status from parent
+add_action('transition_post_status', 'relevanssi_update_child_posts',99,3);
+// END added by renaissancehack
+add_action('init', 'relevanssi_check_old_data', 99);
+add_filter('relevanssi_hits_filter', 'relevanssi_wpml_filter');
+add_filter('posts_request', 'relevanssi_prevent_default_request', 10, 2 );
+add_filter('relevanssi_remove_punctuation', 'relevanssi_remove_punct');
+add_filter('relevanssi_post_ok', 'relevanssi_default_post_ok', 10, 2);
+
+$plugin_dir = dirname(plugin_basename(__FILE__));
+load_plugin_textdomain('relevanssi', false, $plugin_dir);
+
 function relevanssi_menu() {
 	add_options_page(
 		'Relevanssi Premium',
@@ -1114,7 +1140,6 @@ function relevanssi_prevent_default_request( $request, $query ) {
 	}
 	return $request;
 }
-add_filter('posts_request', 'relevanssi_prevent_default_request', 10, 2 );
 
 function relevanssi_create_database_tables($relevanssi_db_version) {
 	global $wpdb;
@@ -1286,6 +1311,7 @@ function relevanssi_query_vars($qv) {
 	$qv[] = 'cats';
 	$qv[] = 'tags';
 	$qv[] = 'post_types';
+	$qv[] = 'by_date';
 
 	return $qv;
 }
@@ -2439,4 +2465,256 @@ function relevanssi_init() {
 	return;
 }
 
+function relevanssi_do_query(&$query) {
+	// this all is basically lifted from Kenny Katzgrau's wpSearch
+	// thanks, Kenny!
+	global $relevanssi_active;
+
+	$relevanssi_active = true;
+	$posts = array();
+
+	if ( function_exists( 'mb_strtolower' ) )
+		$q = trim(stripslashes(mb_strtolower($query->query_vars["s"])));
+	else
+		$q = trim(stripslashes(strtolower($query->query_vars["s"])));
+
+	$cache = get_option('relevanssi_enable_cache');
+	$cache == 'on' ? $cache = true : $cache = false;
+
+	if (isset($query->query_vars['searchblogs'])) {
+		$search_blogs = $query->query_vars['searchblogs'];
+
+		$post_type = false;
+		if (isset($query->query_vars["post_type"]) && $query->query_vars["post_type"] != 'any') {
+			$post_type = $query->query_vars["post_type"];
+		}
+		if (isset($query->query_vars["post_types"])) {
+			$post_type = $query->query_vars["post_types"];
+		}
+
+		if (function_exists('relevanssi_search_multi')) {
+			$return = relevanssi_search_multi($q, $search_blogs, $post_type);
+		}
+	}
+	else {
+		$cat = false;
+		if (isset($query->query_vars["cat"])) {
+			$cat = $query->query_vars["cat"];
+		}
+		if (isset($query->query_vars["cats"])) {
+			$cat = $query->query_vars["cats"];
+		}
+		if (!$cat) {
+			$cat = get_option('relevanssi_cat');
+			if (0 == $cat) {
+				$cat = false;
+			}
+		}
+
+		$tag = false;
+		if (isset($query->query_vars["tag"])) {
+			$tag = $query->query_vars["tag"];
+		}
+		if (isset($query->query_vars["tags"])) {
+			$tag = $query->query_vars["tags"];
+		}
+
+		$author = false;
+		if (isset($query->query_vars["author"])) {
+			$author = $query->query_vars["author"];
+		}
+
+		$customfield_key = false;
+		if (isset($query->query_vars["customfield_key"])) {
+			$customfield_key = $query->query_vars["customfield_key"];
+		}
+		$customfield_value = false;
+		if (isset($query->query_vars["customfield_value"])) {
+			$customfield_value = $query->query_vars["customfield_value"];
+		}
+	
+		$tax = false;
+		$tax_term = false;
+		if (isset($query->query_vars["taxonomy"])) {
+			$tax = $query->query_vars["taxonomy"];
+			$tax_term = $query->query_vars["term"];
+		}
+		
+		if (!isset($excat)) {
+			$excat = get_option('relevanssi_excat');
+			if (0 == $excat) {
+				$excat = false;
+			}
+		}
+	
+		$search_blogs = false;
+		if (isset($query->query_vars["search_blogs"])) {
+			$search_blogs = $query->query_vars["search_blogs"];
+		}
+	
+		$post_type = false;
+		if (isset($query->query_vars["post_type"]) && $query->query_vars["post_type"] != 'any') {
+			$post_type = $query->query_vars["post_type"];
+		}
+		if (isset($query->query_vars["post_types"])) {
+			$post_type = $query->query_vars["post_types"];
+		}
+	
+		$expids = get_option("relevanssi_exclude_posts");
+	
+		if (is_admin()) {
+			// in admin search, search everything
+			$cat = null;
+			$tag = null;
+			$excat = null;
+			$expids = null;
+			$tax = null;
+			$tax_term = null;
+		}
+
+		if (function_exists('relevanssi_set_operator')) {
+			$operator = relevanssi_set_operator($query);
+		}		
+		$operator = strtoupper($operator);	// just in case
+		if ($operator != "OR" && $operator != "AND") $operator = get_option("relevanssi_implicit_operator");
+		
+		// Add synonyms
+		// This is done here so the new terms will get highlighting
+		if ("OR" == $operator) {
+			// Synonyms are only used in OR queries
+			$synonym_data = get_option('relevanssi_synonyms');
+			if ($synonym_data) {
+				$synonyms = array();
+				$pairs = explode(";", $synonym_data);
+				foreach ($pairs as $pair) {
+					$parts = explode("=", $pair);
+					$key = trim($parts[0]);
+					$value = trim($parts[1]);
+					$synonyms[$key][$value] = true;
+				}
+				if (count($synonyms) > 0) {
+					$new_terms = array();
+					$terms = array_keys(relevanssi_tokenize($q, false)); // remove stopwords is false here
+					foreach ($terms as $term) {
+						if (in_array($term, array_keys($synonyms))) {
+							$new_terms = array_merge($new_terms, array_keys($synonyms[$term]));
+						}
+					}
+					if (count($new_terms) > 0) {
+						foreach ($new_terms as $new_term) {
+							$q .= " $new_term";
+						}
+					}
+				}
+			}
+		}
+	
+		if ($cache) {
+			$params = md5(serialize(array($q, $cat, $excat, $tag, $expids, $post_type, $tax, $tax_term, $operator, $search_blogs, $customfield_key, $customfield_value, $author)));
+			$return = relevanssi_fetch_hits($params);
+			if (!$return) {
+				$return = relevanssi_search($q, $cat, $excat, $tag, $expids, $post_type, $tax, $tax_term, $operator, $search_blogs, $customfield_key, $customfield_value, $author);
+				$return_ser = serialize($return);
+				relevanssi_store_hits($params, $return_ser);
+			}
+		}
+		else {
+			$return = relevanssi_search($q,
+										$cat, $excat,
+										$tag,
+										$expids,
+										$post_type,
+										$tax, $tax_term,
+										$operator,
+										$search_blogs,
+										$customfield_key,
+										$customfield_value,
+										$author);
+		}
+	}
+
+	$hits = $return['hits'];
+	$q = $return['query'];
+
+	$filter_data = array($hits, $q);
+	$hits_filters_applied = apply_filters('relevanssi_hits_filter', $filter_data);
+	$hits = $hits_filters_applied[0];
+
+	$query->found_posts = sizeof($hits);
+	$query->max_num_pages = ceil(sizeof($hits) / $query->query_vars["posts_per_page"]);
+
+	$update_log = get_option('relevanssi_log_queries');
+	if ('on' == $update_log) {
+		relevanssi_update_log($q, sizeof($hits));
+	}
+
+	$make_excerpts = get_option('relevanssi_excerpts');
+
+	if (is_paged()) {
+		$wpSearch_low = ($query->query_vars['paged'] - 1) * $query->query_vars["posts_per_page"];
+	}
+	else {
+		$wpSearch_low = 0;
+	}
+
+	$wpSearch_high = $wpSearch_low + $query->query_vars["posts_per_page"] - 1;
+	if ($wpSearch_high > sizeof($hits)) $wpSearch_high = sizeof($hits);
+
+	for ($i = $wpSearch_low; $i <= $wpSearch_high; $i++) {
+		if (isset($hits[intval($i)])) {
+			$post = $hits[intval($i)];
+		}
+		else {
+			continue;
+		}
+
+		if ($post == NULL) {
+			// apparently sometimes you can get a null object
+			continue;
+		}
+		
+		//Added by OdditY - Highlight Result Title too -> 
+		if("on" == get_option('relevanssi_hilite_title')){
+			if (function_exists('qtrans_useCurrentLanguageIfNotFoundUseDefaultLanguage')) {
+				$post->post_title = strip_tags(qtrans_useCurrentLanguageIfNotFoundUseDefaultLanguage($post->post_title));
+			}
+			else {
+				$post->post_title = strip_tags($post->post_title);
+			}
+			$highlight = get_option('relevanssi_highlight');
+			if ("none" != $highlight) {
+				if (!is_admin()) {
+					$post->post_title = relevanssi_highlight_terms($post->post_title, $q);
+				}
+			}
+		}
+		// OdditY end <-			
+		
+		if ('on' == $make_excerpts) {			
+			if ($cache) {
+				$post->post_excerpt = relevanssi_fetch_excerpt($post->ID, $q);
+				if ($post->post_excerpt == null) {
+					$post->post_excerpt = relevanssi_do_excerpt($post, $q);
+					relevanssi_store_excerpt($post->ID, $q, $post->post_excerpt);
+				}
+			}
+			else {
+				$post->post_excerpt = relevanssi_do_excerpt($post, $q);
+			}
+			
+			if ('on' == get_option('relevanssi_show_matches')) {
+				$post->post_excerpt .= relevanssi_show_matches($return, $post->ID);
+			}
+		}
+		
+		$post->relevance_score = round($return['scores'][$post->ID], 2);
+		
+		$posts[] = $post;
+	}
+
+	$query->posts = $posts;
+	$query->post_count = count($posts);
+	
+	return $posts;
+}
 ?>
