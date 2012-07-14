@@ -34,7 +34,6 @@ global $wpdb;
 //$wpdb->show_errors();
 
 global $relevanssi_variables;
-global $relevanssi_hits;
 
 $relevanssi_variables['relevanssi_table'] = $wpdb->prefix . "relevanssi";
 $relevanssi_variables['stopword_table'] = $wpdb->prefix . "relevanssi_stopwords";
@@ -42,7 +41,6 @@ $relevanssi_variables['log_table'] = $wpdb->prefix . "relevanssi_log";
 $relevanssi_variables['relevanssi_cache'] = $wpdb->prefix . "relevanssi_cache";
 $relevanssi_variables['relevanssi_excerpt_cache'] = $wpdb->prefix . "relevanssi_excerpt_cache";
 $relevanssi_variables['title_boost_default'] = 5;
-$relevanssi_variables['tag_boost_default'] = 0.75;
 $relevanssi_variables['comment_boost_default'] = 0.75;
 $relevanssi_variables['database_version'] = 1;
 
@@ -163,7 +161,6 @@ function _relevanssi_install() {
 	global $wpdb, $relevanssi_variables;
 	
 	add_option('relevanssi_title_boost', $relevanssi_variables['title_boost_default']);
-	add_option('relevanssi_tag_boost', $relevanssi_variables['tag_boost_default']);
 	add_option('relevanssi_comment_boost', $relevanssi_variables['comment_boost_default']);
 	add_option('relevanssi_admin_search', 'off');
 	add_option('relevanssi_highlight', 'strong');
@@ -206,6 +203,7 @@ function _relevanssi_install() {
 	add_option('relevanssi_word_boundaries', 'on');
 	add_option('relevanssi_default_orderby', 'relevance');
 	add_option('relevanssi_db_version', '0');
+	add_option('relevanssi_post_type_weights', '');
 	
 	relevanssi_create_database_tables($relevanssi_variables['relevanssi_db_version']);
 }
@@ -237,350 +235,22 @@ function relevanssi_remove_doc($id) {
 /*****
  * Interface functions
  */
-
-function update_relevanssi_options() {
-	if (isset($_REQUEST['relevanssi_title_boost'])) {
-		$boost = floatval($_REQUEST['relevanssi_title_boost']);
-		update_option('relevanssi_title_boost', $boost);
-	}
-
-	if (isset($_REQUEST['relevanssi_tag_boost'])) {
-		$boost = floatval($_REQUEST['relevanssi_tag_boost']);
-		update_option('relevanssi_tag_boost', $boost);
-	}
-
-	if (isset($_REQUEST['relevanssi_comment_boost'])) {
-		$boost = floatval($_REQUEST['relevanssi_comment_boost']);
-		update_option('relevanssi_comment_boost', $boost);
-	}
-
-	if (isset($_REQUEST['relevanssi_min_word_length'])) {
-		$value = intval($_REQUEST['relevanssi_min_word_length']);
-		if ($value == 0) $value = 3;
-		update_option('relevanssi_min_word_length', $value);
-	}
-
-	if (isset($_REQUEST['relevanssi_cache_seconds'])) {
-		$value = intval($_REQUEST['relevanssi_cache_seconds']);
-		if ($value == 0) $value = 86400;
-		update_option('relevanssi_cache_seconds', $value);
-	}
-	
-	if (!isset($_REQUEST['relevanssi_admin_search'])) {
-		$_REQUEST['relevanssi_admin_search'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_excerpts'])) {
-		$_REQUEST['relevanssi_excerpts'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_show_matches'])) {
-		$_REQUEST['relevanssi_show_matches'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_inccats'])) {
-		$_REQUEST['relevanssi_inccats'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_inctags'])) {
-		$_REQUEST['relevanssi_inctags'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_index_author'])) {
-		$_REQUEST['relevanssi_index_author'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_index_excerpt'])) {
-		$_REQUEST['relevanssi_index_excerpt'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_log_queries'])) {
-		$_REQUEST['relevanssi_log_queries'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_disable_or_fallback'])) {
-		$_REQUEST['relevanssi_disable_or_fallback'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_hilite_title'])) {
-		$_REQUEST['relevanssi_hilite_title'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_highlight_docs'])) {
-		$_REQUEST['relevanssi_highlight_docs'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_highlight_comments'])) {
-		$_REQUEST['relevanssi_highlight_comments'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_expand_shortcodes'])) {
-		$_REQUEST['relevanssi_expand_shortcodes'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_enable_cache'])) {
-		$_REQUEST['relevanssi_enable_cache'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_respect_exclude'])) {
-		$_REQUEST['relevanssi_respect_exclude'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_wpml_only_current'])) {
-		$_REQUEST['relevanssi_wpml_only_current'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_word_boundaries'])) {
-		$_REQUEST['relevanssi_word_boundaries'] = "off";
-	}
-
-	if (isset($_REQUEST['relevanssi_excerpt_length'])) {
-		$value = intval($_REQUEST['relevanssi_excerpt_length']);
-		if ($value != 0) {
-			update_option('relevanssi_excerpt_length', $value);
-		}
-	}
-	
-	if (isset($_REQUEST['relevanssi_synonyms'])) {
-		$linefeeds = array("\r\n", "\n", "\r");
-		$value = str_replace($linefeeds, ";", $_REQUEST['relevanssi_synonyms']);
-		$value = stripslashes($value);
-		update_option('relevanssi_synonyms', $value);
-	}
-
-	if (isset($_REQUEST['relevanssi_show_matches'])) update_option('relevanssi_show_matches', $_REQUEST['relevanssi_show_matches']);
-	if (isset($_REQUEST['relevanssi_show_matches_text'])) {
-		$value = $_REQUEST['relevanssi_show_matches_text'];
-		$value = str_replace('"', "'", $value);
-		update_option('relevanssi_show_matches_text', $value);
-	}
-
-	if (isset($_REQUEST['relevanssi_admin_search'])) update_option('relevanssi_admin_search', $_REQUEST['relevanssi_admin_search']);
-	if (isset($_REQUEST['relevanssi_excerpts'])) update_option('relevanssi_excerpts', $_REQUEST['relevanssi_excerpts']);	
-	if (isset($_REQUEST['relevanssi_excerpt_type'])) update_option('relevanssi_excerpt_type', $_REQUEST['relevanssi_excerpt_type']);	
-	if (isset($_REQUEST['relevanssi_log_queries'])) update_option('relevanssi_log_queries', $_REQUEST['relevanssi_log_queries']);	
-	if (isset($_REQUEST['relevanssi_highlight'])) update_option('relevanssi_highlight', $_REQUEST['relevanssi_highlight']);
-	if (isset($_REQUEST['relevanssi_highlight_docs'])) update_option('relevanssi_highlight_docs', $_REQUEST['relevanssi_highlight_docs']);
-	if (isset($_REQUEST['relevanssi_highlight_comments'])) update_option('relevanssi_highlight_comments', $_REQUEST['relevanssi_highlight_comments']);
-	if (isset($_REQUEST['relevanssi_txt_col'])) update_option('relevanssi_txt_col', $_REQUEST['relevanssi_txt_col']);
-	if (isset($_REQUEST['relevanssi_bg_col'])) update_option('relevanssi_bg_col', $_REQUEST['relevanssi_bg_col']);
-	if (isset($_REQUEST['relevanssi_css'])) update_option('relevanssi_css', $_REQUEST['relevanssi_css']);
-	if (isset($_REQUEST['relevanssi_class'])) update_option('relevanssi_class', $_REQUEST['relevanssi_class']);
-	if (isset($_REQUEST['relevanssi_cat'])) update_option('relevanssi_cat', $_REQUEST['relevanssi_cat']);
-	if (isset($_REQUEST['relevanssi_excat'])) update_option('relevanssi_excat', $_REQUEST['relevanssi_excat']);
-	if (isset($_REQUEST['relevanssi_custom_taxonomies'])) update_option('relevanssi_custom_taxonomies', $_REQUEST['relevanssi_custom_taxonomies']);
-	if (isset($_REQUEST['relevanssi_index_fields'])) update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
-	if (isset($_REQUEST['relevanssi_expst'])) update_option('relevanssi_exclude_posts', $_REQUEST['relevanssi_expst']); 			//added by OdditY
-	if (isset($_REQUEST['relevanssi_inctags'])) update_option('relevanssi_include_tags', $_REQUEST['relevanssi_inctags']); 			//added by OdditY	
-	if (isset($_REQUEST['relevanssi_hilite_title'])) update_option('relevanssi_hilite_title', $_REQUEST['relevanssi_hilite_title']); 	//added by OdditY	
-	if (isset($_REQUEST['relevanssi_index_comments'])) update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']); //added by OdditY	
-	if (isset($_REQUEST['relevanssi_inccats'])) update_option('relevanssi_include_cats', $_REQUEST['relevanssi_inccats']);
-	if (isset($_REQUEST['relevanssi_index_author'])) update_option('relevanssi_index_author', $_REQUEST['relevanssi_index_author']);
-	if (isset($_REQUEST['relevanssi_index_excerpt'])) update_option('relevanssi_index_excerpt', $_REQUEST['relevanssi_index_excerpt']);
-	if (isset($_REQUEST['relevanssi_fuzzy'])) update_option('relevanssi_fuzzy', $_REQUEST['relevanssi_fuzzy']);
-	if (isset($_REQUEST['relevanssi_expand_shortcodes'])) update_option('relevanssi_expand_shortcodes', $_REQUEST['relevanssi_expand_shortcodes']);
-	if (isset($_REQUEST['relevanssi_implicit_operator'])) update_option('relevanssi_implicit_operator', $_REQUEST['relevanssi_implicit_operator']);
-	if (isset($_REQUEST['relevanssi_omit_from_logs'])) update_option('relevanssi_omit_from_logs', $_REQUEST['relevanssi_omit_from_logs']);
-	if (isset($_REQUEST['relevanssi_index_limit'])) update_option('relevanssi_index_limit', $_REQUEST['relevanssi_index_limit']);
-	if (isset($_REQUEST['relevanssi_disable_or_fallback'])) update_option('relevanssi_disable_or_fallback', $_REQUEST['relevanssi_disable_or_fallback']);
-	if (isset($_REQUEST['relevanssi_respect_exclude'])) update_option('relevanssi_respect_exclude', $_REQUEST['relevanssi_respect_exclude']);
-	if (isset($_REQUEST['relevanssi_enable_cache'])) update_option('relevanssi_enable_cache', $_REQUEST['relevanssi_enable_cache']);
-	if (isset($_REQUEST['relevanssi_wpml_only_current'])) update_option('relevanssi_wpml_only_current', $_REQUEST['relevanssi_wpml_only_current']);
-	if (isset($_REQUEST['relevanssi_word_boundaries'])) update_option('relevanssi_word_boundaries', $_REQUEST['relevanssi_word_boundaries']);
-	if (isset($_REQUEST['relevanssi_default_orderby'])) update_option('relevanssi_default_orderby', $_REQUEST['relevanssi_default_orderby']);
-}
-
-function relevanssi_add_stopword($term) {
-	global $wpdb, $relevanssi_table, $stopword_table;
-	if ('' == $term) return; // do not add empty $term to stopwords - added by renaissancehack
-	
-	$n = 0;
-	$s = 0;
-	
-	$terms = explode(',', $term);
-	if (count($terms) > 1) {
-		foreach($terms as $term) {
-			$n++;
-			$term = trim($term);
-			$success = relevanssi_add_single_stopword($term);
-			if ($success) $s++;
-		}
-		printf(__("<div id='message' class='updated fade'><p>Successfully added %d/%d terms to stopwords!</p></div>", "relevanssi"), $s, $n);
-	}
-	else {
-		// add to stopwords
-		$success = relevanssi_add_single_stopword($term);
+ 
+function relevanssi_form_tag_weight($post_type_weights) {
+	$taxonomies = get_taxonomies('', 'names'); 
+	$label = sprintf(__("Tag weight:", 'relevanssi'), $type);
 		
-		if ($success) {
-			printf(__("<div id='message' class='updated fade'><p>Term '%s' added to stopwords!</p></div>", "relevanssi"), $term);
-		}
-		else {
-			printf(__("<div id='message' class='updated fade'><p>Couldn't add term '%s' to stopwords!</p></div>", "relevanssi"), $term);
-		}
-	}
-}
-
-function relevanssi_add_single_stopword($term) {
-	global $wpdb, $relevanssi_table, $stopword_table;
-	if ('' == $term) return;
-
-	$q = $wpdb->prepare("INSERT INTO $stopword_table (stopword) VALUES (%s)", $term);
-	$success = $wpdb->query($q);
-	
-	if ($success) {
-		// remove from index
-		$q = $wpdb->prepare("DELETE FROM $relevanssi_table WHERE term=%s", $term);
-		$wpdb->query($q);
-		return true;
-	}
-	else {
-		return false;
-	}
-}
-
-function relevanssi_remove_all_stopwords() {
-	global $wpdb, $stopword_table;
-	
-	$q = $wpdb->prepare("TRUNCATE $stopword_table");
-	$success = $wpdb->query($q);
-	
-	printf(__("<div id='message' class='updated fade'><p>Stopwords removed! Remember to re-index.</p></div>", "relevanssi"), $term);
-}
-
-function relevanssi_remove_stopword($term) {
-	global $wpdb, $stopword_table;
-	
-	$q = $wpdb->prepare("DELETE FROM $stopword_table WHERE stopword = '$term'");
-	$success = $wpdb->query($q);
-	
-	if ($success) {
-		printf(__("<div id='message' class='updated fade'><p>Term '%s' removed from stopwords! Re-index to get it back to index.</p></div>", "relevanssi"), $term);
-	}
-	else {
-		printf(__("<div id='message' class='updated fade'><p>Couldn't remove term '%s' from stopwords!</p></div>", "relevanssi"), $term);
-	}
-}
-
-function relevanssi_common_words() {
-	global $wpdb, $relevanssi_table, $wp_version;
-	
-	echo "<div style='float:left; width: 45%'>";
-	
-	echo "<h3>" . __("25 most common words in the index", 'relevanssi') . "</h3>";
-	
-	echo "<p>" . __("These words are excellent stopword material. A word that appears in most of the posts in the database is quite pointless when searching. This is also an easy way to create a completely new stopword list, if one isn't available in your language. Click the icon after the word to add the word to the stopword list. The word will also be removed from the index, so rebuilding the index is not necessary.", 'relevanssi') . "</p>";
-	
-	$words = $wpdb->get_results("SELECT COUNT(DISTINCT(doc)) as cnt, term
-		FROM $relevanssi_table GROUP BY term ORDER BY cnt DESC LIMIT 25");
-
-	echo '<form method="post">';
-	echo '<input type="hidden" name="dowhat" value="add_stopword" />';
-	echo "<ul>\n";
-
-	if (function_exists("plugins_url")) {
-		if (version_compare($wp_version, '2.8dev', '>' )) {
-			$src = plugins_url('delete.png', __FILE__);
-		}
-		else {
-			$src = plugins_url('relevanssi/delete.png');
-		}
-	}
-	else {
-		// We can't check, so let's assume something sensible
-		$src = '/wp-content/plugins/relevanssi/delete.png';
-	}
-	
-	foreach ($words as $word) {
-		$stop = __('Add to stopwords', 'relevanssi');
-		printf('<li>%s (%d) <input style="padding: 0; margin: 0" type="image" src="%s" alt="%s" name="term" value="%s"/></li>', $word->term, $word->cnt, $src, $stop, $word->term);
-	}
-	echo "</ul>\n</form>";
-	
-	echo "</div>";
-}
-
-function relevanssi_query_log() {
-	global $log_table, $wpdb;
-
-	$lead = __("Here you can see the 20 most common user search queries, how many times those 
-		queries were made and how many results were found for those queries.", 'relevanssi');
-
-	echo "<p>$lead</p>";
-	
-	echo "<div style='width: 30%; float: left; margin-right: 2%'>";
-	relevanssi_date_queries(1, __("Today and yesterday", 'relevanssi'));
-	echo '</div>';
-
-	echo "<div style='width: 30%; float: left; margin-right: 2%'>";
-	relevanssi_date_queries(7, __("Last 7 days", 'relevanssi'));
-	echo '</div>';
-
-	echo "<div style='width: 30%; float: left; margin-right: 2%'>";
-	relevanssi_date_queries(30, __("Last 30 days", 'relevanssi'));
-	echo '</div>';
-
-	echo '<div style="clear: both"></div>';
-	
-	echo '<h3>' . __("Unsuccessful Queries", 'relevanssi') . '</h3>';
-
-	echo "<div style='width: 30%; float: left; margin-right: 2%'>";
-	relevanssi_date_queries(1, __("Today and yesterday", 'relevanssi'), 'bad');
-	echo '</div>';
-
-	echo "<div style='width: 30%; float: left; margin-right: 2%'>";
-	relevanssi_date_queries(7, __("Last 7 days", 'relevanssi'), 'bad');
-	echo '</div>';
-
-	echo "<div style='width: 30%; float: left; margin-right: 2%'>";
-	relevanssi_date_queries(30, __("Last 30 days", 'relevanssi'), 'bad');
-	echo '</div>';
-
-	if ( current_user_can('manage_options') ) {
-
-		echo '<div style="clear: both"></div>';
-
-		echo <<<EOR
-<h3>Reset Logs</h3>
-
-<form method="post">
-<p>To reset the logs, type 'reset' into the box here <input type="text" name="relevanssi_reset_code" />
-and click <input type="submit" name="relevanssi_reset" value="Reset" class="button" /></p>
-</form>
-EOR;
-
-	}
-
-	echo "</div>";
-}
-
-function relevanssi_date_queries($d, $title, $version = 'good') {
-	global $wpdb, $log_table;
-	
-	if ($version == 'good')
-		$queries = $wpdb->get_results("SELECT COUNT(DISTINCT(id)) as cnt, query, hits
-		  FROM $log_table
-		  WHERE TIMESTAMPDIFF(DAY, time, NOW()) <= $d
-		  GROUP BY query
-		  ORDER BY cnt DESC
-		  LIMIT 20");
-	
-	if ($version == 'bad')
-		$queries = $wpdb->get_results("SELECT COUNT(DISTINCT(id)) as cnt, query, hits
-		  FROM $log_table
-		  WHERE TIMESTAMPDIFF(DAY, time, NOW()) <= $d
-		    AND hits = 0
-		  GROUP BY query
-		  ORDER BY time DESC
-		  LIMIT 20");
-
-	if (count($queries) > 0) {
-		echo "<table class='widefat'><thead><tr><th colspan='3'>$title</th></tr></thead><tbody><tr><th>Query</th><th>#</th><th>Hits</th></tr>";
-		foreach ($queries as $query) {
-			$url = get_bloginfo('url');
-			$u_q = urlencode($query->query);
-			echo "<tr><td style='padding: 3px 5px'><a href='$url/?s=$u_q'>" . esc_attr( $query->query ) . "</a></td><td style='padding: 3px 5px; text-align: center'>" . $query->cnt . "</td><td style='padding: 3px 5px; text-align: center'>" . $query->hits . "</td></tr>";
-		}
-		echo "</tbody></table>";
+	echo <<<EOH
+	<tr>
+		<td>
+			$label 
+		</td>
+		<td>
+			<input type='text' name='relevanssi_weight_$type' size='4' value='$value' />
+		</td>
+		<td>&nbsp;</td>
+	</tr>
+EOH;
 	}
 }
 

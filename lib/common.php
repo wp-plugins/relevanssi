@@ -294,11 +294,11 @@ function relevanssi_store_excerpt($post, $query, $excerpt) {
 }
 
 function relevanssi_fetch_hits($param) {
-	global $wpdb, $relevanssi_cache;
+	global $wpdb, $relevanssi_variables;
 
 	$time = get_option('relevanssi_cache_seconds', 172800);
 
-	$hits = $wpdb->get_var("SELECT hits FROM $relevanssi_cache WHERE param = '$param' AND UNIX_TIMESTAMP() - UNIX_TIMESTAMP(tstamp) < $time");
+	$hits = $wpdb->get_var("SELECT hits FROM " . $relevanssi_variables['relevanssi_cache'] . " WHERE param = '$param' AND UNIX_TIMESTAMP() - UNIX_TIMESTAMP(tstamp) < $time");
 	
 	if ($hits) {
 		return unserialize($hits);
@@ -309,11 +309,11 @@ function relevanssi_fetch_hits($param) {
 }
 
 function relevanssi_store_hits($param, $data) {
-	global $wpdb, $relevanssi_cache;
+	global $wpdb, $relevanssi_variables;
 
 	$param = mysql_real_escape_string($param);
 	$data = mysql_real_escape_string($data);
-	$wpdb->query("INSERT INTO $relevanssi_cache (param, hits)
+	$wpdb->query("INSERT INTO " . $relevanssi_variables['relevanssi_cache'] . " (param, hits)
 		VALUES ('$param', '$data')
 		ON DUPLICATE KEY UPDATE hits = '$data'");
 }
@@ -405,7 +405,7 @@ function relevanssi_update_log($query, $hits) {
 	if(isset($_SERVER['HTTP_USER_AGENT']) && $_SERVER['HTTP_USER_AGENT'] == "Mediapartners-Google")
 		return;
 
-	global $wpdb, $relevanssi_log_table;
+	global $wpdb, $relevanssi_variables;
 	
 	$user = wp_get_current_user();
 	if ($user->ID != 0 && get_option('relevanssi_omit_from_logs')) {
@@ -414,7 +414,7 @@ function relevanssi_update_log($query, $hits) {
 		if (in_array($user->user_login, $omit)) return;
 	}
 		
-	$q = $wpdb->prepare("INSERT INTO $relevanssi_log_table (query, hits, user_id, ip) VALUES (%s, %d, %d, %s)", $query, intval($hits), $user->ID, $_SERVER['REMOTE_ADDR']);
+	$q = $wpdb->prepare("INSERT INTO " . $relevanssi_variables['relevanssi_log_table'] . " (query, hits, user_id, ip) VALUES (%s, %d, %d, %s)", $query, intval($hits), $user->ID, $_SERVER['REMOTE_ADDR']);
 	$wpdb->query($q);
 }
 
@@ -1317,8 +1317,8 @@ function relevanssi_query_vars($qv) {
 }
 
 function relevanssi_build_index($extend = false) {
-	global $wpdb, $relevanssi_table, $relevanssi_variables;
-	if (isset($relevanssi_variables['relevanssi_table'])) $relevanssi_table = $relevanssi_variables['relevanssi_table'];
+	global $wpdb, $relevanssi_variables;
+	$relevanssi_table = $relevanssi_variables['relevanssi_table'];
 
 	set_time_limit(0);
 	
@@ -1417,8 +1417,8 @@ function relevanssi_build_index($extend = false) {
 		global $post is an array, $indexpost is the ID of current revision.
 */
 function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields = false, $bypassglobalpost = false) {
-	global $wpdb, $relevanssi_table, $post, $relevanssi_variables;
-	if (isset($relevanssi_variables['relevanssi_table'])) $relevanssi_table = $relevanssi_variables['relevanssi_table'];
+	global $wpdb, $post, $relevanssi_variables;
+	$relevanssi_table = $relevanssi_variables['relevanssi_table'];
 	$post_was_null = false;
 	$previous_post = NULL;
 
@@ -1705,8 +1705,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
  * @return array Updated insert query data array.
  */
 function relevanssi_index_taxonomy_terms($post = null, $taxonomy = "", $insert_data) {
-	global $wpdb, $relevanssi_table, $relevanssi_varibles;
-	if (isset($relevanssi_variables['relevanssi_table'])) $relevanssi_table = $relevanssi_variables['relevanssi_table'];
+	global $wpdb, $relevanssi_varibles;
+	$relevanssi_table = $relevanssi_variables['relevanssi_table'];
 
 	$n = 0;
 
@@ -1839,8 +1839,8 @@ function relevanssi_tokenize($str, $remove_stops = true, $min_word_length = -1) 
 
 // This is my own magic working.
 function relevanssi_search($q, $cat = NULL, $excat = NULL, $tag = NULL, $expost = NULL, $post_type = NULL, $taxonomy = NULL, $taxonomy_term = NULL, $operator = "AND", $search_blogs = NULL, $customfield_key = NULL, $customfield_value = NULL, $author = NULL) {
-	global $relevanssi_table, $wpdb, $relevanssi_variables;
-	if (isset($relevanssi_variables['relevanssi_table'])) $relevanssi_table = $relevanssi_variables['relevanssi_table'];
+	global $wpdb, $relevanssi_variables;
+	$relevanssi_table = $relevanssi_variables['relevanssi_table'];
 
 	$values_to_filter = array(
 		'q' => $q,
@@ -2404,9 +2404,9 @@ function relevanssi_highlight_in_docs($content) {
 }
 
 function relevanssi_truncate_cache($all = false) {
-	global $relevanssi_cache, $relevanssi_excerpt_cache, $wpdb, $relevanssi_variables;
-	if (isset($relevanssi_variables['relevanssi_excerpt_cache'])) $relevanssi_excerpt_cache = $relevanssi_variables['relevanssi_excerpt_cache'];
-	if (isset($relevanssi_variables['relevanssi_cache'])) $relevanssi_cache = $relevanssi_variables['relevanssi_cache'];
+	global $wpdb, $relevanssi_variables;
+	$relevanssi_excerpt_cache = $relevanssi_variables['relevanssi_excerpt_cache'];
+	$relevanssi_cache = $relevanssi_variables['relevanssi_cache'];
 
 	if ($all) {
 		$query = "TRUNCATE TABLE $relevanssi_excerpt_cache";
