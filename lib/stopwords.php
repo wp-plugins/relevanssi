@@ -11,7 +11,7 @@ function relevanssi_populate_stopwords() {
 		$lang = WPLANG;
 	}
 	
-	include('stopwords.' . $lang);
+	include($relevanssi_variables['plugin_dir'] . 'stopwords/stopwords.' . $lang);
 
 	if (is_array($stopwords) && count($stopwords) > 0) {
 		foreach ($stopwords as $word) {

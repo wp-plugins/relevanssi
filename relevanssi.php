@@ -46,6 +46,7 @@ $relevanssi_variables['title_boost_default'] = 5;
 $relevanssi_variables['comment_boost_default'] = 0.75;
 $relevanssi_variables['database_version'] = 1;
 $relevanssi_variables['file'] = __FILE__;
+$relevanssi_variables['plugin_dir'] = plugin_dir_path(__FILE__);
 
 require_once('lib/init.php');
 require_once('lib/interface.php');
@@ -219,7 +220,7 @@ function _relevanssi_install() {
 	add_option('relevanssi_throttle', 'on');
 	add_option('relevanssi_throttle_limit', '500');
 	
-	relevanssi_create_database_tables($relevanssi_variables['relevanssi_db_version']);
+	relevanssi_create_database_tables($relevanssi_variables['database_version']);
 }
 
 if (function_exists('register_uninstall_hook')) {

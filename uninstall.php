@@ -6,6 +6,8 @@ if (!defined('WP_UNINSTALL_PLUGIN'))
 global $wpdb;
 require_once('lib/uninstall.php');
 
+relevanssi_uninstall();
+
 function relevanssi_uninstall() {
 	delete_option('relevanssi_title_boost');
 	delete_option('relevanssi_tag_boost');
@@ -15,6 +17,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_txt_col');
 	delete_option('relevanssi_bg_col');
 	delete_option('relevanssi_css');
+	delete_option('relevanssi_class');
 	delete_option('relevanssi_excerpts');
 	delete_option('relevanssi_excerpt_length');
 	delete_option('relevanssi_excerpt_type');
@@ -31,6 +34,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_show_matches');
 	delete_option('relevanssi_show_matches_text');
 	delete_option('relevanssi_fuzzy');
+	delete_option('relevanssi_index');
 	delete_option('relevanssi_indexed');
 	delete_option('relevanssi_expand_shortcodes');
 	delete_option('relevanssi_custom_taxonomies');
@@ -54,6 +58,8 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_db_version');
 	delete_option('relevanssi_throttle');
 	delete_option('relevanssi_throttle_limit');
+	delete_option('relevanssi_index_post_types');
+	delete_option('relevanssi_post_type_weights');
 
 	// Unused options, removed in case they are still left
 	delete_option('relevanssi_custom_types');

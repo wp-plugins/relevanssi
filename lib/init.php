@@ -26,7 +26,7 @@ add_filter('relevanssi_query_filter', 'relevanssi_limit_filter');
 add_filter('query_vars', 'relevanssi_query_vars');
 
 global $relevanssi_variables;
-register_activation_hook($relevanssi_variables['file'],'relevanssi_install');
+register_activation_hook($relevanssi_variables['file'], 'relevanssi_install');
 $plugin_dir = dirname(plugin_basename($relevanssi_variables['file']));
 load_plugin_textdomain('relevanssi', false, $plugin_dir);
 
@@ -127,8 +127,10 @@ function relevanssi_create_database_tables($relevanssi_db_version) {
 
 	if(get_option('relevanssi_db_version') != $relevanssi_db_version) {
 		if ($relevanssi_db_version == 1) {
-			$sql = "DROP TABLE $relevanssi_table";
-			$wpdb->query($sql);
+			if($wpdb->get_var("SHOW TABLES LIKE '$relevanssi_table'") == $relevanssi_table) {
+				$sql = "DROP TABLE $relevanssi_table";
+				$wpdb->query($sql);
+			}
 			delete_option('relevanssi_indexed');
 		}
 	

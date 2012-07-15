@@ -646,12 +646,8 @@ function relevanssi_do_query(&$query) {
 	
 		if (is_admin()) {
 			// in admin search, search everything
-			$cat = null;
-			$tag = null;
 			$excat = null;
 			$expids = null;
-			$tax = null;
-			$tax_term = null;
 		}
 
 		$operator = "";
