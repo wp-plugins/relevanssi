@@ -1,6 +1,7 @@
 <?php
 
 function relevanssi_options() {
+	global $relevanssi_variables;
 	if (RELEVANSSI_PREMIUM) {
 		$options_txt = __('Relevanssi Premium Search Options', 'relevanssi');
 	}
@@ -11,25 +12,25 @@ function relevanssi_options() {
 	printf("<div class='wrap'><h2>%s</h2>", $options_txt);
 	if (!empty($_POST)) {
 		if (isset($_REQUEST['submit'])) {
-			check_admin_referer(plugin_basename(__FILE__), 'relevanssi_options');
+			check_admin_referer(plugin_basename($relevanssi_variables['file']), 'relevanssi_options');
 			update_relevanssi_options();
 		}
 	
 		if (isset($_REQUEST['index'])) {
-			check_admin_referer(plugin_basename(__FILE__), 'relevanssi_options');
+			check_admin_referer(plugin_basename($relevanssi_variables['file']), 'relevanssi_options');
 			update_relevanssi_options();
 			relevanssi_build_index();
 		}
 	
 		if (isset($_REQUEST['index_extend'])) {
-			check_admin_referer(plugin_basename(__FILE__), 'relevanssi_options');
+			check_admin_referer(plugin_basename($relevanssi_variables['file']), 'relevanssi_options');
 			update_relevanssi_options();
 			relevanssi_build_index(true);
 		}
 
 		if (isset($_REQUEST['import_options'])) {
 			if (function_exists('relevanssi_import_options')) {
-				check_admin_referer(plugin_basename(__FILE__), 'relevanssi_options');
+				check_admin_referer(plugin_basename($relevanssi_variables['file']), 'relevanssi_options');
 				$options = $_REQUEST['relevanssi_settings'];
 				relevanssi_import_options($options);
 			}
@@ -42,29 +43,29 @@ function relevanssi_options() {
 		if (isset($_REQUEST['dowhat'])) {
 			if ("add_stopword" == $_REQUEST['dowhat']) {
 				if (isset($_REQUEST['term'])) {
-					check_admin_referer(plugin_basename(__FILE__), 'relevanssi_options');
+					check_admin_referer(plugin_basename($relevanssi_variables['file']), 'relevanssi_options');
 					relevanssi_add_stopword($_REQUEST['term']);
 				}
 			}
 		}
 	
 		if (isset($_REQUEST['addstopword'])) {
-			check_admin_referer(plugin_basename(__FILE__), 'relevanssi_options');
+			check_admin_referer(plugin_basename($relevanssi_variables['file']), 'relevanssi_options');
 			relevanssi_add_stopword($_REQUEST['addstopword']);
 		}
 		
 		if (isset($_REQUEST['removestopword'])) {
-			check_admin_referer(plugin_basename(__FILE__), 'relevanssi_options');
+			check_admin_referer(plugin_basename($relevanssi_variables['file']), 'relevanssi_options');
 			relevanssi_remove_stopword($_REQUEST['removestopword']);
 		}
 	
 		if (isset($_REQUEST['removeallstopwords'])) {
-			check_admin_referer(plugin_basename(__FILE__), 'relevanssi_options');
+			check_admin_referer(plugin_basename($relevanssi_variables['file']), 'relevanssi_options');
 			relevanssi_remove_all_stopwords();
 		}
 
 		if (isset($_REQUEST['truncate'])) {
-			check_admin_referer(plugin_basename(__FILE__), 'relevanssi_options');
+			check_admin_referer(plugin_basename($relevanssi_variables['file']), 'relevanssi_options');
 			$clear_all = true;
 			relevanssi_truncate_cache($clear_all);
 		}
@@ -342,7 +343,7 @@ function relevanssi_add_single_stopword($term) {
 	global $wpdb, $relevanssi_variables;
 	if ('' == $term) return;
 
-	$q = $wpdb->prepare("INSERT INTO " . $relevanssi_variables['relevanssi_stopword_table'] . " (stopword) VALUES (%s)", $term);
+	$q = $wpdb->prepare("INSERT INTO " . $relevanssi_variables['stopword_table'] . " (stopword) VALUES (%s)", $term);
 	$success = $wpdb->query($q);
 	
 	if ($success) {
@@ -359,7 +360,7 @@ function relevanssi_add_single_stopword($term) {
 function relevanssi_remove_all_stopwords() {
 	global $wpdb, $relevanssi_variables;
 	
-	$q = $wpdb->prepare("TRUNCATE " . $relevanssi_variables['relevanssi_stopword_table']);
+	$q = $wpdb->prepare("TRUNCATE " . $relevanssi_variables['stopword_table']);
 	$success = $wpdb->query($q);
 	
 	printf(__("<div id='message' class='updated fade'><p>Stopwords removed! Remember to re-index.</p></div>", "relevanssi"), $term);
@@ -368,7 +369,7 @@ function relevanssi_remove_all_stopwords() {
 function relevanssi_remove_stopword($term) {
 	global $wpdb, $relevanssi_variables;
 	
-	$q = $wpdb->prepare("DELETE FROM " . $relevanssi_variables['relevanssi_stopword_table'] . " WHERE stopword = '$term'");
+	$q = $wpdb->prepare("DELETE FROM " . $relevanssi_variables['stopword_table'] . " WHERE stopword = '$term'");
 	$success = $wpdb->query($q);
 	
 	if ($success) {
@@ -395,14 +396,14 @@ function relevanssi_common_words() {
 
 ?>
 <form method="post">
-<?php wp_nonce_field(plugin_basename(__FILE__), 'relevanssi_options'); ?>
+<?php wp_nonce_field(plugin_basename($relevanssi_variables['file']), 'relevanssi_options'); ?>
 <input type="hidden" name="dowhat" value="add_stopword" />
 <ul>
 <?php
 
 	if (function_exists("plugins_url")) {
 		if (version_compare($wp_version, '2.8dev', '>' )) {
-			$src = plugins_url('delete.png', __FILE__);
+			$src = plugins_url('delete.png', $relevanssi_variables['file']);
 		}
 		else {
 			$src = plugins_url($plugin . '/delete.png');
@@ -823,7 +824,7 @@ function relevanssi_options_form() {
 		echo "<form method='post'>";
 	}
 	
-	wp_nonce_field(plugin_basename(__FILE__), 'relevanssi_options'); ?>
+	wp_nonce_field(plugin_basename($relevanssi_variables['file']), 'relevanssi_options'); ?>
 	
     <p><a href="#basic"><?php _e("Basic options", "relevanssi"); ?></a> |
 	<a href="#weights"><?php _e("Weights", "relevanssi"); ?></a> |
@@ -1307,7 +1308,7 @@ function relevanssi_show_stopwords() {
 
 	if (function_exists("plugins_url")) {
 		if (version_compare($wp_version, '2.8dev', '>' )) {
-			$src = plugins_url('delete.png', __FILE__);
+			$src = plugins_url('delete.png', $relevanssi_variables['file']);
 		}
 		else {
 			$src = plugins_url($plugin . '/delete.png');
@@ -1319,7 +1320,7 @@ function relevanssi_show_stopwords() {
 	}
 	
 	echo "<ul>";
-	$results = $wpdb->get_results("SELECT * FROM " . $relevanssi_variables['relevanssi_stopword_table']);
+	$results = $wpdb->get_results("SELECT * FROM " . $relevanssi_variables['stopword_table']);
 	$exportlist = array();
 	foreach ($results as $stopword) {
 		$sw = $stopword->stopword; 

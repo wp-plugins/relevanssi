@@ -33,6 +33,8 @@ Author URI: http://www.mikkosaari.fi/
 global $wpdb;
 //$wpdb->show_errors();
 
+define('RELEVANSSI_PREMIUM', false);
+
 global $relevanssi_variables;
 
 $relevanssi_variables['relevanssi_table'] = $wpdb->prefix . "relevanssi";
@@ -43,6 +45,7 @@ $relevanssi_variables['relevanssi_excerpt_cache'] = $wpdb->prefix . "relevanssi_
 $relevanssi_variables['title_boost_default'] = 5;
 $relevanssi_variables['comment_boost_default'] = 0.75;
 $relevanssi_variables['database_version'] = 1;
+$relevanssi_variables['file'] = __FILE__;
 
 require_once('lib/init.php');
 require_once('lib/interface.php');
@@ -248,20 +251,20 @@ function relevanssi_remove_doc($id) {
  
 function relevanssi_form_tag_weight($post_type_weights) {
 	$taxonomies = get_taxonomies('', 'names'); 
-	$label = sprintf(__("Tag weight:", 'relevanssi'), $type);
-		
+	$label = __("Tag weight:", 'relevanssi');
+	$value = $post_type_weights['post_tag'];
+
 	echo <<<EOH
 	<tr>
 		<td>
 			$label 
 		</td>
 		<td>
-			<input type='text' name='relevanssi_weight_$type' size='4' value='$value' />
+			<input type='text' name='relevanssi_weight_post_tag' size='4' value='$value' />
 		</td>
 		<td>&nbsp;</td>
 	</tr>
 EOH;
-	}
 }
 
 function relevanssi_sidebar() {

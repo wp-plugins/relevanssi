@@ -15,7 +15,7 @@ function relevanssi_populate_stopwords() {
 
 	if (is_array($stopwords) && count($stopwords) > 0) {
 		foreach ($stopwords as $word) {
-			$q = $wpdb->prepare("INSERT IGNORE INTO " . $relevanssi_variables['relevanssi_stopword_table'] . " (stopword) VALUES (%s)", trim($word));
+			$q = $wpdb->prepare("INSERT IGNORE INTO " . $relevanssi_variables['stopword_table'] . " (stopword) VALUES (%s)", trim($word));
 			$wpdb->query($q);
 		}
 	}
@@ -27,7 +27,7 @@ function relevanssi_fetch_stopwords() {
 	if (!isset($relevanssi_variables['stopword_list'])) $relevanssi_variables['stopword_list'] = array();
 	
 	if (count($relevanssi_variables['stopword_list']) < 1) {
-		$results = $wpdb->get_results("SELECT stopword FROM " . $relevanssi_variables['relevanssi_stopword_table']);
+		$results = $wpdb->get_results("SELECT stopword FROM " . $relevanssi_variables['stopword_table']);
 		foreach ($results as $word) {
 			$relevanssi_variables['stopword_list'][] = $word->stopword;
 		}

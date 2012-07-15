@@ -646,10 +646,11 @@ function relevanssi_do_query(&$query) {
 			$tax_term = null;
 		}
 
+		$operator = "";
 		if (function_exists('relevanssi_set_operator')) {
 			$operator = relevanssi_set_operator($query);
-		}		
-		$operator = strtoupper($operator);	// just in case
+			$operator = strtoupper($operator);	// just in case
+		}
 		if ($operator != "OR" && $operator != "AND") $operator = get_option("relevanssi_implicit_operator");
 		
 		// Add synonyms

@@ -1,6 +1,5 @@
 <?php
 
-register_activation_hook(__FILE__,'relevanssi_install');
 add_action('admin_menu', 'relevanssi_menu');
 add_filter('the_posts', 'relevanssi_query');
 add_action('save_post', 'relevanssi_edit', 99, 1);				// thanks to Brian D Gajus
@@ -26,17 +25,20 @@ add_filter('relevanssi_post_ok', 'relevanssi_default_post_ok', 10, 2);
 add_filter('relevanssi_query_filter', 'relevanssi_limit_filter');
 add_filter('query_vars', 'relevanssi_query_vars');
 
-$plugin_dir = dirname(plugin_basename(__FILE__));
+global $relevanssi_variables;
+register_activation_hook($relevanssi_variables['file'],'relevanssi_install');
+$plugin_dir = dirname(plugin_basename($relevanssi_variables['file']));
 load_plugin_textdomain('relevanssi', false, $plugin_dir);
 
 function relevanssi_init() {
-	global $pagenow;
+	global $pagenow, $relevanssi_variables;
 
 	isset($_POST['index']) ? $index = true : $index = false;
 	if (!get_option('relevanssi_indexed') && !$index) {
 		function relevanssi_warning() {
+			RELEVANSSI_PREMIUM ? $plugin = 'relevanssi-premium' : $plugin = 'relevanssi';
 			echo "<div id='relevanssi-warning' class='updated fade'><p><strong>"
-			   . sprintf(__('Relevanssi needs attention: Remember to build the index (you can do it at <a href="%1$s">the settings page</a>), otherwise searching won\'t work.'), "options-general.php?page=relevanssi-premium/relevanssi.php")
+			   . sprintf(__('Relevanssi needs attention: Remember to build the index (you can do it at <a href="%1$s">the settings page</a>), otherwise searching won\'t work.'), "options-general.php?page=" . $plugin . "/relevanssi.php")
 			   . "</strong></p></div>";
 		}
 		add_action('admin_notices', 'relevanssi_warning');
@@ -49,7 +51,7 @@ function relevanssi_init() {
 			   . "Please install (or ask your host to install) the mbstring extension."
 			   . "</strong></p></div>";
 		}
-		if ( 'options-general.php' == $pagenow and isset( $_GET['page'] ) and plugin_basename( __FILE__ ) == $_GET['page'] )
+		if ( 'options-general.php' == $pagenow and isset( $_GET['page'] ) and plugin_basename($relevanssi_variables['file']) == $_GET['page'] )
 			add_action('admin_notices', 'relevanssi_mb_warning');
 	}
 
@@ -72,18 +74,20 @@ function relevanssi_init() {
 }
 
 function relevanssi_menu() {
+	global $relevanssi_variables;
+	RELEVANSSI_PREMIUM ? $name = "Relevanssi Premium" : $name = "Relevanssi";
 	add_options_page(
-		'Relevanssi Premium',
-		'Relevanssi Premium',
+		$name,
+		$name,
 		'manage_options',
-		__FILE__,
+		$relevanssi_variables['file'],
 		'relevanssi_options'
 	);
 	add_dashboard_page(
 		__('User searches', 'relevanssi'),
 		__('User searches', 'relevanssi'),
 		'edit_pages',
-		__FILE__,
+		$relevanssi_variables['file'],
 		'relevanssi_search_stats'
 	);
 }

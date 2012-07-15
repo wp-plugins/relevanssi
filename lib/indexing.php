@@ -389,7 +389,7 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
  * @return array Updated insert query data array.
  */
 function relevanssi_index_taxonomy_terms($post = null, $taxonomy = "", $insert_data) {
-	global $wpdb, $relevanssi_varibles;
+	global $wpdb, $relevanssi_variables;
 	$relevanssi_table = $relevanssi_variables['relevanssi_table'];
 
 	$n = 0;
