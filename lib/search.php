@@ -203,6 +203,7 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $tag = NULL, $expost 
 
 	//Added by OdditY:
 	//Exclude Post_IDs (Pages) for non-admin search ->
+	$postex = '';
 	if ($expost) {
 		if ($expost != "") {
 			$aexpids = explode(",",$expost);
@@ -732,7 +733,12 @@ function relevanssi_do_query(&$query) {
 		$wpSearch_low = 0;
 	}
 
-	$wpSearch_high = $wpSearch_low + $query->query_vars["posts_per_page"] - 1;
+	if ($query->query_vars["posts_per_page"] == -1) {
+		$wpSearch_high = sizeof($hits);
+	}
+	else {
+		$wpSearch_high = $wpSearch_low + $query->query_vars["posts_per_page"] - 1;
+	}
 	if ($wpSearch_high > sizeof($hits)) $wpSearch_high = sizeof($hits);
 
 	for ($i = $wpSearch_low; $i <= $wpSearch_high; $i++) {

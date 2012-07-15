@@ -393,6 +393,7 @@ removing those words helps to make the index smaller and searching faster.
 * New filter: `relevanssi_do_not_index` is given a post ID and expects a boolean in return: should this post be indexed or not?
 * New filter: `relevanssi_match` lets you meddle with the matching engine.
 * New filter: `relevanssi_results` filters the result set from the search.
+* New filter: `relevanssi_content_to_index` let's user add whatever content they wish to posts before they are indexed.
 * Changed filter: `relevanssi_post_ok` has different arguments, see source code for details.
 * New shortcode: use shortcode `noindex` to wrap parts of posts you want to keep from the index.
 * The database has been updated to match the more advanced structure in Relevanssi Premium. This requires a re-indexing of the database.
@@ -402,6 +403,15 @@ removing those words helps to make the index smaller and searching faster.
 * The custom field search hack using `cat` set to "custom" doesn't work any more. If you wish to filter by custom field, you need Relevanssi Premium, which does it better anyway.
 * Relevanssi can handle certain whitespace characters better in indexing.
 * Apostrophes are now replaced with whitespace instead of being removed.
+* Relevanssi now shows correct number of results when posts_per_page is set to -1.
+* Fuzzy search didn't always activate when it should, if all found posts are private posts that can't be shown to user.
+* Tab characters in excerpts are handled better now.
+* Relevanssi search logs will now store user ID's and IP addresses for each query.
+* You can now use user logins as well as numeric ID's to stop user from being logged.
+* Attachments are now handled better. I'd still like to hear any complaints about attachments.
+* Relevanssi now updates index for posts added with wp_update_post() function. (Thanks to Simon Blackbourn)
+* Searching for pages in admin didn't work properly. Fixed that.
+* Fixed warnings for undefined variables.
 
 = 2.9.14 =
 * Relevanssi will now index pending and future posts. These posts are only shown in the admin search.
