@@ -298,6 +298,7 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_respect_exclude'])) update_option('relevanssi_respect_exclude', $_REQUEST['relevanssi_respect_exclude']);
 	if (isset($_REQUEST['relevanssi_enable_cache'])) update_option('relevanssi_enable_cache', $_REQUEST['relevanssi_enable_cache']);
 	if (isset($_REQUEST['relevanssi_throttle'])) update_option('relevanssi_throttle', $_REQUEST['relevanssi_throttle']);
+	if (isset($_REQUEST['relevanssi_throttle_limit'])) update_option('relevanssi_throttle_limit', $_REQUEST['relevanssi_throttle_limit']);
 	if (isset($_REQUEST['relevanssi_wpml_only_current'])) update_option('relevanssi_wpml_only_current', $_REQUEST['relevanssi_wpml_only_current']);
 	if (isset($_REQUEST['relevanssi_word_boundaries'])) update_option('relevanssi_word_boundaries', $_REQUEST['relevanssi_word_boundaries']);
 	if (isset($_REQUEST['relevanssi_default_orderby'])) update_option('relevanssi_default_orderby', $_REQUEST['relevanssi_default_orderby']);
@@ -685,6 +686,9 @@ function relevanssi_options_form() {
 	$throttle = ('on' == get_option('relevanssi_throttle') ? 'checked="checked"' : '');
 	$serialize_options['relevanssi_throttle'] = get_option('relevanssi_throttle');
 
+	$throttle_limit = get_option('relevanssi_throttle_limit');
+	$serialize_options['relevanssi_throttle_limit'] = $throttle_limit;
+
 	$omit_from_logs	= get_option('relevanssi_omit_from_logs');
 	$serialize_options['relevanssi_omit_from_logs'] = $omit_from_logs;
 	
@@ -909,6 +913,12 @@ function relevanssi_options_form() {
 	<label for='relevanssi_throttle'><?php _e("Limit searches:", "relevanssi"); ?>
 	<input type='checkbox' name='relevanssi_throttle' <?php echo $throttle ?> /></label><br />
 	<small><?php _e("If this option is checked, Relevanssi will limit search results to at most 500 results per term. This will improve performance, but may cause some relevant documents to go unfound. However, Relevanssi tries to prioritize the most relevant documents. <strong>This does not work well when sorting results by date.</strong> The throttle can end up cutting off recent posts to favour more relevant posts.", 'relevanssi'); ?></small>
+
+	<br /><br />
+
+	<label for='relevanssi_throttle_limit'><?php _e("Limit:", "relevanssi"); ?>
+	<input type='text' size='4' name='relevanssi_throttle_limit' value='<?php echo $throttle_limit ?>' /></label><br />
+	<small><?php _e("For better performance, adjust the limit to a smaller number. Adjusting the limit to 100 - or even lower - should be safe for good results, and might bring a boost in search speed.", 'relevanssi'); ?></small>
 
 	<br /><br />
 	
@@ -1227,53 +1237,11 @@ EOH;
 
 	<br /><br />
 
-<?php
+<?php if (function_exists('relevanssi_form_mysql_columns')) relevanssi_form_mysql_columns($mysql_columns); ?>
 
-	$column_list = $wpdb->get_results("SHOW COLUMNS FROM $wpdb->posts");
-	$columns = array();
-	foreach ($column_list as $column) {
-		array_push($columns, $column->Field);
-	}
-	$columns = implode(', ', $columns);
-	
-?>
+<?php if (function_exists('relevanssi_form_index_users')) relevanssi_form_index_users($index_users, $index_subscribers, $index_user_fields); ?>
 
-	<label for='relevanssi_mysql_columns'><?php _e("Custom MySQL columns to index:", "relevanssi"); ?>
-	<input type='text' name='relevanssi_mysql_columns' size='30' value='<?php echo $mysql_columns ?>' /></label><br />
-	<small><?php _e("A comma-separated list of wp_posts MySQL table columns to include in the index. Following columns are available: ", "relevanssi"); echo $columns; ?>.</small>
-
-	<br /><br />
-
-	<label for='relevanssi_index_users'><?php _e('Index and search user profiles:', 'relevanssi'); ?>
-	<input type='checkbox' name='relevanssi_index_users' <?php echo $index_users ?> /></label><br />
-	<small><?php _e("If checked, Relevanssi will also index and search user profiles (first name, last name, display name and user description). Requires changes to search results template, see Relevanssi Knowledge Base.", 'relevanssi'); ?></small>
-
-	<br /><br />
-
-	<label for='relevanssi_index_subscribers'><?php _e('Index subscriber profiles:', 'relevanssi'); ?>
-	<input type='checkbox' name='relevanssi_index_subscribers' <?php echo $index_subscribers ?> /></label><br />
-	<small><?php _e("If checked, Relevanssi will index subscriber profiles as well, otherwise only authors, editors, contributors and admins are indexed.", 'relevanssi'); ?></small>
-
-	<br /><br />
-
-	<label for='relevanssi_index_user_fields'><?php _e("Extra user fields to index:", "relevanssi"); ?>
-	<input type='text' name='relevanssi_index_user_fields' size='30' value='<?php echo $index_user_fields ?>' /></label><br />
-	<small><?php _e("A comma-separated list of user profile field names (names of the database columns) to include in the index.", "relevanssi"); ?></small>
-
-	<br /><br />
-
-	<label for='relevanssi_index_taxonomies'><?php _e('Index and search taxonomy pages:', 'relevanssi'); ?>
-	<input type='checkbox' name='relevanssi_index_taxonomies' <?php echo $index_taxonomies ?> /></label><br />
-	<small><?php _e("If checked, Relevanssi will also index and search taxonomy pages (categories, tags, custom taxonomies).", 'relevanssi'); ?></small>
-
-	<br /><br />
-
-	<label for='relevanssi_taxonomies_to_index'><?php _e("Taxonomy pages to index:", "relevanssi"); ?>
-	<input type='text' name='relevanssi_taxonomies_to_index' size='30' value='<?php echo $taxonomies_to_index ?>' /></label><br />
-	<small><?php _e("A comma-separated list of taxonomies to include in the taxonomy page index ('all' indexes all custom taxonomies. If you don't use 'all', remember to list 'category' and 'post_tag').", "relevanssi"); ?></small>
-
-	<br /><br />
-
+<?php if (function_exists('relevanssi_form_index_taxonomies')) relevanssi_form_index_taxonomies($index_taxonomies, $taxonomies_to_index); ?>
 
 	<input type='submit' name='index' value='<?php _e("Save indexing options and build the index", 'relevanssi'); ?>' class='button button-primary' />
 
@@ -1313,16 +1281,8 @@ EOH;
 	<h3 id="stopwords"><?php _e("Stopwords", "relevanssi"); ?></h3>
 	
 	<?php relevanssi_show_stopwords(); ?>
-	
-	<h3 id="options"><?php _e("Import or export options", "relevanssi"); ?></h3>
-	
-	<p><?php _e("Here you find the current Relevanssi Premium options in a text format. Copy the contents of the text field to make a backup of your settings. You can also paste new settings here to change all settings at the same time. This is useful if you have default settings you want to use on every system.", "relevanssi"); ?></p>
-	
-	<p><textarea name='relevanssi_settings' rows='2' cols='60'><?php echo $serialized_options; ?></textarea></p>
 
-	<input type='submit' name='import_options' value='<?php _e("Import settings", 'relevanssi'); ?>' class='button' />
-
-	<p><?php _e("Note! Make sure you've got correct settings from a right version of Relevanssi. Settings from a different version of Relevanssi may or may not work and may or may not mess your settings.", "relevanssi"); ?></p>
+<?php if (function_exists('relevanssi_form_importexport')) relevanssi_form_importexport($serialized_options); ?>	
 	
 	</form>
 </div>
@@ -1330,5 +1290,55 @@ EOH;
 	<?php
 
 	relevanssi_sidebar();
+}
+
+function relevanssi_show_stopwords() {
+	global $wpdb, $relevanssi_variables, $wp_version;
+
+	RELEVANSSI_PREMIUM ? $plugin = 'relevanssi-premium' : $plugin = 'relevanssi';
+
+	_e("<p>Enter a word here to add it to the list of stopwords. The word will automatically be removed from the index, so re-indexing is not necessary. You can enter many words at the same time, separate words with commas.</p>", 'relevanssi');
+
+?><label for="addstopword"><p><?php _e("Stopword(s) to add: ", 'relevanssi'); ?><textarea name="addstopword" rows="2" cols="40"></textarea>
+<input type="submit" value="<?php _e("Add", 'relevanssi'); ?>" class='button' /></p></label>
+<?php
+
+	_e("<p>Here's a list of stopwords in the database. Click a word to remove it from stopwords. Removing stopwords won't automatically return them to index, so you need to re-index all posts after removing stopwords to get those words back to index.", 'relevanssi');
+
+	if (function_exists("plugins_url")) {
+		if (version_compare($wp_version, '2.8dev', '>' )) {
+			$src = plugins_url('delete.png', __FILE__);
+		}
+		else {
+			$src = plugins_url($plugin . '/delete.png');
+		}
+	}
+	else {
+		// We can't check, so let's assume something sensible
+		$src = '/wp-content/plugins/' . $plugin . '/delete.png';
+	}
+	
+	echo "<ul>";
+	$results = $wpdb->get_results("SELECT * FROM " . $relevanssi_variables['relevanssi_stopword_table']);
+	$exportlist = array();
+	foreach ($results as $stopword) {
+		$sw = $stopword->stopword; 
+		printf('<li style="display: inline;"><input type="submit" name="removestopword" value="%s"/></li>', $sw, $src, $sw);
+		array_push($exportlist, $sw);
+	}
+	echo "</ul>";
+	
+?>
+<p><input type="submit" name="removeallstopwords" value="<?php _e('Remove all stopwords', 'relevanssi'); ?>" class='button' /></p>
+<?php
+
+	$exportlist = implode(", ", $exportlist);
+	
+?>
+<p><?php _e("Here's a list of stopwords you can use to export the stopwords to another blog.", "relevanssi"); ?></p>
+
+<textarea name="stopwords" rows="2" cols="40"><?php echo $exportlist; ?></textarea>
+<?php
+
 }
 ?>

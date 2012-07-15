@@ -4,11 +4,9 @@ if (!defined('WP_UNINSTALL_PLUGIN'))
 	exit();
 
 global $wpdb;
-require_once('lib/common.php');
+require_once('lib/uninstall.php');
 
 function relevanssi_uninstall() {
-	global $wpdb, $relevanssi_table, $log_table, $stopword_table;
-
 	delete_option('relevanssi_title_boost');
 	delete_option('relevanssi_tag_boost');
 	delete_option('relevanssi_comment_boost');
@@ -52,6 +50,8 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_word_boundaries');
 	delete_option('relevanssi_default_orderby');
 	delete_option('relevanssi_db_version');
+	delete_option('relevanssi_throttle');
+	delete_option('relevanssi_throttle_limit');
 
 	// Unused options, removed in case they are still left
 	delete_option('relevanssi_custom_types');
