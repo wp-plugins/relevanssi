@@ -20,6 +20,13 @@ function relevanssi_query($posts, $query = false) {
 		if ($admin_search) $search_ok = true; 	// yes, we can search!
 	}
 
+	// Disable search in media library search
+	if ($search_ok) {
+		if ($wp_query->query_vars['post_type'] == 'attachment' && $wp_query->query_vars['post_status'] == 'inherit,private') {
+			$search_ok = false;
+		}
+	}
+
 	$search_ok = apply_filters('relevanssi_search_ok', $search_ok);
 	
 	if ($relevanssi_active) {

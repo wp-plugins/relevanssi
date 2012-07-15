@@ -182,6 +182,7 @@ function _relevanssi_install() {
 	add_option('relevanssi_excerpts', 'on');
 	add_option('relevanssi_excerpt_length', '450');
 	add_option('relevanssi_excerpt_type', 'chars');
+	add_option('relevanssi_excerpt_allowable_tags', '');
 	add_option('relevanssi_log_queries', 'off');
 	add_option('relevanssi_cat', '0');
 	add_option('relevanssi_excat', '0');

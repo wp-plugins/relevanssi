@@ -385,17 +385,6 @@ removing those words helps to make the index smaller and searching faster.
 == Changelog ==
 
 = 3.0 =
-* New filter: `relevanssi_modify_wp_query` lets you modify $wp_query before it is passed to Relevanssi.
-* New filter: `relevanssi_search_ok` lets you adjust when search is enabled.
-* New filter: `relevanssi_pre_excerpt_content` lets you adjust post content before excerpt creation.
-* New filter: `relevanssi_excerpt_content` lets you adjust post content before excerpt creation, but after `the_content`.
-* New filter: `relevanssi_ellipsis` lets you change the default '...' in excerpts to something else.
-* New filter: `relevanssi_do_not_index` is given a post ID and expects a boolean in return: should this post be indexed or not?
-* New filter: `relevanssi_match` lets you meddle with the matching engine.
-* New filter: `relevanssi_results` filters the result set from the search.
-* New filter: `relevanssi_content_to_index` let's user add whatever content they wish to posts before they are indexed.
-* Changed filter: `relevanssi_post_ok` has different arguments, see source code for details.
-* New shortcode: use shortcode `noindex` to wrap parts of posts you want to keep from the index.
 * The database has been updated to match the more advanced structure in Relevanssi Premium. This requires a re-indexing of the database.
 * The indexing process is more efficient now.
 * Relevanssi now includes a throttle feature, which makes the searches more efficient.
@@ -412,6 +401,24 @@ removing those words helps to make the index smaller and searching faster.
 * Relevanssi now updates index for posts added with wp_update_post() function. (Thanks to Simon Blackbourn)
 * Searching for pages in admin didn't work properly. Fixed that.
 * Fixed warnings for undefined variables.
+* Relevanssi won't mess media library searches any more.
+* Search terms are no longer highlighted in titles on post pages. That caused too many problems.
+* New collation rules to MySQL databases will make sure that word pairs like "pode" and "pôde" will not be considered duplicates in the stopword database.
+* You can now set the "Custom fields to index" to "all" to index all custom fields and "visible" to index all visible custom fields (but not the ones with names starting with an underscore).
+* Plugin now works properly without multibyte string functions.
+* You can now choose to allow HTML tags in excerpts.
+* New filter: `relevanssi_modify_wp_query` lets you modify $wp_query before it is passed to Relevanssi.
+* New filter: `relevanssi_search_ok` lets you adjust when search is enabled.
+* New filter: `relevanssi_pre_excerpt_content` lets you adjust post content before excerpt creation.
+* New filter: `relevanssi_excerpt_content` lets you adjust post content before excerpt creation, but after `the_content`.
+* New filter: `relevanssi_ellipsis` lets you change the default '...' in excerpts to something else.
+* New filter: `relevanssi_do_not_index` is given a post ID and expects a boolean in return: should this post be indexed or not?
+* New filter: `relevanssi_match` lets you meddle with the matching engine.
+* New filter: `relevanssi_results` filters the result set from the search.
+* New filter: `relevanssi_content_to_index` let's you add whatever content you wish to posts before they are indexed.
+* New filter: `relevanssi_didyoumean_query` let's you modify the query for Did you mean? queries
+* Changed filter: `relevanssi_post_ok` has different arguments, see source code for details.
+* New shortcode: use shortcode `noindex` to wrap parts of posts you want to keep from the index.
 
 = 2.9.14 =
 * Relevanssi will now index pending and future posts. These posts are only shown in the admin search.

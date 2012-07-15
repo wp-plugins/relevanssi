@@ -271,6 +271,7 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_admin_search'])) update_option('relevanssi_admin_search', $_REQUEST['relevanssi_admin_search']);
 	if (isset($_REQUEST['relevanssi_excerpts'])) update_option('relevanssi_excerpts', $_REQUEST['relevanssi_excerpts']);	
 	if (isset($_REQUEST['relevanssi_excerpt_type'])) update_option('relevanssi_excerpt_type', $_REQUEST['relevanssi_excerpt_type']);	
+	if (isset($_REQUEST['relevanssi_excerpt_allowable_tags'])) update_option('relevanssi_excerpt_allowable_tags', $_REQUEST['relevanssi_excerpt_allowable_tags']);
 	if (isset($_REQUEST['relevanssi_log_queries'])) update_option('relevanssi_log_queries', $_REQUEST['relevanssi_log_queries']);	
 	if (isset($_REQUEST['relevanssi_highlight'])) update_option('relevanssi_highlight', $_REQUEST['relevanssi_highlight']);
 	if (isset($_REQUEST['relevanssi_highlight_docs'])) update_option('relevanssi_highlight_docs', $_REQUEST['relevanssi_highlight_docs']);
@@ -593,6 +594,8 @@ function relevanssi_options_form() {
 			$excerpt_words = 'selected="selected"';
 			break;
 	}
+	$excerpt_allowable_tags = get_option('relevanssi_excerpt_allowable_tags');
+	$serialize_options['relevanssi_excerpt_allowable_tags'] = $excerpt_allowable_tags;
 
 	$log_queries = get_option('relevanssi_log_queries');
 	$serialize_options['relevanssi_log_queries'] = $log_queries;
@@ -1037,6 +1040,13 @@ function relevanssi_options_form() {
 	<option value='words' <?php echo $excerpt_words ?>><?php _e("words", "relevanssi"); ?></option>
 	</select><br />
 	<small><?php _e("This must be an integer.", "relevanssi"); ?></small>
+
+	<br /><br />
+
+	<label for='relevanssi_excerpt_allowable_tags'><?php _e("Allowable tags in excerpts:", "relevanssi"); ?>
+	<input type='text' name='relevanssi_excerpt_allowable_tags' size='20' value='<?php echo $excerpt_allowable_tags ?>' /></label>
+	<br />
+	<small><?php _e("List all tags you want to allow in excerpts, without any whitespace. For example: '&lt;p&gt;&lt;a&gt;&lt;strong&gt;'.", "relevanssi"); ?></small>
 
 	<br /><br />
 

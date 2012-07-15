@@ -409,6 +409,12 @@ function relevanssi_remove_punct($a) {
 function relevanssi_prevent_default_request( $request, $query ) {
 	if ($query->is_search) {
 		global $wpdb;
+		if (isset($query->query_vars['post_type']) && isset($query->query_vars['post_status'])) {
+			if ($query->query_vars['post_type'] == 'attachment' && $query->query_vars['post_status'] == 'inherit,private') {
+			  	// this is a media library search; do not meddle
+			  	return $request;
+			}
+		}
 		if (!is_admin())
 			$request = "SELECT * FROM $wpdb->posts WHERE 1=2";
 		else if ('on' == get_option('relevanssi_admin_search'))

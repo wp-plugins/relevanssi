@@ -62,9 +62,6 @@ function relevanssi_init() {
 
 	if (get_option('relevanssi_highlight_docs', 'off') != 'off') {
 		add_filter('the_content', 'relevanssi_highlight_in_docs', 11);
-		if (get_option('relevanssi_hilite_title', 'off') != 'off') {
-			add_filter('the_title', 'relevanssi_highlight_in_docs');
-		}
 	}
 	if (get_option('relevanssi_highlight_comments', 'off') != 'off') {
 		add_filter('comment_text', 'relevanssi_highlight_in_docs', 11);

@@ -26,7 +26,7 @@ function relevanssi_do_excerpt($t_post, $query) {
 	$content = apply_filters('relevanssi_excerpt_content', $content, $post, $query);
 	
 	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
-	$content = strip_tags($content); // this removes the tags, but leaves the content
+	$content = strip_tags($content, get_option('relevanssi_excerpt_allowable_tags', '')); // this removes the tags, but leaves the content
 	
 	$content = preg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
 	$content = trim(preg_replace("/\s\s+/", " ", $content));

@@ -18,6 +18,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_excerpts');
 	delete_option('relevanssi_excerpt_length');
 	delete_option('relevanssi_excerpt_type');
+	delete_option('relevanssi_excerpt_allowable_tags');
 	delete_option('relevanssi_log_queries');
 	delete_option('relevanssi_excat');
 	delete_option('relevanssi_cat');
