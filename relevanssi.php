@@ -239,9 +239,9 @@ function relevanssi_get_post($id) {
 }
 
 function relevanssi_remove_doc($id) {
-	global $wpdb, $relevanssi_table;
+	global $wpdb, $relevanssi_variables;
 	
-	$q = "DELETE FROM $relevanssi_table WHERE doc=$id";
+	$q = "DELETE FROM " . $relevanssi_variables['relevanssi_table'] . " WHERE doc=$id";
 	$wpdb->query($q);
 }
 

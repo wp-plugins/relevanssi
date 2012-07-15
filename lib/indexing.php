@@ -162,6 +162,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 		return;
 	}
 
+	$index_this_post = false;
+
 	$post->indexing_content = true;
 	$index_types = get_option('relevanssi_index_post_types');
 	if (!is_array($index_types)) $index_types = array();

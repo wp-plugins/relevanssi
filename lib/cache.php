@@ -1,16 +1,16 @@
 <?php
 
 function relevanssi_purge_excerpt_cache($post) {
-	global $wpdb, $relevanssi_excerpt_cache;
+	global $wpdb, $relevanssi_variables;
 	
-	$wpdb->query("DELETE FROM $relevanssi_excerpt_cache WHERE post = $post");
+	$wpdb->query("DELETE FROM " . $relevanssi_variables['relevanssi_excerpt_cache'] . " WHERE post = $post");
 }
 
 function relevanssi_fetch_excerpt($post, $query) {
-	global $wpdb, $relevanssi_excerpt_cache;
+	global $wpdb, $relevanssi_variables;
 
 	$query = mysql_real_escape_string($query);	
-	$excerpt = $wpdb->get_var("SELECT excerpt FROM $relevanssi_excerpt_cache WHERE post = $post AND query = '$query'");
+	$excerpt = $wpdb->get_var("SELECT excerpt FROM " . $relevanssi_variables['relevanssi_excerpt_cache'] . " WHERE post = $post AND query = '$query'");
 	
 	if (!$excerpt) return null;
 	
@@ -18,12 +18,12 @@ function relevanssi_fetch_excerpt($post, $query) {
 }
 
 function relevanssi_store_excerpt($post, $query, $excerpt) {
-	global $wpdb, $relevanssi_excerpt_cache;
+	global $wpdb, $relevanssi_variables;
 	
 	$query = mysql_real_escape_string($query);
 	$excerpt = mysql_real_escape_string($excerpt);
 
-	$wpdb->query("INSERT INTO $relevanssi_excerpt_cache (post, query, excerpt)
+	$wpdb->query("INSERT INTO " . $relevanssi_variables['relevanssi_excerpt_cache'] . " (post, query, excerpt)
 		VALUES ($post, '$query', '$excerpt')
 		ON DUPLICATE KEY UPDATE excerpt = '$excerpt'");
 }
