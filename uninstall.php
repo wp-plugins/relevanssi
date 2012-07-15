@@ -21,7 +21,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_log_queries');
 	delete_option('relevanssi_excat');
 	delete_option('relevanssi_cat');
-	delete_option('revelanssi_index_fields');
+	delete_option('relevanssi_index_fields');
 	delete_option('relevanssi_exclude_posts'); 	//added by OdditY
 	delete_option('relevanssi_include_tags'); 	//added by OdditY	
 	delete_option('relevanssi_hilite_title'); 	//added by OdditY 
@@ -46,6 +46,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_cache_seconds');
 	delete_option('relevanssi_enable_cache');
 	delete_option('relevanssi_min_word_length');
+	delete_option('relevanssi_options');
 	delete_option('relevanssi_wpml_only_current');
 	delete_option('relevanssi_word_boundaries');
 	delete_option('relevanssi_default_orderby');
