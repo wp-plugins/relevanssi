@@ -81,6 +81,11 @@ is in active development and does what Search Unleashed does.
 To update your installation, simply overwrite the old files with the new, activate the new
 version and if the new version has changes in the indexing, rebuild the index.
 
+= Note on updates =
+If it seems the plugin doesn't work after an update, the first thing to try is deactivating and
+reactivating the plugin. If there are changes in the database structure, those changes do not happen
+without a deactivation, for some reason.
+
 = Changes to templates =
 None necessary! Relevanssi uses the standard search form and doesn't usually need any changes in
 the search results template.
@@ -384,6 +389,7 @@ removing those words helps to make the index smaller and searching faster.
 == Changelog ==
 
 = 3.0 =
+* AFTER UPGRADING FROM 2.9.14: Make sure you deactivate and reactivate Relevanssi in order to make the database changes happen.
 * WORD OF WARNING: This is a major update, with lots of changes as you can see, and since I couldn't find any beta testers to help test it out, consider this a beta release, with bugs probable.
 * The database has been updated to match the more advanced structure in Relevanssi Premium. This requires a re-indexing of the database.
 * The indexing process is more efficient now.
