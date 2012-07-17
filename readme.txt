@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.7
-Tested up to: 3.3.1
-Stable tag: 2.9.14
+Tested up to: 3.4.1
+Stable tag: 3.0
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -36,6 +36,8 @@ For more information about Premium, see [Relevanssi.com](http://www.relevanssi.c
 * Automatic support for [WPML multi-language plugin](http://wpml.org/).
 * Automatic support for [s2member membership plugin](http://www.s2member.com/).
 * Advanced filtering to help hacking the search results the way you want.
+* Search result throttling to improve performance on large databases.
+* Disable indexing of post content and post titles with a simple filter hook.
 
 Relevanssi is available in two versions, regular and Premium. Regular Relevanssi is and will remain
 free to download and use. Relevanssi Premium comes with a cost, but will get all the new features.
@@ -44,16 +46,16 @@ Also, support for standard Relevanssi depends very much on my mood and available
 pricing includes support.
 
 = Premium features (only in Relevanssi Premium) =
-* Search result throttling to improve performance on large databases.
 * Improved spelling correction in "Did you mean?" suggestions.
 * Multisite support.
 * Search and index user profiles.
 * Search and index taxonomy term pages (categories, tags, custom taxonomies).
-* Assign weights to post types.
-* Adjust weights manually with a filter hook.
+* Search and index arbitrary columns in wp_posts MySQL table.
+* Assign weights to any post types and taxonomies.
+* Assign extra weight to new posts.
+* Let the user choose between AND and OR searches, use + and - operator (AND and NOT).
 * Highlighting search terms for visitors from external search engines.
 * Export and import settings.
-* Disable indexing of post content and post titles with a simple filter hook.
 
 = Relevanssi in Facebook =
 You can find [Relevanssi in Facebook](http://www.facebook.com/relevanssi).
@@ -366,15 +368,12 @@ inverted document frequency is really low, so they never have much power in matc
 removing those words helps to make the index smaller and searching faster.
 
 == Known issues and To-do's ==
-* Known issue: The most common cause of blank screens when indexing is the lack of the mbstring extension. Make sure it's installed.
 * Known issue: In general, multiple Loops on the search page may cause surprising results. Please make sure the actual search results are the first loop.
 * Known issue: Relevanssi doesn't necessarily play nice with plugins that modify the excerpt. If you're having problems, try using relevanssi_the_excerpt() instead of the_excerpt().
-* Known issue: I know the plugin works with WP 2.5, but it loses some non-essential functionality. The shortcode stuff doesn't work with WP 2.5, which doesn't support shortcodes. Compatibility with older versions of WP hasn't been tested.
 * Known issue: Custom post types and private posts is problematic - I'm using default 'read_private_*s' capability, which might not always work.
 * Known issue: There are reported problems with custom posts combined with custom taxonomies, the taxonomy restriction doesn't necessarily work.
 * Known issue: Phrase matching is only done to post content; phrases don't match to category titles and other content.
 * Known issue: User searches page requires MySQL 5.
-* For more features to come, see [Feature list](http://www.relevanssi.com/features/).
 
 == Thanks ==
 * Cristian Damm for tag indexing, comment indexing, post/page exclusion and general helpfulness.
@@ -385,6 +384,7 @@ removing those words helps to make the index smaller and searching faster.
 == Changelog ==
 
 = 3.0 =
+* WORD OF WARNING: This is a major update, with lots of changes as you can see, and since I couldn't find any beta testers to help test it out, consider this a beta release, with bugs probable.
 * The database has been updated to match the more advanced structure in Relevanssi Premium. This requires a re-indexing of the database.
 * The indexing process is more efficient now.
 * Relevanssi now includes a throttle feature, which makes the searches more efficient.
@@ -419,6 +419,7 @@ removing those words helps to make the index smaller and searching faster.
 * New filter: `relevanssi_didyoumean_query` let's you modify the query for Did you mean? queries
 * Changed filter: `relevanssi_post_ok` has different arguments, see source code for details.
 * New shortcode: use shortcode `noindex` to wrap parts of posts you want to keep from the index.
+* And a bunch of other changes.
 
 = 2.9.14 =
 * Relevanssi will now index pending and future posts. These posts are only shown in the admin search.
