@@ -279,7 +279,7 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 		}
 	}
 
-	if (function_exists('relevanssi_index_mysqL_columns')) {
+	if (function_exists('relevanssi_index_mysql_columns')) {
 		$insert_data = relevanssi_index_mysql_columns($insert_data, $post->ID);
 	}
 

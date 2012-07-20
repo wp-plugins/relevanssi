@@ -101,7 +101,7 @@ function relevanssi_update_log($query, $hits) {
 		if (in_array($user->user_login, $omit)) return;
 	}
 		
-	$q = $wpdb->prepare("INSERT INTO " . $relevanssi_variables['relevanssi_log_table'] . " (query, hits, user_id, ip) VALUES (%s, %d, %d, %s)", $query, intval($hits), $user->ID, $_SERVER['REMOTE_ADDR']);
+	$q = $wpdb->prepare("INSERT INTO " . $relevanssi_variables['log_table'] . " (query, hits, user_id, ip) VALUES (%s, %d, %d, %s)", $query, intval($hits), $user->ID, $_SERVER['REMOTE_ADDR']);
 	$wpdb->query($q);
 }
 
@@ -353,7 +353,13 @@ function relevanssi_strlen_sort($a, $b) {
 function relevanssi_get_custom_fields() {
 	$custom_fields = get_option("relevanssi_index_fields");
 	if ($custom_fields) {
-		if ($custom_fields != 'all') {
+		if ($custom_fields == 'all') {
+			return $custom_fields;
+		}
+		else if ($custom_fields == 'visible') {
+			return $custom_fields;
+		}
+		else {
 			$custom_fields = explode(",", $custom_fields);
 			for ($i = 0; $i < count($custom_fields); $i++) {
 				$custom_fields[$i] = trim($custom_fields[$i]);
