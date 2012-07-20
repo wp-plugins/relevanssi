@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 2.7
 Tested up to: 3.4.1
-Stable tag: 3.0
+Stable tag: 3.0.1
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -387,6 +387,13 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 3.0.1 =
+* AFTER UPGRADING FROM 2.9.14: Make sure you deactivate and reactivate Relevanssi in order to make the database changes happen.
+* Fixed lots of problems in logging searches.
+* Added an alert when user hasn't selected any post types to index (and default values).
+* Custom field setting 'visible' works now.
+* Searching by category title works now, and you can adjust the category weight in the settings.
 
 = 3.0 =
 * AFTER UPGRADING FROM 2.9.14: Make sure you deactivate and reactivate Relevanssi in order to make the database changes happen.
