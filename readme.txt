@@ -394,6 +394,7 @@ removing those words helps to make the index smaller and searching faster.
 * Role-Scoper users: in order to make Relevanssi work with Role-Scoper, replace the Relevanssi helper file in Role-Scoper with [this file](http://www.relevanssi.com/relevanssi-helper-front_rs.txt).
 * Removed an error message about set_time_limit() under safe_mode.
 * Jetpack Contact Form shortcode caused problems when indexing. Relevanssi will now simply remove the shortcode before indexing.
+* Fixed errors caused by / characters in highlighting.
 
 = 3.0.1 =
 * AFTER UPGRADING FROM 2.9.14: Make sure you deactivate and reactivate Relevanssi in order to make the database changes happen.
