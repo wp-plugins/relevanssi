@@ -1254,7 +1254,7 @@ EOH;
 
 	<label for='relevanssi_custom_taxonomies'><?php _e("Custom taxonomies to index:", "relevanssi"); ?>
 	<input type='text' name='relevanssi_custom_taxonomies' size='30' value='<?php echo $custom_taxonomies ?>' /></label><br />
-	<small><?php _e("A comma-separated list of custom taxonomy IDs to include in the index.", "relevanssi"); ?></small>
+	<small><?php _e("A comma-separated list of custom taxonomy names to include in the index.", "relevanssi"); ?></small>
 
 	<br /><br />
 

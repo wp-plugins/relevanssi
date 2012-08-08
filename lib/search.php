@@ -419,7 +419,12 @@ function relevanssi_search($q, $cat = NULL, $excat = NULL, $tag = NULL, $expost 
 					$match->taxonomy_detail = unserialize($match->taxonomy_detail);
 					if (is_array($match->taxonomy_detail)) {
 						foreach ($match->taxonomy_detail as $tax => $count) {
-							$match->taxonomy_score += $count * $post_type_weights[$tax];
+							if (!isset($post_type_weights[$tax])) {
+								$match->taxonomy_score += $count * 1;
+							}
+							else {
+								$match->taxonomy_score += $count * $post_type_weights[$tax];
+							}
 						}
 					}
 				}

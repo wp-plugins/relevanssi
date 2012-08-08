@@ -84,7 +84,7 @@ function relevanssi_menu() {
 	add_dashboard_page(
 		__('User searches', 'relevanssi'),
 		__('User searches', 'relevanssi'),
-		'edit_pages',
+		apply_filters('relevanssi_user_searches_capability', 'edit_pages'),
 		$relevanssi_variables['file'],
 		'relevanssi_search_stats'
 	);
