@@ -106,6 +106,9 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	$post_was_null = false;
 	$previous_post = NULL;
 
+	// Check if this is a Jetpack Contact Form entry
+	if (isset($_REQUEST['contact-form-id'])) return;
+
 	if ($bypassglobalpost) {
 		// if $bypassglobalpost is set, relevanssi_index_doc() will index the post object or post
 		// ID as specified in $indexpost

@@ -388,6 +388,10 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 3.0.4 =
+* AFTER UPGRADING FROM 2.x: Make sure you deactivate and reactivate Relevanssi in order to make the database changes happen.
+* Fixed another problem with the Jetpack Contact Form.
+
 = 3.0.3 =
 * AFTER UPGRADING FROM 2.x: Make sure you deactivate and reactivate Relevanssi in order to make the database changes happen.
 * Fixed a bug that made custom taxonomy term searches fail.
