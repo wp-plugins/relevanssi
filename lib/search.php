@@ -575,7 +575,7 @@ function relevanssi_do_query(&$query) {
 		if (isset($query->query_vars["post_type"]) && $query->query_vars["post_type"] != 'any') {
 			$post_type = $query->query_vars["post_type"];
 		}
-		if (isset($query->query_vars["post_types"])) {
+		if (isset($query->query_vars["post_types"]) && $query->query_vars["post_types"] != 'any') {
 			$post_type = $query->query_vars["post_types"];
 		}
 
@@ -643,7 +643,7 @@ function relevanssi_do_query(&$query) {
 		if (isset($query->query_vars["post_type"]) && $query->query_vars["post_type"] != 'any') {
 			$post_type = $query->query_vars["post_type"];
 		}
-		if (isset($query->query_vars["post_types"])) {
+		if (isset($query->query_vars["post_types"]) && $query->query_vars["post_types"] != 'any') {
 			$post_type = $query->query_vars["post_types"];
 		}
 	
@@ -680,7 +680,7 @@ function relevanssi_do_query(&$query) {
 					$new_terms = array();
 					$terms = array_keys(relevanssi_tokenize($q, false)); // remove stopwords is false here
 					foreach ($terms as $term) {
-						if (in_array($term, array_keys($synonyms))) {
+						if (in_array(strval($term), array_keys($synonyms))) {		// strval, otherwise numbers cause problems
 							$new_terms = array_merge($new_terms, array_keys($synonyms[$term]));
 						}
 					}
