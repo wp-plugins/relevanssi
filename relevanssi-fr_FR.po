@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Relevanssi v1.4\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-07-31 16:17+0100\n"
-"PO-Revision-Date: 2012-07-31 16:22+0100\n"
+"POT-Creation-Date: 2012-08-27 09:50+0100\n"
+"PO-Revision-Date: 2012-08-27 09:50+0100\n"
 "Last-Translator: Li-An <lian00@gmail.com>\n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -833,8 +833,8 @@ msgstr "Taxonomie personnalisée à indexer:"
 
 # @ relevanssi
 #: lib/interface.php:1257
-msgid "A comma-separated list of custom taxonomy IDs to include in the index."
-msgstr "Une liste d'ID de taxonomies personnalisées à inclure dans l'index, séparés par une virgule."
+msgid "A comma-separated list of custom taxonomy names to include in the index."
+msgstr "Une liste de noms de taxonomies personnalisées à inclure dans l'index, séparés par une virgule."
 
 # @ relevanssi
 #: lib/interface.php:1267
