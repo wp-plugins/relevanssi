@@ -129,9 +129,9 @@ If you're doing something unusual with your search and Relevanssi doesn't work, 
 using `relevanssi_do_query()`. See [Knowledge Base](http://www.relevanssi.com/knowledge-base/relevanssi_do_query/).
 
 = Uninstalling =
-To uninstall the plugin, first click the "Remove plugin data" button on the plugin settins page
-to remove options and database tables, then remove the plugin using the normal WordPress
-plugin management tools.
+To uninstall the plugin remove the plugin using the normal WordPress plugin management tools
+(from the Plugins page, first Deactivate, then Delete). If you remove the plugin files manually,
+the database tables and options will remain.
 
 = Combining with other plugins =
 Relevanssi doesn't work with plugins that rely on standard WP search. Those plugins want to
@@ -387,6 +387,9 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 3.0.6 =
+* Fixed the uninstalling instructions.
 
 = 3.0.5 =
 * AFTER UPGRADING FROM 2.x: Make sure you deactivate and reactivate Relevanssi in order to make the database changes happen.
