@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 3.1
+Version: 3.1.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -47,7 +47,7 @@ $relevanssi_variables['comment_boost_default'] = 0.75;
 $relevanssi_variables['post_type_weight_defaults']['post_tag'] = 0.75;
 $relevanssi_variables['post_type_weight_defaults']['category'] = 0.75;
 $relevanssi_variables['post_type_index_defaults'] = array('post', 'page');
-$relevanssi_variables['database_version'] = 2;
+$relevanssi_variables['database_version'] = 3;
 $relevanssi_variables['file'] = __FILE__;
 $relevanssi_variables['plugin_dir'] = plugin_dir_path(__FILE__);
 
@@ -109,9 +109,9 @@ function relevanssi_check_old_data() {
 
 		global $wpdb, $relevanssi_variables;
 
-		if ($relevanssi_variables['database_version'] == 2) {
+		if ($relevanssi_variables['database_version'] == 3) {
 			$res = $wpdb->query("SHOW INDEX FROM " . $relevanssi_variables['relevanssi_table'] . " WHERE Key_name = 'typeitem'");
-			if ($res == 0) $wpdb->query("ALTER TABLE " . $relevanssi_variables['relevanssi_table'] . " ADD INDEX 'typeitem' ('type', 'item')");
+			if ($res == 0) $wpdb->query("ALTER TABLE " . $relevanssi_variables['relevanssi_table'] . " ADD INDEX `typeitem` (`type`, `item`)");
 		}
 
 		// Version 3.0 removed relevanssi_tag_boost

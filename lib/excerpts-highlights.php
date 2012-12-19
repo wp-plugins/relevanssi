@@ -29,7 +29,7 @@ function relevanssi_do_excerpt($t_post, $query) {
 	$content = strip_tags($content, get_option('relevanssi_excerpt_allowable_tags', '')); // this removes the tags, but leaves the content
 	
 	$content = preg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
-	$content = trim(preg_replace("/\s\s+/", " ", $content));
+//	$content = trim(preg_replace("/\s\s+/", " ", $content));
 	
 	$excerpt_data = relevanssi_create_excerpt($content, $terms);
 
