@@ -129,7 +129,7 @@ function relevanssi_create_excerpt($content, $terms) {
 			if (function_exists('mb_stripos')) {
 				$pos = ("" == $content) ? false : mb_stripos($content, $term);
 			}
-			else if (function_exists('mb_strpos')) {
+			else if (function_exists('mb_strpos') && function_exists('mb_strtoupper') && function_exists('mb_substr')) {
 				$pos = mb_strpos($content, $term);
 				if (false === $pos) {
 					$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
