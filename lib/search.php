@@ -140,11 +140,11 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 				$n = count($term_tax_id);
 				$term_tax_id = implode(',', $term_tax_id);
 				
-				$operator = 'IN';
-				if (isset($row['operator'])) $operator = strtoupper($row['operator']);
-				if ($operator != 'IN' && $operator != 'NOT IN' && $operator != 'AND') $operator = 'IN';
+				$tq_operator = 'IN';
+				if (isset($row['operator'])) $tq_operator = strtoupper($row['operator']);
+				if ($tq_operator != 'IN' && $tq_operator != 'NOT IN' && $tq_operator != 'AND') $tq_operator = 'IN';
 				if ($relation == 'and') {
-					if ($operator == 'AND') {
+					if ($tq_operator == 'AND') {
 						$query_restrictions .= " AND doc IN (
 							SELECT ID FROM $wpdb->posts WHERE 1=1 
 							AND (
@@ -155,14 +155,14 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 							)";
 					}
 					else {
-						$query_restrictions .= " AND doc $operator (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
+						$query_restrictions .= " AND doc $tq_operator (SELECT DISTINCT(object_id) FROM $wpdb->term_relationships
 						WHERE term_taxonomy_id IN ($term_tax_id))";
 					}
 				}
 				else {
-					if ($operator == 'IN') $term_tax_ids[] = $term_tax_id;
-					if ($operator == 'NOT IN') $not_term_tax_ids[] = $term_tax_id;
-					if ($operator == 'AND') $and_term_tax_ids[] = $term_tax_id;
+					if ($tq_operator == 'IN') $term_tax_ids[] = $term_tax_id;
+					if ($tq_operator == 'NOT IN') $not_term_tax_ids[] = $term_tax_id;
+					if ($tq_operator == 'AND') $and_term_tax_ids[] = $term_tax_id;
 				}
 			}
 			else {
@@ -447,9 +447,9 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 			$term = $wpdb->escape(like_escape($term));
 			$term_cond = str_replace('#term#', $term, $o_term_cond);		
 			
-			isset($post_type_weights['post_tag']) ? $tag = $post_type_weights['post_tag'] : $tag = 1;
-			isset($post_type_weights['category']) ? $cat = $post_type_weights['category'] : $cat = 1;
-			
+			!empty($post_type_weights['post_tag']) ? $tag = $post_type_weights['post_tag'] : $tag = $relevanssi_variables['post_type_weight_defaults']['post_tag'];
+			!empty($post_type_weights['category']) ? $cat = $post_type_weights['category'] : $cat = $relevanssi_variables['post_type_weight_defaults']['category'];
+
 			$query = "SELECT *, title * $title_boost + content + comment * $comment_boost + tag * $tag + link * $link_boost + author + category * $cat + excerpt + taxonomy + customfield + mysqlcolumn AS tf 
 					  FROM $relevanssi_table WHERE $term_cond $query_restrictions";
 			$query = apply_filters('relevanssi_query_filter', $query);
@@ -495,7 +495,7 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 					$match->taxonomy_detail = unserialize($match->taxonomy_detail);
 					if (is_array($match->taxonomy_detail)) {
 						foreach ($match->taxonomy_detail as $tax => $count) {
-							if (!isset($post_type_weights[$tax])) {
+							if (empty($post_type_weights[$tax])) {
 								$match->taxonomy_score += $count * 1;
 							}
 							else {
@@ -544,7 +544,7 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 				$comment_matches[$match->doc] = $match->comment;
 	
 				isset($relevanssi_post_types[$match->doc]) ? $type = $relevanssi_post_types[$match->doc] : $type = null;
-				if (isset($post_type_weights[$type])) {
+				if (!empty($post_type_weights[$type])) {
 					$match->weight = $match->weight * $post_type_weights[$type];
 				}
 
