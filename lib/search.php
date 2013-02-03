@@ -83,6 +83,7 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 	$query_restrictions = "";
 	if (!isset($relation)) $relation = "or";
 	$relation = strtolower($relation);
+	$term_tax_id = array();
 	$term_tax_ids = array();	
 	$not_term_tax_ids = array();	
 	$and_term_tax_ids = array();	
@@ -296,7 +297,7 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 	}
 	// <- OdditY End
 
-	$remove_stopwords = false;
+	$remove_stopwords = true;
 	$phrases = relevanssi_recognize_phrases($q);
 
 	if (function_exists('relevanssi_recognize_negatives')) {
@@ -495,6 +496,9 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 					$match->taxonomy_detail = unserialize($match->taxonomy_detail);
 					if (is_array($match->taxonomy_detail)) {
 						foreach ($match->taxonomy_detail as $tax => $count) {
+							if ($tax == 'post_tag') {
+								$match->tag = $count;
+							}
 							if (empty($post_type_weights[$tax])) {
 								$match->taxonomy_score += $count * 1;
 							}
@@ -604,7 +608,9 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 				continue;
 			}
 			
-			$hits[intval($i++)] = relevanssi_get_post($doc);
+			$hits[intval($i)] = relevanssi_get_post($doc);
+			$hits[intval($i)]->relevance_score = round($weight, 2);
+			$i++;
 		}
 	}
 

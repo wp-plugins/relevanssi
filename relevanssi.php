@@ -3,12 +3,12 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 3.1.3
+Version: 3.1.4
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
 
-/*  Copyright 2012 Mikko Saari  (email: mikko@mikkosaari.fi)
+/*  Copyright 2013 Mikko Saari  (email: mikko@mikkosaari.fi)
 
     This file is part of Relevanssi, a search plugin for WordPress.
 
@@ -104,6 +104,36 @@ function relevanssi_didyoumean($query, $pre, $post, $n = 5) {
 
 function relevanssi_check_old_data() {
 	if (is_admin()) {
+		// Version 3.1.4 combined taxonomy indexing options
+		$inctags = get_option('relevanssi_include_tags', 'nothing');
+		if ($inctags == 'on') {
+			$taxonomies = get_option('relevanssi_index_taxonomies_list');
+			if (!is_array($taxonomies)) $taxonomies = array();
+			$taxonomies[] = 'post_tag';
+			update_option('relevanssi_index_taxonomies_list', $taxonomies);
+			delete_option('relevanssi_include_tags');
+		}
+		$inccats = get_option('relevanssi_include_cats', 'nothing');
+		if ($inccats == 'on') {
+			$taxonomies = get_option('relevanssi_index_taxonomies_list');
+			if (!is_array($taxonomies)) $taxonomies = array();
+			$taxonomies[] = 'category';
+			update_option('relevanssi_index_taxonomies_list', $taxonomies);
+			delete_option('relevanssi_include_cats');
+		}
+		$custom = get_option('relevanssi_custom_taxonomies', 'nothing');
+		if ($custom != 'nothing') {
+			$cts = explode(",", $custom);
+			$taxonomies = get_option('relevanssi_index_taxonomies_list');
+			if (!is_array($taxonomies)) $taxonomies = array();
+			foreach ($cts as $taxonomy) {
+				$taxonomy = trim($taxonomy);
+				$taxonomies[] = $taxonomy;
+			}
+			update_option('relevanssi_index_taxonomies_list', $taxonomies);
+			delete_option('relevanssi_custom_taxonomies');
+		}
+		
 		$limit = get_option('relevanssi_throttle_limit');
 		if (empty($limit)) update_option('relevanssi_throttle_limit', 500);
 
@@ -200,12 +230,10 @@ function _relevanssi_install() {
 	add_option('relevanssi_excat', '0');
 	add_option('relevanssi_index_fields', '');
 	add_option('relevanssi_exclude_posts', ''); 		//added by OdditY
-	add_option('relevanssi_include_tags', 'on');		//added by OdditY	
 	add_option('relevanssi_hilite_title', ''); 			//added by OdditY	
 	add_option('relevanssi_highlight_docs', 'off');
 	add_option('relevanssi_highlight_comments', 'off');
 	add_option('relevanssi_index_comments', 'none');	//added by OdditY
-	add_option('relevanssi_include_cats', '');
 	add_option('relevanssi_show_matches', '');
 	add_option('relevanssi_show_matches_txt', '(Search hits: %body% in body, %title% in title, %tags% in tags, %comments% in comments. Score: %score%)');
 	add_option('relevanssi_fuzzy', 'sometimes');
@@ -231,6 +259,7 @@ function _relevanssi_install() {
 	add_option('relevanssi_throttle', 'on');
 	add_option('relevanssi_throttle_limit', '500');
 	add_option('relevanssi_index_post_types', $relevanssi_variables['post_type_index_defaults']);
+	add_option('relevanssi_index_taxonomies_list', array());
 	
 	relevanssi_create_database_tables($relevanssi_variables['database_version']);
 }

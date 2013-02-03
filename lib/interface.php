@@ -166,14 +166,6 @@ function update_relevanssi_options() {
 		$_REQUEST['relevanssi_show_matches'] = "off";
 	}
 
-	if (!isset($_REQUEST['relevanssi_inccats'])) {
-		$_REQUEST['relevanssi_inccats'] = "off";
-	}
-
-	if (!isset($_REQUEST['relevanssi_inctags'])) {
-		$_REQUEST['relevanssi_inctags'] = "off";
-	}
-
 	if (!isset($_REQUEST['relevanssi_throttle'])) {
 		$_REQUEST['relevanssi_throttle'] = "off";
 	}
@@ -253,6 +245,8 @@ function update_relevanssi_options() {
 
 	$post_type_weights = array();
 	$index_post_types = array();
+	$index_taxonomies_list = array();
+	$index_terms_list = array();
 	foreach ($_REQUEST as $key => $value) {
 		if (substr($key, 0, strlen('relevanssi_weight_')) == 'relevanssi_weight_') {
 			$type = substr($key, strlen('relevanssi_weight_'));
@@ -261,6 +255,14 @@ function update_relevanssi_options() {
 		if (substr($key, 0, strlen('relevanssi_index_type_')) == 'relevanssi_index_type_') {
 			$type = substr($key, strlen('relevanssi_index_type_'));
 			if ('on' == $value) $index_post_types[$type] = true;
+		}
+		if (substr($key, 0, strlen('relevanssi_index_taxonomy_')) == 'relevanssi_index_taxonomy_') {
+			$type = substr($key, strlen('relevanssi_index_taxonomy_'));
+			if ('on' == $value) $index_taxonomies_list[$type] = true;
+		}
+		if (substr($key, 0, strlen('relevanssi_index_terms_')) == 'relevanssi_index_terms_') {
+			$type = substr($key, strlen('relevanssi_index_terms_'));
+			if ('on' == $value) $index_terms_list[$type] = true;
 		}
 	}
 	
@@ -271,6 +273,9 @@ function update_relevanssi_options() {
 	if (count($index_post_types) > 0) {
 		update_option('relevanssi_index_post_types', array_keys($index_post_types));
 	}
+
+	update_option('relevanssi_index_taxonomies_list', array_keys($index_taxonomies_list));
+	if (RELEVANSSI_PREMIUM) update_option('relevanssi_index_terms', array_keys($index_terms_list));
 
 	if (isset($_REQUEST['relevanssi_admin_search'])) update_option('relevanssi_admin_search', $_REQUEST['relevanssi_admin_search']);
 	if (isset($_REQUEST['relevanssi_excerpts'])) update_option('relevanssi_excerpts', $_REQUEST['relevanssi_excerpts']);	
@@ -287,13 +292,10 @@ function update_relevanssi_options() {
 	if (isset($_REQUEST['relevanssi_class'])) update_option('relevanssi_class', $_REQUEST['relevanssi_class']);
 	if (isset($_REQUEST['relevanssi_cat'])) update_option('relevanssi_cat', $_REQUEST['relevanssi_cat']);
 	if (isset($_REQUEST['relevanssi_excat'])) update_option('relevanssi_excat', $_REQUEST['relevanssi_excat']);
-	if (isset($_REQUEST['relevanssi_custom_taxonomies'])) update_option('relevanssi_custom_taxonomies', $_REQUEST['relevanssi_custom_taxonomies']);
 	if (isset($_REQUEST['relevanssi_index_fields'])) update_option('relevanssi_index_fields', $_REQUEST['relevanssi_index_fields']);
 	if (isset($_REQUEST['relevanssi_expst'])) update_option('relevanssi_exclude_posts', $_REQUEST['relevanssi_expst']); 			//added by OdditY
-	if (isset($_REQUEST['relevanssi_inctags'])) update_option('relevanssi_include_tags', $_REQUEST['relevanssi_inctags']); 			//added by OdditY	
 	if (isset($_REQUEST['relevanssi_hilite_title'])) update_option('relevanssi_hilite_title', $_REQUEST['relevanssi_hilite_title']); 	//added by OdditY	
 	if (isset($_REQUEST['relevanssi_index_comments'])) update_option('relevanssi_index_comments', $_REQUEST['relevanssi_index_comments']); //added by OdditY	
-	if (isset($_REQUEST['relevanssi_inccats'])) update_option('relevanssi_include_cats', $_REQUEST['relevanssi_inccats']);
 	if (isset($_REQUEST['relevanssi_index_author'])) update_option('relevanssi_index_author', $_REQUEST['relevanssi_index_author']);
 	if (isset($_REQUEST['relevanssi_index_excerpt'])) update_option('relevanssi_index_excerpt', $_REQUEST['relevanssi_index_excerpt']);
 	if (isset($_REQUEST['relevanssi_fuzzy'])) update_option('relevanssi_fuzzy', $_REQUEST['relevanssi_fuzzy']);
@@ -662,8 +664,6 @@ function relevanssi_options_form() {
 			break;
 	}
 	
-	$custom_taxonomies = get_option('relevanssi_custom_taxonomies');
-	$serialize_options['relevanssi_custom_taxonomies'] = $custom_taxonomies;
 	$index_fields = get_option('relevanssi_index_fields');
 	$serialize_options['relevanssi_index_fields'] = $index_fields;
 
@@ -713,9 +713,7 @@ function relevanssi_options_form() {
 	//Added by OdditY ->
 	$expst = get_option('relevanssi_exclude_posts'); 
 	$serialize_options['relevanssi_exclude_posts'] = $expst;
-	$inctags = ('on' == get_option('relevanssi_include_tags') ? 'checked="checked"' : ''); 
 	$hititle = ('on' == get_option('relevanssi_hilite_title') ? 'checked="checked"' : ''); 
-	$serialize_options['relevanssi_include_tags'] = get_option('relevanssi_include_tags');
 	$serialize_options['relevanssi_hilite_title'] = get_option('relevanssi_hilite_title');
 	$incom_type = get_option('relevanssi_index_comments');
 	$serialize_options['relevanssi_index_comments'] = $incom_type;
@@ -750,8 +748,6 @@ function relevanssi_options_form() {
 	$min_word_length = get_option('relevanssi_min_word_length');
 	$serialize_options['relevanssi_min_word_length'] = $min_word_length;
 
-	$inccats = ('on' == get_option('relevanssi_include_cats') ? 'checked="checked"' : ''); 
-	$serialize_options['relevanssi_include_cats'] = get_option('relevanssi_include_cats');
 	$index_author = ('on' == get_option('relevanssi_index_author') ? 'checked="checked"' : ''); 
 	$serialize_options['relevanssi_index_author'] = get_option('relevanssi_index_author');
 	$index_excerpt = ('on' == get_option('relevanssi_index_excerpt') ? 'checked="checked"' : ''); 
@@ -774,6 +770,10 @@ function relevanssi_options_form() {
 	$index_post_types = get_option('relevanssi_index_post_types');
 	if (empty($index_post_types)) $index_post_types = array();
 	$serialize_options['relevanssi_index_post_types'] = $index_post_types;
+
+	$index_taxonomies_list = get_option('relevanssi_index_taxonomies_list');
+	if (empty($index_taxonomies_list)) $index_taxonomies_list = array();
+	$serialize_options['relevanssi_index_taxonomies_list'] = $index_taxonomies_list;
 
 	$orderby = get_option('relevanssi_default_orderby');
 	$serialize_options['relevanssi_default_orderby'] = $orderby;
@@ -798,6 +798,9 @@ function relevanssi_options_form() {
 	
 		$thousand_separator = get_option('relevanssi_thousand_separator');
 		$serialize_options['relevanssi_thousand_separator'] = $thousand_separator;
+
+		$disable_shortcodes = get_option('relevanssi_disable_shortcodes');
+		$serialize_options['relevanssi_disable_shortcodes'] = $disable_shortcodes;
 	
 		$index_users = ('on' == get_option('relevanssi_index_users') ? 'checked="checked"' : ''); 
 		$serialize_options['relevanssi_index_users'] = get_option('relevanssi_index_users');
@@ -810,9 +813,10 @@ function relevanssi_options_form() {
 	
 		$index_taxonomies = ('on' == get_option('relevanssi_index_taxonomies') ? 'checked="checked"' : ''); 
 		$serialize_options['relevanssi_index_taxonomies'] = get_option('relevanssi_index_taxonomies');
-	
-		$taxonomies_to_index = get_option('relevanssi_taxonomies_to_index');
-		$serialize_options['relevanssi_taxonomies_to_index'] = $taxonomies_to_index;
+
+		$index_terms = get_option('relevanssi_index_terms');
+		if (empty($index_terms)) $index_terms = array();
+		$serialize_options['relevanssi_index_terms'] = $index_terms;
 	
 		$hide_post_controls = ('on' == get_option('relevanssi_hide_post_controls') ? 'checked="checked"' : ''); 
 		$serialize_options['relevanssi_hide_post_controls'] = get_option('relevanssi_hide_post_controls');
@@ -1227,7 +1231,53 @@ EOH;
 	</table>
 	
 	<br /><br />
+
+	<p><?php _e('Choose taxonomies to index:', 'relevanssi'); ?></p>
 	
+	<table class="widefat" id="custom_taxonomies_table">
+	<thead>
+		<tr>
+			<th><?php _e('Taxonomy', 'relevanssi'); ?></th>
+			<th><?php _e('Index', 'relevanssi'); ?></th>
+			<th><?php _e('Public?', 'relevanssi'); ?></th>
+		</tr>
+	</thead>
+	<?php
+		$taxos = get_taxonomies('', 'objects');
+		foreach ($taxos as $taxonomy) {
+			if ($taxonomy->name == 'nav_menu') continue;
+			if ($taxonomy->name == 'link_category') continue;
+			if (in_array($taxonomy->name, $index_taxonomies_list)) {
+				$checked = 'checked="checked"';
+			}
+			else {
+				$checked = '';
+			}
+			$label = sprintf(__("%s", 'relevanssi'), $taxonomy->name);
+			$taxonomy->public ? $public = __('yes', 'relevanssi') : $public = __('no', 'relevanssi');
+			$type = $taxonomy->name;
+					
+			echo <<<EOH
+	<tr>
+		<td>
+			$label 
+		</td>
+		<td>
+			<input type='checkbox' name='relevanssi_index_taxonomy_$type' id='relevanssi_index_taxonomy_$type' $checked />
+		</td>
+		<td>
+			$public
+		</td>
+	</tr>
+EOH;
+		}
+	?>
+	</table>
+	
+	<p><?php _e('If you check a taxonomy here, the terms for that taxonomy are indexed with the posts. If you for example choose "post_tag", searching for tags will find all posts that have the tag.', 'relevanssi'); ?>
+	
+	<br /><br />
+		
 	<label for='relevanssi_min_word_length'><?php _e("Minimum word length to index", "relevanssi"); ?>:
 	<input type='text' name='relevanssi_min_word_length' id='relevanssi_min_word_length' size='30' value='<?php echo $min_word_length ?>' /></label><br />
 	<small><?php _e("Words shorter than this number will not be indexed.", "relevanssi"); ?></small>
@@ -1242,17 +1292,7 @@ EOH;
 
 	<br /><br />
 
-	<label for='relevanssi_inctags'><?php _e('Index and search your posts\' tags:', 'relevanssi'); ?>
-	<input type='checkbox' name='relevanssi_inctags' id='relevanssi_inctags' <?php echo $inctags ?> /></label><br />
-	<small><?php _e("If checked, Relevanssi will also index and search the tags of your posts. Remember to rebuild the index if you change this option!", 'relevanssi'); ?></small>
-
-	<br /><br />
-
-	<label for='relevanssi_inccats'><?php _e('Index and search your posts\' categories:', 'relevanssi'); ?>
-	<input type='checkbox' name='relevanssi_inccats' id='relevanssi_inccats' <?php echo $inccats ?> /></label><br />
-	<small><?php _e("If checked, Relevanssi will also index and search the categories of your posts. Category titles will pass through 'single_cat_title' filter. Remember to rebuild the index if you change this option!", 'relevanssi'); ?></small>
-
-	<br /><br />
+<?php if (function_exists('relevanssi_form_disable_shortcodes')) relevanssi_form_disable_shortcodes($disable_shortcodes); ?>
 
 	<label for='relevanssi_index_author'><?php _e('Index and search your posts\' authors:', 'relevanssi'); ?>
 	<input type='checkbox' name='relevanssi_index_author' id='relevanssi_index_author' <?php echo $index_author ?> /></label><br />
@@ -1282,17 +1322,11 @@ EOH;
 
 	<br /><br />
 
-	<label for='relevanssi_custom_taxonomies'><?php _e("Custom taxonomies to index:", "relevanssi"); ?>
-	<input type='text' name='relevanssi_custom_taxonomies' id='relevanssi_custom_taxonomies' size='30' value='<?php echo $custom_taxonomies ?>' /></label><br />
-	<small><?php _e("A comma-separated list of custom taxonomy names to include in the index.", "relevanssi"); ?></small>
-
-	<br /><br />
-
 <?php if (function_exists('relevanssi_form_mysql_columns')) relevanssi_form_mysql_columns($mysql_columns); ?>
 
 <?php if (function_exists('relevanssi_form_index_users')) relevanssi_form_index_users($index_users, $index_subscribers, $index_user_fields); ?>
 
-<?php if (function_exists('relevanssi_form_index_taxonomies')) relevanssi_form_index_taxonomies($index_taxonomies, $taxonomies_to_index); ?>
+<?php if (function_exists('relevanssi_form_index_taxonomies')) relevanssi_form_index_taxonomies($index_taxonomies, $index_terms); ?>
 
 	<input type='submit' name='index' value='<?php _e("Save indexing options and build the index", 'relevanssi'); ?>' class='button button-primary' />
 
