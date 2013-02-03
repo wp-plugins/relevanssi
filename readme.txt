@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.0
-Tested up to: 3.5
-Stable tag: 3.1.3
+Tested up to: 3.5.1
+Stable tag: 3.1.4
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -387,6 +387,17 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 3.1.4 =
+* Choosing which taxonomies to index is now done with an easy-to-use checkbox list.
+* Support for WP Table Reloaded and TablePress. Tables created with these plugins will now be expanded and the content indexed by Relevanssi.
+* New filter: `relevanssi_index_comments_exclude` can be used to exclude comments from indexing. The filter gets the post ID as a parameter, so you can prevent comments of particular posts being indexed, yet index those posts.
+* Relevanssi now adds spaces between tags when creating excerpts to make neater excerpts from tables and other similar situations.
+* Relevanssi now indexes unattached attachments, if you choose to index attachments.
+* Fixed the problems with Twenty Ten and Twenty Eleven themes better.
+* $match->tag now contains the number of tag hits.
+* Relevanssi now adds relevance score to posts before passing them to relevanssi_hits_filter. You can find it in $post->relevance_score.
+* Tags in breakdowns always showed 0, even though tags were indexed and searched correctly. That's now fixed.
 
 = 3.1.3 =
 * AND search did not work in all cases.

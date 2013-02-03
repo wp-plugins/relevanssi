@@ -26,6 +26,7 @@ function relevanssi_do_excerpt($t_post, $query) {
 	$content = apply_filters('relevanssi_excerpt_content', $content, $post, $query);
 	
 	$content = relevanssi_strip_invisibles($content); // removes <script>, <embed> &c with content
+	$content = preg_replace('/(<\/[^>]+?>)(<[^>\/][^>]*?>)/', '$1 $2', $content); // add spaces between tags to avoid getting words stuck together
 	$content = strip_tags($content, get_option('relevanssi_excerpt_allowable_tags', '')); // this removes the tags, but leaves the content
 	
 	$content = preg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
@@ -52,23 +53,12 @@ function relevanssi_do_excerpt($t_post, $query) {
 	$start = $excerpt_data[2];
 
 	$excerpt = $excerpt_data[0];	
-	if (function_exists('twentyten_custom_excerpt_more')) {
-		// Hack to fix a problem with Twenty Ten custom excerpts
-		remove_filter( 'get_the_excerpt', 'twentyten_custom_excerpt_more' );
-	}
-	if (function_exists('twentyeleven_custom_excerpt_more')) {
-		// Hack to fix a problem with Twenty Eleven custom excerpts
-		remove_filter( 'get_the_excerpt', 'twentyeleven_custom_excerpt_more' );
-	}
 
+	// This shuffle with excerpts is done to avoid doubled Read more links in some cases.
+	$excerpt_save = $post->post_excerpt;
+	$post->post_excerpt = '';
 	$excerpt = apply_filters('get_the_excerpt', $excerpt);
-
-	if (function_exists('twentyten_custom_excerpt_more')) {
-		add_filter( 'get_the_excerpt', 'twentyten_custom_excerpt_more' );
-	}
-	if (function_exists('twentyeleven_custom_excerpt_more')) {
-		add_filter( 'get_the_excerpt', 'twentyeleven_custom_excerpt_more' );
-	}
+	$post->post_excerpt = $excerpt_save;
 
 	$excerpt = trim($excerpt);
 
@@ -326,6 +316,7 @@ function relevanssi_highlight_terms($excerpt, $query) {
 	
 	$terms = array_keys(relevanssi_tokenize($query, $remove_stopwords = true));
 
+	if (is_array($query)) $query = implode(' ', $query); // just in case
 	$phrases = relevanssi_extract_phrases(stripslashes($query));
 	
 	$non_phrase_terms = array();

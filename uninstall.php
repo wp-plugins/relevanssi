@@ -27,17 +27,14 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_cat');
 	delete_option('relevanssi_index_fields');
 	delete_option('relevanssi_exclude_posts'); 	//added by OdditY
-	delete_option('relevanssi_include_tags'); 	//added by OdditY	
 	delete_option('relevanssi_hilite_title'); 	//added by OdditY 
 	delete_option('relevanssi_index_comments');	//added by OdditY
-	delete_option('relevanssi_include_cats');
 	delete_option('relevanssi_show_matches');
 	delete_option('relevanssi_show_matches_text');
 	delete_option('relevanssi_fuzzy');
 	delete_option('relevanssi_index');
 	delete_option('relevanssi_indexed');
 	delete_option('relevanssi_expand_shortcodes');
-	delete_option('relevanssi_custom_taxonomies');
 	delete_option('relevanssi_index_author');
 	delete_option('relevanssi_implicit_operator');
 	delete_option('relevanssi_omit_from_logs');
@@ -60,6 +57,7 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_throttle_limit');
 	delete_option('relevanssi_index_post_types');
 	delete_option('relevanssi_post_type_weights');
+	delete_option('relevanssi_index_taxonomies_list');
 
 	// Unused options, removed in case they are still left
 	delete_option('relevanssi_custom_types');
@@ -68,6 +66,9 @@ function relevanssi_uninstall() {
 	delete_option('relevanssi_index_type');
 	delete_option('relevanssi_show_matches_txt');
 	delete_option('relevanssi_tag_boost');
+	delete_option('relevanssi_include_tags'); 	//added by OdditY	
+	delete_option('relevanssi_custom_taxonomies');
+	delete_option('relevanssi_include_cats');
 
 	relevanssi_clear_database_tables();
 }
