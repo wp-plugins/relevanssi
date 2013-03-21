@@ -2,7 +2,6 @@
 
 add_action('admin_menu', 'relevanssi_menu');
 add_filter('the_posts', 'relevanssi_query');
-add_action('save_post', 'relevanssi_edit', 99, 1);				// thanks to Brian D Gajus
 add_action('delete_post', 'relevanssi_delete');
 add_action('comment_post', 'relevanssi_comment_index'); 	//added by OdditY
 add_action('edit_comment', 'relevanssi_comment_edit'); 		//added by OdditY 

@@ -34,12 +34,22 @@ function relevanssi_wpml_filter($data) {
  * Function by Matthew Hood http://my.php.net/manual/en/function.sort.php#75036
  */
 function relevanssi_object_sort(&$data, $key, $dir = 'desc') {
+	if ('title' == $key) $key = 'post_title';
+	if ('date' == $key) $key = 'post_date';
 	$dir = strtolower($dir);
     for ($i = count($data) - 1; $i >= 0; $i--) {
 		$swapped = false;
       	for ($j = 0; $j < $i; $j++) {
+      		if (function_exists('mb_strtolower')) {
+	   			$key1 = mb_strtolower($data[$j]->$key);
+   				$key2 = mb_strtolower($data[$j + 1]->$key);
+   			}
+   			else {
+	   			$key1 = strtolower($data[$j]->$key);
+   				$key2 = strtolower($data[$j + 1]->$key);
+   			}
       		if ('asc' == $dir) {
-	           	if ($data[$j]->$key > $data[$j + 1]->$key) { 
+	           	if ($key1 > $key2) { 
     		        $tmp = $data[$j];
         	        $data[$j] = $data[$j + 1];
             	    $data[$j + 1] = $tmp;
@@ -47,7 +57,7 @@ function relevanssi_object_sort(&$data, $key, $dir = 'desc') {
 	           	}
 	        }
 			else {
-	           	if ($data[$j]->$key < $data[$j + 1]->$key) { 
+	           	if ($key1 < $key2) { 
     		        $tmp = $data[$j];
         	        $data[$j] = $data[$j + 1];
             	    $data[$j + 1] = $tmp;
@@ -95,6 +105,17 @@ function relevanssi_update_log($query, $hits) {
 		if (in_array($user->ID, $omit)) return;
 		if (in_array($user->user_login, $omit)) return;
 	}
+
+	// Bot filter, by Justin_K
+	// See: http://wordpress.org/support/topic/bot-logging-problem-w-tested-solution
+	if (isset($_SERVER['HTTP_USER_AGENT'])) {
+	    $user_agent = $_SERVER['HTTP_USER_AGENT'];
+    	$bots = array('Google'=>'Mediapartners-Google');
+	    $bots = apply_filters('relevanssi_bots_to_not_log', $bots);
+    	foreach ($bots as $name => $lookfor) {
+	        if (stristr($user_agent, $lookfor) !== false) return;
+	    }
+	}	
 	
 	if (get_option('relevanssi_log_queries_with_ip') == "on") {
 		$q = $wpdb->prepare("INSERT INTO " . $relevanssi_variables['log_table'] . " (query, hits, user_id, ip) VALUES (%s, %d, %d, %s)", $query, intval($hits), $user->ID, $_SERVER['REMOTE_ADDR']);
@@ -426,9 +447,12 @@ function relevanssi_prevent_default_request( $request, $query ) {
 			  	return $request;
 			}
 		}
+		
+		$admin_search_ok = true;
+		$admin_search_ok = apply_filters('relevanssi_admin_search_ok', $admin_search_ok, $query );
 		if (!is_admin())
-			$request = "SELECT * FROM $wpdb->posts WHERE 1=2";
-		else if ('on' == get_option('relevanssi_admin_search'))
+			$request = "SELECT * FROM $wpdb->posts WHERE 1=2";		
+		else if ('on' == get_option('relevanssi_admin_search') && $admin_search_ok )
 			$request = "SELECT * FROM $wpdb->posts WHERE 1=2";
 	}
 	return $request;
@@ -460,9 +484,10 @@ function relevanssi_tokenize($str, $remove_stops = true, $min_word_length = -1) 
 		$str = mb_strtolower($str);
 	else
 		$str = strtolower($str);
-	
+
 	$t = strtok($str, "\n\t ");
 	while ($t !== false) {
+		$t = strval($t);
 		$accept = true;
 		if (strlen($t) < $min_word_length) {
 			$t = strtok("\n\t  ");

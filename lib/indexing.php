@@ -78,6 +78,7 @@ function relevanssi_build_index($extend = false) {
 
 	$custom_fields = relevanssi_get_custom_fields();
 
+	do_action('relevanssi_pre_indexing_query');
 	$content = $wpdb->get_results($q);
 	
 	foreach ($content as $post) {
@@ -322,7 +323,10 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 					remove_shortcode(trim($shortcode));
 				}
 				remove_shortcode('contact-form');		// Jetpack Contact Form causes an error message
+				
+				$post_before_shortcode = $post;
 				$contents = do_shortcode($contents);
+				$post = $post_before_shortcode;
 				
 				if (defined('TABLEPRESS_ABSPATH') || defined('WP_TABLE_RELOADED_ABSPATH')) {
 					unset($My_WP_Table_Reloaded);

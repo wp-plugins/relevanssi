@@ -19,7 +19,7 @@ function relevanssi_do_excerpt($t_post, $query) {
 	$post = $t_post;
 
 	$remove_stopwords = false;
-	$terms = relevanssi_tokenize($query, $remove_stopwords);
+	$terms = relevanssi_tokenize($query, $remove_stopwords, -1);
 	
 	$content = apply_filters('relevanssi_pre_excerpt_content', $post->post_content, $post, $query);
 	$content = apply_filters('the_content', $content);
@@ -239,7 +239,8 @@ function relevanssi_create_excerpt($content, $terms) {
 /** HIGHLIGHTING **/
 
 function relevanssi_highlight_in_docs($content) {
-	if (is_singular()) {
+	global $wp_query;
+	if (is_singular() && in_the_loop()) {
 		if (isset($_SERVER['HTTP_REFERER'])) {
 			$referrer = preg_replace('@(http|https)://@', '', stripslashes(urldecode($_SERVER['HTTP_REFERER'])));
 			$args     = explode('?', $referrer);
@@ -248,9 +249,11 @@ function relevanssi_highlight_in_docs($content) {
 			if ( count( $args ) > 1 )
 				parse_str( $args[1], $query );
 	
-			if (substr($referrer, 0, strlen($_SERVER['SERVER_NAME'])) == $_SERVER['SERVER_NAME'] && (isset($query['s']) || strpos($referrer, '/search/') !== false)) {
+			if (substr($referrer, 0, strlen($_SERVER['SERVER_NAME'])) == $_SERVER['SERVER_NAME']) {
 				// Local search
-				$content = relevanssi_highlight_terms($content, $query['s']);
+				if (isset($query['s'])) {
+					$content = relevanssi_highlight_terms($content, $query['s']);
+				}
 			}
 			if (function_exists('relevanssi_nonlocal_highlighting')) {
 				$content = relevanssi_nonlocal_highlighting($referrer, $content, $query);
@@ -314,11 +317,11 @@ function relevanssi_highlight_terms($excerpt, $query) {
 	if ( function_exists('mb_internal_encoding') )
 		mb_internal_encoding("UTF-8");
 	
-	$terms = array_keys(relevanssi_tokenize($query, $remove_stopwords = true));
-
+	$terms = array_keys(relevanssi_tokenize($query, $remove_stopwords = true, -1));
+	
 	if (is_array($query)) $query = implode(' ', $query); // just in case
 	$phrases = relevanssi_extract_phrases(stripslashes($query));
-	
+
 	$non_phrase_terms = array();
 	foreach ($phrases as $phrase) {
 		$phrase_terms = array_keys(relevanssi_tokenize($phrase, false));
@@ -335,9 +338,9 @@ function relevanssi_highlight_terms($excerpt, $query) {
 
 	get_option('relevanssi_word_boundaries', 'on') == 'on' ? $word_boundaries = true : $word_boundaries = false;
 	foreach ($terms as $term) {
-		$pr_term = preg_quote($term, '/');
+		$pr_term = relevanssi_replace_punctuation(preg_quote($term, '/'));
 		if ($word_boundaries) {
-			$excerpt = preg_replace("/(\b$pr_term|$pr_term\b)(?!([^<]+)?>)/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
+			$excerpt = preg_replace("/(\b$pr_term|$pr_term\b)(?!([^[&|<]]+)?(;|>|<\/script>|<\/style>))/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
 		}
 		else {
 			$excerpt = preg_replace("/($pr_term)(?!([^<]+)?>)/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
@@ -361,6 +364,11 @@ function relevanssi_highlight_terms($excerpt, $query) {
 	}
 
 	return $excerpt;
+}
+
+function relevanssi_replace_punctuation($a) {
+    $a = preg_replace('/[[:punct:]]+/u', '.+?', $a);
+    return $a;
 }
 
 function relevanssi_remove_nested_highlights($s, $a, $b) {
