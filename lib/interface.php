@@ -529,7 +529,7 @@ function relevanssi_date_queries($d, $title, $version = 'good') {
 		  WHERE TIMESTAMPDIFF(DAY, time, NOW()) <= $d
 		    AND hits = 0
 		  GROUP BY query
-		  ORDER BY time DESC
+		  ORDER BY cnt DESC
 		  LIMIT 20");
 
 	if (count($queries) > 0) {

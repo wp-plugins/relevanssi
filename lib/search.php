@@ -79,6 +79,8 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 	$o_expost = $expost;
 	$o_post_type = $post_type;
 	$o_author = $author;
+	$o_operator = $operator;
+	$o_search_blogs = $search_blogs;
 
 	$query_restrictions = "";
 	if (!isset($relation)) $relation = "or";
@@ -120,7 +122,7 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 				$term_tax_id = $wpdb->get_col(
 					"SELECT tt.term_taxonomy_id
 					FROM $wpdb->terms AS t, $wpdb->term_taxonomy AS tt
-					WHERE tt.term_id = t.term_id AND t.slug IN ($slug)");
+					WHERE tt.term_id = t.term_id AND tt.taxonomy = '" . $row['taxonomy'] . "' AND t.slug IN ($slug)");
 			}
 			
 			if (!isset($row['include_children']) || $row['include_children'] == true) {
@@ -211,8 +213,12 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 
 	if (is_array($meta_query)) {
 		foreach ($meta_query as $meta) {
-			$key = $meta['key'];
-			if (empty($key)) continue;
+			if (!empty($meta['key'])) {
+				$key = "meta_key = '" . $meta['key'] . "'";
+			}
+			else {
+				$key = '';
+			}
 			
 			isset($meta['compare']) ? $compare = strtoupper($meta['compare']) : $compare = '=';
 			
@@ -230,15 +236,16 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 				$compare == 'BETWEEN' ? $compare = "IN" : $compare = "NOT IN";
 				$low_value = $meta['value'][0];
 				$high_value = $meta['value'][1];
+				!empty($key) ? $and = " AND " : $and = "";
 				$query_restrictions .= " AND doc $compare (
 					SELECT DISTINCT(post_id) FROM $wpdb->postmeta
-					WHERE meta_key = '$key' AND $meta_value BETWEEN $low_value AND $high_value)";
+					WHERE $key $and $meta_value BETWEEN $low_value AND $high_value)";
 			}
 			else if ($compare == 'EXISTS' || $compare == 'NOT EXISTS') {
 				$compare == 'EXISTS' ? $compare = "IN" : $compare = "NOT IN";
 				$query_restrictions .= " AND doc $compare (
 					SELECT DISTINCT(post_id) FROM $wpdb->postmeta
-					WHERE meta_key = '$key')";
+					WHERE $key)";
 			}
 			else if ($compare == 'IN' || $compare == 'NOT IN') {
 				if (!is_array($meta['value'])) continue;
@@ -247,15 +254,17 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 					$values[] = "'$value'";
 				}
 				$values = implode(',', $values);
+				!empty($key) ? $and = " AND " : $and = "";
 				$query_restrictions .= " AND doc IN (
 					SELECT DISTINCT(post_id) FROM $wpdb->postmeta
-					WHERE meta_key = '$key' AND $meta_value $compare ($values))";
+					WHERE $key $and $meta_value $compare ($values))";
 			}
 			else {
-				isset($meta['value']) ? $value = " AND $meta_value " . $meta['compare'] . " '" . $meta['value'] . "' " : $value = '';
+				isset($meta['value']) ? $value = " $meta_value " . $meta['compare'] . " '" . $meta['value'] . "' " : $value = '';
+				(!empty($key) && !empty($value)) ? $and = " AND " : $and = "";
 				$query_restrictions .= " AND doc IN (
 					SELECT DISTINCT(post_id) FROM $wpdb->postmeta
-					WHERE meta_key = '$key' $value)";
+					WHERE $key $and $value)";
 			}
 		}
 	}
@@ -435,7 +444,6 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 		$recency_cutoff_date = false;
 	}
 	$min_length = get_option('relevanssi_min_word_length');
-	
 	$search_again = false;
 
 	$title_boost = floatval(get_option('relevanssi_title_boost'));
@@ -616,10 +624,10 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 
 	if (count($hits) < 1) {
 		if ($operator == "AND" AND get_option('relevanssi_disable_or_fallback') != 'on') {
-			$return = relevanssi_search($q, $o_tax_query, $o_tax_query_relation,
+			$return = relevanssi_search($q, $o_tax_query, $o_relation,
 				$o_post_query, $o_meta_query,
-				$o_expids, $o_post_type,
-				$o_operator, $o_search_blogs, $o_author);
+				$o_expost, $o_post_type,
+				"OR", $o_search_blogs, $o_author);
 			extract($return);
 		}
 	}
@@ -671,7 +679,7 @@ function relevanssi_do_query(&$query) {
 	}
 	else {
 		$tax_query = array();
-		$tax_query_relation = 'OR';
+		$tax_query_relation = apply_filters('relevanssi_default_tax_query_relation', 'OR');
 		if (isset($query->query_vars['tax_query'])) {
 			foreach ($query->query_vars['tax_query'] as $type => $item) {
 				if (is_string($type) && $type == 'relation') {
@@ -707,8 +715,8 @@ function relevanssi_do_query(&$query) {
 			if (!empty($query->query_vars['category__not_in'])) {
 				$tax_query[] = array('taxonomy' => 'category', 'field' => 'id', 'terms' => $query->query_vars['category__not_in'], 'operator' => 'NOT IN');
 			}
-			if (!empty($query->query_vars['category__not_in'])) {
-				$tax_query[] = array('taxonomy' => 'category', 'field' => 'id', 'terms' => $query->query_vars['category__not_in'], 'operator' => 'NOT IN');
+			if (!empty($query->query_vars['category__and'])) {
+				$tax_query[] = array('taxonomy' => 'category', 'field' => 'id', 'terms' => $query->query_vars['category__and'], 'operator' => 'AND', 'include_children' => false);
 			}
 			$excat = get_option('relevanssi_excat');
 			if (isset($excat) && $excat != 0) {
@@ -768,8 +776,8 @@ function relevanssi_do_query(&$query) {
 		}
 
 		$author = false;
-		if (isset($query->query["author"])) {
-			$author = explode(',', $query->query["author"]);
+		if (isset($query->query_vars["author"])) {
+			$author = explode(',', $query->query_vars["author"]);
 		}
 		if (!empty($query->query_vars["author_name"])) {
 			$author_object = get_user_by('slug', $query->query_vars["author_name"]);
@@ -792,9 +800,12 @@ function relevanssi_do_query(&$query) {
 			isset($query->query_vars["customfield_value"]) ? $value = $query->query_vars["customfield_value"] : $value = null;
 			$meta_query[] = array('key' => $query->query_vars["customfield_key"], 'value' => $value, 'compare' => '=');
 		}
-		if (!empty($query->query_vars["meta_key"])) {
-			!empty($query->query_vars["meta_value"]) ? $value = $query->query_vars["meta_value"] : $value = null;
-			!empty($query->query_vars["meta_value_num"]) ? $value = $query->query_vars["meta_value_num"] : $value = null;
+		if (!empty($query->query_vars["meta_key"]) ||
+			!empty($query->query_vars["meta_value"]) ||
+			!empty($query->query_vars["meta_value_num"])) {
+			$value = null;
+			if (!empty($query->query_vars["meta_value"])) $value = $query->query_vars["meta_value"];
+			if (!empty($query->query_vars["meta_value_num"])) $value = $query->query_vars["meta_value_num"];
 			!empty($query->query_vars["meta_compare"]) ? $compare = $query->query_vars["meta_compare"] : $compare = '=';
 			$meta_query[] = array('key' => $query->query_vars["meta_key"], 'value' => $value, 'compare' => $compare);
 		}
@@ -835,10 +846,16 @@ function relevanssi_do_query(&$query) {
 			$synonym_data = get_option('relevanssi_synonyms');
 			if ($synonym_data) {
 				$synonyms = array();
+				if (function_exists('mb_strtolower')) {
+					$synonym_data = mb_strtolower($synonym_data);
+				}
+				else {
+					$synonym_data = strtolower($synonym_data);
+				}
 				$pairs = explode(";", $synonym_data);
 				foreach ($pairs as $pair) {
 					$parts = explode("=", $pair);
-					$key = trim($parts[0]);
+					$key = strval(trim($parts[0]));
 					$value = trim($parts[1]);
 					$synonyms[$key][$value] = true;
 				}
@@ -847,7 +864,9 @@ function relevanssi_do_query(&$query) {
 					$terms = array_keys(relevanssi_tokenize($q, false)); // remove stopwords is false here
 					foreach ($terms as $term) {
 						if (in_array(strval($term), array_keys($synonyms))) {		// strval, otherwise numbers cause problems
-							$new_terms = array_merge($new_terms, array_keys($synonyms[$term]));
+							if (isset($synonyms[strval($term)])) {		// necessary, otherwise terms like "02" can cause problems
+								$new_terms = array_merge($new_terms, array_keys($synonyms[strval($term)]));
+							}
 						}
 					}
 					if (count($new_terms) > 0) {

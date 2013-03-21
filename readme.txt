@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.0
 Tested up to: 3.5.1
-Stable tag: 3.1.4
+Stable tag: 3.1.5
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -387,6 +387,28 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 3.1.5 =
+* OR fallback didn't actually fall back to OR, but instead got stuck in an endless loop of AND searches.
+* Meta queries didn't work without a key; now they work with just meta_value or meta_value_num.
+* Meta queries had problems with meta_value being set to null.
+* Relevanssi now supports category__and. By default this sets include_children to false.
+* When querying by slug, the term taxonomy is also taken into consideration, fixing problems when same slug appears in different taxonomies.
+* Author search didn't work.
+* Fixed an error message caused by all-number synonyms starting with zero, like 02.
+* Synonyms are now case-insensitive.
+* New filter: `relevanssi_default_tax_query_relation` can be used to change the default tax query relation from OR to AND.
+* Fixed undefined variable errors when doing an OR fallback.
+* New filter: `relevanssi_bots_to_not_log` makes it possible to block bots from logs. The format matches what other plugins, ie. WP-Useronline, use for bot blocking, so you can share block lists.
+* New filter: `relevanssi_admin_search_ok` gives you more control when Relevanssi overrides the default WP search in admin, useful for fixing P2P_Box AJAX search.
+* Ordering search results by title or date in admin search works now.
+* Modified the way the highlights work; now highlighting words with apostrophes should produce more meaningful results.
+* Highlighting should not highlight anything between & and ; or in <style> or <script> tags, thus solving some of the problems related to highlights. Reports of how well this works are welcome.
+* On-post highlighting now only highlights content in the loop, so menu texts and other off-the-loop stuff should not get highlights anymore.
+* New action hook: `relevanssi_pre_indexing_query` can be used to "SET OPTION SQL_BIG_SELECTS=1" if needed.
+* Major indexing problems caused by shortcodes changing the post ID during the indexing of posts are now fixed.
+* Relevanssi was being called twice when a post was saved, on `save_post` and `wp_insert_post`. I removed the hook on `save_post`.
+* Unsuccessful searches are now ordered by count, like the successful queries are.
 
 = 3.1.4 =
 * Choosing which taxonomies to index is now done with an easy-to-use checkbox list.
