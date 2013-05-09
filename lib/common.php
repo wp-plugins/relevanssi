@@ -36,6 +36,7 @@ function relevanssi_wpml_filter($data) {
 function relevanssi_object_sort(&$data, $key, $dir = 'desc') {
 	if ('title' == $key) $key = 'post_title';
 	if ('date' == $key) $key = 'post_date';
+	if (!isset($data[0]->$key)) return;			// trying to sort by a non-existent key
 	$dir = strtolower($dir);
     for ($i = count($data) - 1; $i >= 0; $i--) {
 		$swapped = false;
@@ -274,7 +275,7 @@ function relevanssi_recognize_phrases($q) {
 		$phrase_matches = array();
 		foreach ($phrases as $phrase) {
 			$phrase = $wpdb->escape($phrase);
-			$query = "SELECT ID,post_content,post_title FROM $wpdb->posts 
+			$query = "SELECT ID FROM $wpdb->posts 
 				WHERE (post_content LIKE '%$phrase%' OR post_title LIKE '%$phrase%')
 				AND post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit')";
 			

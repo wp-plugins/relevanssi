@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.0
 Tested up to: 3.5.1
-Stable tag: 3.1.5
+Stable tag: 3.1.6
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -387,6 +387,17 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 3.1.6 =
+* DEACTIVATE AND ACTIVATE THE PLUGIN AFTER YOU UPDATE.
+* Fuzzy searches are now a lot more efficient; they were a huge resource hog before.
+* Fixed a possible MySQL injection attack.
+* Fixed MySQL errors from empty meta queries.
+* Sort order (orderby and order variables) are now read from query variables instead of global variables.
+* Relevanssi will not choke on bad values of orderby anymore.
+* Limit searches is improved: when using AND search it is less likely to miss results.
+* Phrase recognition read the whole post content (which it didn't need) from database, causing memory issues in some cases. Fixed that.
+* Highlighting was broken, and should work much better now.
 
 = 3.1.5 =
 * OR fallback didn't actually fall back to OR, but instead got stuck in an endless loop of AND searches.
