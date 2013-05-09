@@ -377,7 +377,7 @@ function relevanssi_remove_all_stopwords() {
 function relevanssi_remove_stopword($term) {
 	global $wpdb, $relevanssi_variables;
 	
-	$q = $wpdb->prepare("DELETE FROM " . $relevanssi_variables['stopword_table'] . " WHERE stopword = '$term'");
+	$q = $wpdb->prepare("DELETE FROM " . $relevanssi_variables['stopword_table'] . " WHERE stopword=%s", $term);
 	$success = $wpdb->query($q);
 	
 	if ($success) {

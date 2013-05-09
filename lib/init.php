@@ -136,6 +136,7 @@ function relevanssi_create_database_tables($relevanssi_db_version) {
 	
 		$sql = "CREATE TABLE " . $relevanssi_table . " (doc bigint(20) NOT NULL DEFAULT '0', 
 		term varchar(50) NOT NULL DEFAULT '0', 
+		term_reverse varchar(50) NOT NULL DEFAULT '0',
 		content mediumint(9) NOT NULL DEFAULT '0', 
 		title mediumint(9) NOT NULL DEFAULT '0', 
 		comment mediumint(9) NOT NULL DEFAULT '0', 
@@ -157,6 +158,9 @@ function relevanssi_create_database_tables($relevanssi_db_version) {
 		dbDelta($sql);
 
 		$sql = "CREATE INDEX terms ON $relevanssi_table (term(20))";
+		$wpdb->query($sql);
+
+		$sql = "CREATE INDEX relevanssi_term_reverse_idx ON $relevanssi_table (term_reverse(10))";
 		$wpdb->query($sql);
 
 		$sql = "CREATE INDEX docs ON $relevanssi_table (doc)";
@@ -220,6 +224,15 @@ function relevanssi_create_database_tables($relevanssi_db_version) {
 			$sql = "ALTER TABLE $relevanssi_cache MODIFY COLUMN param varchar(32) $charset_collate_bin_column NOT NULL";
 			$wpdb->query($sql);
 			$sql = "ALTER TABLE $relevanssi_excerpt_cache MODIFY COLUMN query(100) $charset_collate_bin_column NOT NULL";
+			$wpdb->query($sql);
+		}
+		
+		if (get_option('relevanssi_db_version') < 4) {
+			$sql = "ALTER TABLE $relevanssi_table ADD COLUMN term_reverse VARCHAR(50);";
+			$wpdb->query($sql);
+			$sql = "UPDATE $relevanssi_table SET term_reverse = REVERSE(term);";
+			$wpdb->query($sql);
+			$sql = "CREATE INDEX relevanssi_term_reverse_idx ON $relevanssi_table (term_reverse(10));";
 			$wpdb->query($sql);
 		}
 		

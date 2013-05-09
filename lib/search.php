@@ -42,7 +42,7 @@ function relevanssi_query($posts, $query = false) {
 }
 
 // This is my own magic working.
-function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query = array(), $meta_query = array(), $expost = NULL, $post_type = NULL, $operator = "AND", $search_blogs = NULL, $author = NULL) {
+function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query = array(), $meta_query = array(), $expost = NULL, $post_type = NULL, $operator = "AND", $search_blogs = NULL, $author = NULL, $orderby = NULL, $order = NULL) {
 	global $wpdb, $relevanssi_variables;
 	$relevanssi_table = $relevanssi_variables['relevanssi_table'];
 
@@ -57,6 +57,8 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 		'operator' => $operator,
 		'search_blogs' => $search_blogs,
 		'author' => $author,
+		'orderby' => $orderby,
+		'order' => $order,
 		);
 	$filtered_values = apply_filters( 'relevanssi_search_filters', $values_to_filter );
 	$q               = $filtered_values['q'];
@@ -69,6 +71,8 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 	$operator        = $filtered_values['operator'];
 	$search_blogs    = $filtered_values['search_blogs'];
 	$author	  	     = $filtered_values['author'];
+	$orderby  	     = $filtered_values['orderby'];
+	$order  	     = $filtered_values['order'];
 
 	$hits = array();
 
@@ -81,6 +85,8 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 	$o_author = $author;
 	$o_operator = $operator;
 	$o_search_blogs = $search_blogs;
+	$o_orderby = $orderby;
+	$o_order = $order;
 
 	$query_restrictions = "";
 	if (!isset($relation)) $relation = "or";
@@ -262,9 +268,14 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 			else {
 				isset($meta['value']) ? $value = " $meta_value " . $meta['compare'] . " '" . $meta['value'] . "' " : $value = '';
 				(!empty($key) && !empty($value)) ? $and = " AND " : $and = "";
-				$query_restrictions .= " AND doc IN (
-					SELECT DISTINCT(post_id) FROM $wpdb->postmeta
-					WHERE $key $and $value)";
+				if (empty($key) && empty($and) && empty($value)) {
+					// do nothing
+				}
+				else {
+					$query_restrictions .= " AND doc IN (
+						SELECT DISTINCT(post_id) FROM $wpdb->postmeta
+						WHERE $key $and $value)";
+				}
 			}
 		}
 	}
@@ -324,7 +335,7 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 	}
 
 	$terms = relevanssi_tokenize($q, $remove_stopwords);
-	
+
 	if (count($terms) < 1) {
 		// Tokenizer killed all the search terms.
 		return $hits;
@@ -429,7 +440,7 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 
 	$no_matches = true;
 	if ("always" == $fuzzy) {
-		$o_term_cond = apply_filters('relevanssi_fuzzy_query', "(term LIKE '%#term#' OR term LIKE '#term#%') ");
+		$o_term_cond = apply_filters('relevanssi_fuzzy_query', "(term LIKE '#term#%' OR term_reverse LIKE CONCAT(REVERSE('#term#'), '%')) ");
 	}
 	else {
 		$o_term_cond = " term = '#term#' ";
@@ -450,6 +461,8 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 	$link_boost = floatval(get_option('relevanssi_link_boost'));
 	$comment_boost = floatval(get_option('relevanssi_comment_boost'));
 
+	$include_these_posts = array();
+
 	do {
 		foreach ($terms as $term) {
 			if (strlen($term) < $min_length) continue;
@@ -464,11 +477,19 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 			$query = apply_filters('relevanssi_query_filter', $query);
 
 			$matches = $wpdb->get_results($query);
+			
 			if (count($matches) < 1) {
 				continue;
 			}
 			else {
 				$no_matches = false;
+				if (count($include_these_posts) > 0) {
+					$post_ids_to_add = implode(',', array_keys($include_these_posts));
+					$query = "SELECT *, title * $title_boost + content + comment * $comment_boost + tag * $tag + link * $link_boost + author + category * $cat + excerpt + taxonomy + customfield + mysqlcolumn AS tf 
+						  FROM $relevanssi_table WHERE doc IN ($post_ids_to_add) AND $term_cond";
+					$matches_to_add = $wpdb->get_results($query);
+					$matches = array_merge($matches, $matches_to_add);
+				}
 			}
 			
 			relevanssi_populate_array($matches);
@@ -483,7 +504,7 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 	
 			if ($df < 1 && "sometimes" == $fuzzy) {
 				$query = "SELECT COUNT(DISTINCT(doc)) FROM $relevanssi_table
-					WHERE (term LIKE '%$term' OR term LIKE '$term%') $query_restrictions";
+					WHERE (term LIKE '$term%' OR term_reverse LIKE CONCAT(REVERSE('$term), %')) $query_restrictions";
 				$query = apply_filters('relevanssi_df_query_filter', $query);
 				$df = $wpdb->get_var($query);
 			}
@@ -571,6 +592,7 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 					$doc_terms[$match->doc][$term] = true; // count how many terms are matched to a doc
 					isset($doc_weight[$match->doc]) ? $doc_weight[$match->doc] += $match->weight : $doc_weight[$match->doc] = $match->weight;
 					isset($scores[$match->doc]) ? $scores[$match->doc] += $match->weight : $scores[$match->doc] = $match->weight;
+					$include_these_posts[$match->doc] = true;
 				}
 			}
 		}
@@ -634,8 +656,14 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 
 	global $wp;	
 	$default_order = get_option('relevanssi_default_orderby', 'relevance');
-	isset($wp->query_vars["orderby"]) ? $orderby = $wp->query_vars["orderby"] : $orderby = $default_order;
-	isset($wp->query_vars["order"]) ? $order = $wp->query_vars["order"] : $order = 'desc';
+	if (empty($orderby)) $orderby = $default_order;
+	// the sorting function checks for non-existing keys, cannot whitelist here
+
+	if (empty($order)) $order = 'desc';
+	$order = strtolower($order);
+	$order_accepted_values = array('asc', 'desc');
+	if (!in_array($order, $order_accepted_values)) $order = 'desc';
+	
 	if ($orderby != 'relevance')
 		relevanssi_object_sort($hits, $orderby, $order);
 
@@ -839,6 +867,9 @@ function relevanssi_do_query(&$query) {
 		}
 		if ($operator != "OR" && $operator != "AND") $operator = get_option("relevanssi_implicit_operator");
 		
+		isset($query->query_vars['orderby']) ? $orderby = $query->query_vars['orderby'] : $orderby = null;
+		isset($query->query_vars['order']) ? $order = $query->query_vars['order'] : $order = null;
+		
 		// Add synonyms
 		// This is done here so the new terms will get highlighting
 		if ("OR" == $operator) {
@@ -862,6 +893,7 @@ function relevanssi_do_query(&$query) {
 				if (count($synonyms) > 0) {
 					$new_terms = array();
 					$terms = array_keys(relevanssi_tokenize($q, false)); // remove stopwords is false here
+					$terms[] = $q;
 					foreach ($terms as $term) {
 						if (in_array(strval($term), array_keys($synonyms))) {		// strval, otherwise numbers cause problems
 							if (isset($synonyms[strval($term)])) {		// necessary, otherwise terms like "02" can cause problems
@@ -879,10 +911,10 @@ function relevanssi_do_query(&$query) {
 		}
 	
 		if ($cache) {
-			$params = md5(serialize(array($q, $tax_query, $tax_query_relation, $post_query, $meta_query, $expids, $post_type, $operator, $search_blogs, $author)));
+			$params = md5(serialize(array($q, $tax_query, $tax_query_relation, $post_query, $meta_query, $expids, $post_type, $operator, $search_blogs, $author, $orderby, $order)));
 			$return = relevanssi_fetch_hits($params);
 			if (!$return) {
-				$return = relevanssi_search($q, $tax_query, $tax_query_relation, $post_query, $meta_query, $expids, $post_type, $operator, $search_blogs, $author);
+				$return = relevanssi_search($q, $tax_query, $tax_query_relation, $post_query, $meta_query, $expids, $post_type, $operator, $search_blogs, $author, $orderby, $order);
 				$return_ser = serialize($return);
 				relevanssi_store_hits($params, $return_ser);
 			}
@@ -897,7 +929,9 @@ function relevanssi_do_query(&$query) {
 										$post_type,
 										$operator,
 										$search_blogs,
-										$author);
+										$author,
+										$orderby,
+										$order);
 		}
 	}
 

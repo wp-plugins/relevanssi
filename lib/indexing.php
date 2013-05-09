@@ -86,6 +86,9 @@ function relevanssi_build_index($extend = false) {
 		// n calculates the number of insert queries
 	}
 	
+	$wpdb->query("ANALYZE TABLE $relevanssi_table");
+	// To prevent empty indices
+	
     echo '<div id="message" class="updated fade"><p>'
 		. __((($size == 0) || (count($content) < $size)) ? "Indexing complete!" : "More to index...", "relevanssi")
 		. '</p></div>';
@@ -381,15 +384,15 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 		$mysqlcolumn = 0;
 		extract($data);
 
-		$value = $wpdb->prepare("(%d, %s, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %s, %s, %s, %d)",
-			$post->ID, $term, $content, $title, $comment, $tag, $link, $author, $category, $excerpt, $taxonomy, $customfield, $type, $taxonomy_detail, $customfield_detail, $mysqlcolumn);
+		$value = $wpdb->prepare("(%d, %s, REVERSE(%s), %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %s, %s, %s, %d)",
+			$post->ID, $term, $term, $content, $title, $comment, $tag, $link, $author, $category, $excerpt, $taxonomy, $customfield, $type, $taxonomy_detail, $customfield_detail, $mysqlcolumn);
 
 		array_push($values, $value);
 	}
 	
 	if (!empty($values)) {
 		$values = implode(', ', $values);
-		$query = "INSERT IGNORE INTO $relevanssi_table (doc, term, content, title, comment, tag, link, author, category, excerpt, taxonomy, customfield, type, taxonomy_detail, customfield_detail, mysqlcolumn)
+		$query = "INSERT IGNORE INTO $relevanssi_table (doc, term, term_reverse, content, title, comment, tag, link, author, category, excerpt, taxonomy, customfield, type, taxonomy_detail, customfield_detail, mysqlcolumn)
 			VALUES $values";
 		$wpdb->query($query);
 	}
