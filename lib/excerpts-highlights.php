@@ -19,7 +19,7 @@ function relevanssi_do_excerpt($t_post, $query) {
 	$post = $t_post;
 
 	$remove_stopwords = false;
-	$terms = relevanssi_tokenize($query, $remove_stopwords, -1);
+	$terms = relevanssi_tokenize($query, $remove_stopwords, -1, false);
 	
 	$content = apply_filters('relevanssi_pre_excerpt_content', $post->post_content, $post, $query);
 	$content = apply_filters('the_content', $content);
@@ -32,11 +32,11 @@ function relevanssi_do_excerpt($t_post, $query) {
 	$content = preg_replace("/\n\r|\r\n|\n|\r/", " ", $content);
 //	$content = trim(preg_replace("/\s\s+/", " ", $content));
 	
-	$excerpt_data = relevanssi_create_excerpt($content, $terms);
+	$excerpt_data = relevanssi_create_excerpt($content, $terms, $query);
 
 	if (get_option("relevanssi_index_comments") != 'none') {
 		$comment_content = relevanssi_get_comments($post->ID);
-		$comment_excerpts = relevanssi_create_excerpt($comment_content, $terms);
+		$comment_excerpts = relevanssi_create_excerpt($comment_content, $terms, $query);
 		if ($comment_excerpts[1] > $excerpt_data[1]) {
 			$excerpt_data = $comment_excerpts;
 		}
@@ -44,7 +44,7 @@ function relevanssi_do_excerpt($t_post, $query) {
 
 	if (get_option("relevanssi_index_excerpt") != 'none') {
 		$excerpt_content = $post->post_excerpt;
-		$excerpt_excerpts = relevanssi_create_excerpt($excerpt_content, $terms);
+		$excerpt_excerpts = relevanssi_create_excerpt($excerpt_content, $terms, $query);
 		if ($excerpt_excerpts[1] > $excerpt_data[1]) {
 			$excerpt_data = $excerpt_excerpts;
 		}
@@ -53,14 +53,8 @@ function relevanssi_do_excerpt($t_post, $query) {
 	$start = $excerpt_data[2];
 
 	$excerpt = $excerpt_data[0];	
-
-	// This shuffle with excerpts is done to avoid doubled Read more links in some cases.
-	$excerpt_save = $post->post_excerpt;
-	$post->post_excerpt = '';
-	$excerpt = apply_filters('get_the_excerpt', $excerpt);
-	$post->post_excerpt = $excerpt_save;
-
 	$excerpt = trim($excerpt);
+	$excerpt = apply_filters('relevanssi_excerpt', $excerpt);
 
 	$ellipsis = apply_filters('relevanssi_ellipsis', '...');
 
@@ -91,7 +85,7 @@ function relevanssi_do_excerpt($t_post, $query) {
  * @return array - element 0 is the excerpt, element 1 the number of term hits, element 2 is
  * true, if the excerpt is from the start of the content.
  */
-function relevanssi_create_excerpt($content, $terms) {
+function relevanssi_create_excerpt($content, $terms, $query) {
 	// If you need to modify these on the go, use 'pre_option_relevanssi_excerpt_length' filter.
 	$excerpt_length = get_option("relevanssi_excerpt_length");
 	$type = get_option("relevanssi_excerpt_type");
@@ -100,6 +94,22 @@ function relevanssi_create_excerpt($content, $terms) {
 	$excerpt = "";
 
 	$content = " $content";
+
+	$phrases = relevanssi_extract_phrases(stripslashes($query));
+
+	$non_phrase_terms = array();
+	foreach ($phrases as $phrase) {
+		$phrase_terms = array_keys(relevanssi_tokenize($phrase, $remove_stopwords = false));
+		foreach ($terms as $term) {
+			if (!in_array($term, $phrase_terms)) {
+				$non_phrase_terms[] = $term;
+			}
+		}
+		$terms = $non_phrase_terms;
+		$terms[] = $phrase;
+	}
+
+	uksort($terms, 'relevanssi_strlen_sort');
 	
 /*
 	$highlight = get_option('relevanssi_highlight');
@@ -194,10 +204,19 @@ function relevanssi_create_excerpt($content, $terms) {
 				else if (function_exists('mb_strpos')) {
 					$pos = mb_strpos($excerpt_slice, $term);
 					if (false === $pos) {
-						$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
-						$pos = mb_strpos($excerpt_slice, $titlecased);
-						if (false === $pos) {
-							$pos = mb_strpos($excerpt_slice, mb_strtoupper($term));
+						if (function_exists('mb_strtoupper') && function_exists('mb_strpos') && function_exists('mb_substr')) {
+							$titlecased = mb_strtoupper(mb_substr($term, 0, 1)) . mb_substr($term, 1);
+							$pos = mb_strpos($excerpt_slice, $titlecased);
+							if (false === $pos) {
+								$pos = mb_strpos($excerpt_slice, mb_strtoupper($term));
+							}
+						}
+						else {
+							$titlecased = strtoupper(substr($term, 0, 1)) . substr($term, 1);
+							$pos = strpos($excerpt_slice, $titlecased);
+							if (false === $pos) {
+								$pos = strpos($excerpt_slice, strtoupper($term));
+							}
 						}
 					}
 				}
@@ -311,20 +330,20 @@ function relevanssi_highlight_terms($excerpt, $query) {
 			return $excerpt;
 	}
 	
-	$start_emp_token = "*[/";
-	$end_emp_token = "\]*";
+	$start_emp_token = "**[";
+	$end_emp_token = "]**";
 
 	if ( function_exists('mb_internal_encoding') )
 		mb_internal_encoding("UTF-8");
 	
-	$terms = array_keys(relevanssi_tokenize($query, $remove_stopwords = true, -1));
+	$terms = array_keys(relevanssi_tokenize($query, $remove_stopwords = true, $min_word_length = -1));
 	
 	if (is_array($query)) $query = implode(' ', $query); // just in case
 	$phrases = relevanssi_extract_phrases(stripslashes($query));
 
 	$non_phrase_terms = array();
 	foreach ($phrases as $phrase) {
-		$phrase_terms = array_keys(relevanssi_tokenize($phrase, false));
+		$phrase_terms = array_keys(relevanssi_tokenize($phrase, $remove_stopwords = false));
 		foreach ($terms as $term) {
 			if (!in_array($term, $phrase_terms)) {
 				$non_phrase_terms[] = $term;
@@ -334,18 +353,39 @@ function relevanssi_highlight_terms($excerpt, $query) {
 		$terms[] = $phrase;
 	}
 
-	usort($terms, 'relevanssi_strlen_sort');
+	uksort($terms, 'relevanssi_strlen_sort');
 
 	get_option('relevanssi_word_boundaries', 'on') == 'on' ? $word_boundaries = true : $word_boundaries = false;
 	foreach ($terms as $term) {
 		$pr_term = relevanssi_replace_punctuation(preg_quote($term, '/'));
+
 		if ($word_boundaries) {
-			$excerpt = preg_replace("/(\b$pr_term|$pr_term\b)(?!([^[&|<]]+)?(;|>|<\/script>|<\/style>))/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
+			$excerpt = preg_replace("/(\b$pr_term|$pr_term\b)(?!(^&+)?(;))/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
 		}
 		else {
-			$excerpt = preg_replace("/($pr_term)(?!([^<]+)?>)/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
+			$excerpt = preg_replace("/($pr_term)(?!(^&+)?(;))/iu", $start_emp_token . '\\1' . $end_emp_token, $excerpt);
 		}
-		// thanks to http://pureform.wordpress.com/2008/01/04/matching-a-word-characters-outside-of-html-tags/
+	
+		$preg_start = preg_quote($start_emp_token);
+		$preg_end = preg_quote($end_emp_token);
+
+		if (preg_match_all('/<.*>/U', $excerpt, $matches) > 0) {
+			// Remove highlights from inside HTML tags
+			foreach ($matches as $match) {
+				$new_match = str_replace($start_emp_token, '', $match);
+				$new_match = str_replace($end_emp_token, '', $new_match);
+				$excerpt = str_replace($match, $new_match, $excerpt);
+			}
+		}
+
+		if (preg_match_all('/<(style|script|object|embed)>.*<\/(style|script|object|embed)>/U', $excerpt, $matches) > 0) {
+			// Remove highlights in style, object, embed and script tags
+			foreach ($matches as $match) {
+				$new_match = str_replace($start_emp_token, '', $match);
+				$new_match = str_replace($end_emp_token, '', $new_match);
+				$excerpt = str_replace($match, $new_match, $excerpt);
+			}
+		}
 	}
 	
 	$excerpt = relevanssi_remove_nested_highlights($excerpt, $start_emp_token, $end_emp_token);

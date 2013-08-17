@@ -16,6 +16,14 @@ function relevanssi_wpml_filter($data) {
 			    if ($hit->ID == icl_object_id($hit->ID, $hit->post_type,false,ICL_LANGUAGE_CODE))
 			        $filtered_hits[] = $hit;
 			}
+			
+			if (function_exists('icl_object_id') && function_exists('pll_is_translated_post_type')) {
+				if (pll_is_translated_post_type($hit->post_type)) {
+				    if ($hit->ID == icl_object_id($hit->ID, $hit->post_type,false,ICL_LANGUAGE_CODE))
+				        $filtered_hits[] = $hit;
+				}
+			}
+
 			// if there is no WPML but the target blog has identical language with current blog,
 			// we use the hits. Note en-US is not identical to en-GB!
 			elseif (get_bloginfo('language') == $lang) {
@@ -36,6 +44,7 @@ function relevanssi_wpml_filter($data) {
 function relevanssi_object_sort(&$data, $key, $dir = 'desc') {
 	if ('title' == $key) $key = 'post_title';
 	if ('date' == $key) $key = 'post_date';
+	if (!isset($data[0]->$key)) return;			// trying to sort by a non-existent key
 	$dir = strtolower($dir);
     for ($i = count($data) - 1; $i >= 0; $i--) {
 		$swapped = false;
@@ -207,6 +216,7 @@ function relevanssi_s2member_level($doc) {
 
 function relevanssi_populate_array($matches) {
 	global $relevanssi_post_array, $relevanssi_post_types, $wpdb;
+	wp_suspend_cache_addition(true);
 	
 	$ids = array();
 	foreach ($matches as $match) {
@@ -274,7 +284,7 @@ function relevanssi_recognize_phrases($q) {
 		$phrase_matches = array();
 		foreach ($phrases as $phrase) {
 			$phrase = $wpdb->escape($phrase);
-			$query = "SELECT ID,post_content,post_title FROM $wpdb->posts 
+			$query = "SELECT ID FROM $wpdb->posts 
 				WHERE (post_content LIKE '%$phrase%' OR post_title LIKE '%$phrase%')
 				AND post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit')";
 			
@@ -413,6 +423,8 @@ function relevanssi_remove_punct($a) {
 		$a = str_replace("€", '', $a);
 		$a = str_replace("&shy;", '', $a);
 
+		$a = str_replace(chr(194) . chr(160), ' ', $a);
+		$a = str_replace("&nbsp;", ' ', $a);
 		$a = str_replace('&#8217;', ' ', $a);
 		$a = str_replace("'", ' ', $a);
 		$a = str_replace("’", ' ', $a);
@@ -510,6 +522,7 @@ function relevanssi_tokenize($str, $remove_stops = true, $min_word_length = -1) 
 		
 		if ($accept) {
 			$t = relevanssi_mb_trim($t);
+			if (is_numeric($t)) $t = " $t";		// $t ends up as an array index, and numbers just don't work there
 			if (!isset($tokens[$t])) {
 				$tokens[$t] = 1;
 			}
