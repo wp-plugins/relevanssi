@@ -717,6 +717,10 @@ function relevanssi_do_query(&$query) {
 	else {
 		$tax_query = array();
 		$tax_query_relation = apply_filters('relevanssi_default_tax_query_relation', 'OR');
+		if (isset($query->tax_query) && empty($query->tax_query->queries)) {
+			// Tax query is empty, let's get rid of it.
+			$query->tax_query = null;
+		}
 		if (isset($query->query_vars['tax_query'])) {
 			// This is user-created tax_query array as described in WP Codex
 			foreach ($query->query_vars['tax_query'] as $type => $item) {

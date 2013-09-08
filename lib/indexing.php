@@ -1,7 +1,8 @@
 <?php
 
 function relevanssi_build_index($extend = false) {
-	wp_suspend_cache_addition(true);	// Thanks to Julien Mession
+	if (function_exists('wp_suspend_cache_addition')) 
+		wp_suspend_cache_addition(true);	// Thanks to Julien Mession
 	
 	global $wpdb, $relevanssi_variables;
 	$relevanssi_table = $relevanssi_variables['relevanssi_table'];

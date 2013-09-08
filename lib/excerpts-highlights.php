@@ -20,6 +20,9 @@ function relevanssi_do_excerpt($t_post, $query) {
 
 	$remove_stopwords = false;
 	$terms = relevanssi_tokenize($query, $remove_stopwords, -1, false);
+
+	// These shortcodes cause problems with Relevanssi excerpts
+	remove_shortcode('layerslider');
 	
 	$content = apply_filters('relevanssi_pre_excerpt_content', $post->post_content, $post, $query);
 	$content = apply_filters('the_content', $content);
