@@ -16,8 +16,7 @@ function relevanssi_wpml_filter($data) {
 			    if ($hit->ID == icl_object_id($hit->ID, $hit->post_type,false,ICL_LANGUAGE_CODE))
 			        $filtered_hits[] = $hit;
 			}
-			
-			if (function_exists('icl_object_id') && function_exists('pll_is_translated_post_type')) {
+			elseif (function_exists('icl_object_id') && function_exists('pll_is_translated_post_type')) {
 				if (pll_is_translated_post_type($hit->post_type)) {
 				    if ($hit->ID == icl_object_id($hit->ID, $hit->post_type,false,ICL_LANGUAGE_CODE))
 				        $filtered_hits[] = $hit;
@@ -216,7 +215,8 @@ function relevanssi_s2member_level($doc) {
 
 function relevanssi_populate_array($matches) {
 	global $relevanssi_post_array, $relevanssi_post_types, $wpdb;
-	wp_suspend_cache_addition(true);
+	if (function_exists('wp_suspend_cache_addition')) 
+		wp_suspend_cache_addition(true);
 	
 	$ids = array();
 	foreach ($matches as $match) {
@@ -283,7 +283,7 @@ function relevanssi_recognize_phrases($q) {
 	if (count($phrases) > 0) {
 		$phrase_matches = array();
 		foreach ($phrases as $phrase) {
-			$phrase = $wpdb->escape($phrase);
+			$phrase = esc_sql($phrase);
 			$query = "SELECT ID FROM $wpdb->posts 
 				WHERE (post_content LIKE '%$phrase%' OR post_title LIKE '%$phrase%')
 				AND post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit')";
@@ -459,7 +459,10 @@ function relevanssi_prevent_default_request( $request, $query ) {
 			  	return $request;
 			}
 		}
-		
+		if (is_array($query->query_vars['post_type']) && in_array('forum', $query->query_vars['post_type'])) {
+			// this is a BBPress search; do not meddle
+			return $request;
+		}		
 		$admin_search_ok = true;
 		$admin_search_ok = apply_filters('relevanssi_admin_search_ok', $admin_search_ok, $query );
 		if (!is_admin())

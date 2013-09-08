@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.3
 Tested up to: 3.6
-Stable tag: 3.1.7
+Stable tag: 3.1.8
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -387,6 +387,14 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 3.1.8 =
+* Category restriction and exclusion and couple of other category-related settings didn't work properly.
+* Support for Polylang broke the support for WPML. That is now fixed.
+* One deprecated $wpdb->escape() was still left; it's gone now.
+* Shortcode `layerslider` was causing problems with Relevanssi; Relevanssi now disables it before building excerpts.
+* Relevanssi won't break BBPress search anymore.
+* If Relevanssi Premium is installed, deleting Relevanssi will not remove the databases and the options.
 
 = 3.1.7 =
 * New filter: `relevanssi_comment_content_to_index` lets you modify comment content before it's indexed by Relevanssi (to index comment meta, for example).
@@ -928,7 +936,7 @@ removing those words helps to make the index smaller and searching faster.
 
 = 1.3.2 =
 * Quicktags are now stripped from custom-created excerpts.
-* Added a function `relevanssi_the_excerpt()', which prints out the excerpt without triggering `wp_trim_excerpt()` filters.
+* Added a function `relevanssi_the_excerpt()`, which prints out the excerpt without triggering `wp_trim_excerpt()` filters.
 
 = 1.3.1 =
 * Another bug fix release.
