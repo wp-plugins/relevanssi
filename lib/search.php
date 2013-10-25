@@ -162,7 +162,7 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 							SELECT ID FROM $wpdb->posts WHERE 1=1 
 							AND (
 								SELECT COUNT(1) 
-								FROM $wpdb->_term_relationships 
+								FROM $wpdb->term_relationships 
 								WHERE term_taxonomy_id IN ($term_tax_id) 
 								AND object_id = $wpdb->posts.ID ) = $n
 							)";
@@ -380,7 +380,7 @@ function relevanssi_search($q, $tax_query = NULL, $relation = NULL, $post_query 
 		$author_in = array();
 		$author_not_in = array();
 		foreach ($author as $id) {
-			if ($id >= 0) {
+			if ($id > 0) {
 				$author_in[] = $id;
 			}
 			else {
@@ -834,7 +834,7 @@ function relevanssi_do_query(&$query) {
 		}
 
 		$author = false;
-		if (isset($query->query_vars["author"])) {
+		if (!empty($query->query_vars["author"])) {
 			$author = explode(',', $query->query_vars["author"]);
 		}
 		if (!empty($query->query_vars["author_name"])) {

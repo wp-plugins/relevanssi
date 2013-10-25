@@ -341,8 +341,9 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 				foreach ($shortcodes as $shortcode) {
 					remove_shortcode(trim($shortcode));
 				}
-				remove_shortcode('contact-form');		// Jetpack Contact Form causes an error message
-				remove_shortcode('starrater');			// GD Star Rating rater shortcode causes problems
+				remove_shortcode('contact-form');			// Jetpack Contact Form causes an error message
+				remove_shortcode('starrater');				// GD Star Rating rater shortcode causes problems
+				remove_shortcode('responsive-flipbook');	// Responsive Flipbook causes problems
 				
 				$post_before_shortcode = $post;
 				$contents = do_shortcode($contents);

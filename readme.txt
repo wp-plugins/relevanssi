@@ -3,8 +3,10 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.3
-Tested up to: 3.6
-Stable tag: 3.1.8
+Tested up to: 3.7
+Stable tag: 3.1.9
+License: GPLv2 or later
+License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
 Relevanssi replaces the default search with a partial-match search that sorts results by relevance. It also indexes comments and shortcode content.
 
@@ -388,10 +390,16 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 3.1.9 =
+* Fix to make Relevanssi compatible with WordPress 3.7.
+* Fixed a mistyped database table name.
+* Relevanssi disables responsive-flipbook shortcode in indexing; it was causing problems.
+* Fixed a problem with an author dropdown with no author selected.
+
 = 3.1.8 =
 * Category restriction and exclusion and couple of other category-related settings didn't work properly.
 * Support for Polylang broke the support for WPML. That is now fixed.
-* One deprecated $wpdb->escape() was still left; it's gone now.
+* One deprecated `$wpdb->escape()` was still left; it's gone now.
 * Shortcode `layerslider` was causing problems with Relevanssi; Relevanssi now disables it before building excerpts.
 * Relevanssi won't break BBPress search anymore.
 * If Relevanssi Premium is installed, deleting Relevanssi will not remove the databases and the options.
@@ -963,3 +971,11 @@ removing those words helps to make the index smaller and searching faster.
 
 = 1.0 =
 * First published version.
+
+== Upgrade notice ==
+
+= 3.1.9 =
+* WordPress 3.7 compatibility, couple of minor bug fixes.
+
+= 3.1.8 =
+Recommended for users of WPML and BBpress. Category exclusions and restrictions are also fixed.
