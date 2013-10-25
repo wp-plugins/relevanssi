@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.3
-Tested up to: 3.6
-Stable tag: 3.1.8
+Tested up to: 3.7
+Stable tag: 3.1.9
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -389,6 +389,12 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 3.1.9 =
+* Fix to make Relevanssi compatible with WordPress 3.7.
+* Fixed a mistyped database table name.
+* Relevanssi disables responsive-flipbook shortcode in indexing; it was causing problems.
+* Fixed a problem with an author dropdown with no author selected.
 
 = 3.1.8 =
 * Category restriction and exclusion and couple of other category-related settings didn't work properly.
@@ -967,6 +973,9 @@ removing those words helps to make the index smaller and searching faster.
 * First published version.
 
 == Upgrade notice ==
+
+= 3.1.9 =
+* WordPress 3.7 compatibility, couple of minor bug fixes.
 
 = 3.1.8 =
 Recommended for users of WPML and BBpress. Category exclusions and restrictions are also fixed.
