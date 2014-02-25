@@ -113,7 +113,7 @@ function relevanssi_search($args) {
 				}
 				$id_term_tax_id = $wpdb->get_col($wpdb->prepare("SELECT tt.term_taxonomy_id
 					FROM $wpdb->terms AS t, $wpdb->term_taxonomy AS tt
-					WHERE tt.term_id = t.term_id AND tt.taxonomy = %s AND t.term_id IN (%s)"), $row['taxonomy'], $id);
+					WHERE tt.term_id = t.term_id AND tt.taxonomy = %s AND t.term_id IN (%s)", $row['taxonomy'], $id));
 				if (!empty($term_tax_id)) {
 					$term_tax_id = array_unique(array_merge($term_tax_id, $id_term_tax_id));
 				}

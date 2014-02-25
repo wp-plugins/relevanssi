@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.3
 Tested up to: 3.8.1
-Stable tag: 3.3.1
+Stable tag: 3.3.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -383,6 +383,9 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 3.3.2 =
+* Fixed a warning on search results page.
 
 = 3.3.1 =
 * Fixed bugs related to the removal of the cache feature.
@@ -1004,6 +1007,9 @@ removing those words helps to make the index smaller and searching faster.
 * First published version.
 
 == Upgrade notice ==
+
+= 3.3.2 =
+* Fixes a warning on search page.
 
 = 3.3.1 =
 * Removing the cache feature wasn't complete, which caused problems. Those should be fixed now.
