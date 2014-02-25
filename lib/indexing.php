@@ -212,7 +212,6 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 		if (function_exists('relevanssi_remove_item')) {
 			relevanssi_remove_item($post->ID, 'post');
 		}
-		relevanssi_purge_excerpt_cache($post->ID);
 	}
 
 	// This needs to be here, after the call to relevanssi_remove_doc(), because otherwise
@@ -559,7 +558,6 @@ function relevanssi_edit($post) {
 
 function relevanssi_delete($post) {
 	relevanssi_remove_doc($post);
-	relevanssi_purge_excerpt_cache($post);
 }
 
 function relevanssi_publish($post, $bypassglobalpost = false) {

@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.3
 Tested up to: 3.8.1
-Stable tag: 3.3
+Stable tag: 3.3.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -383,6 +383,9 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 3.3.1 =
+* Fixed bugs related to the removal of the cache feature.
 
 = 3.3 =
 * Improvements to excerpts: excerpts with phrases work much better now, and the excerpt creation logic has been improved: the excerpts are now better. The process takes a bit more time, though.
@@ -1001,6 +1004,9 @@ removing those words helps to make the index smaller and searching faster.
 * First published version.
 
 == Upgrade notice ==
+
+= 3.3.1 =
+* Removing the cache feature wasn't complete, which caused problems. Those should be fixed now.
 
 = 3.3 =
 * Critical MySQL injection vulnerability fixed, better excerpts and highlights, bug fixes. This version removes the cache feature.

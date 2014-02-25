@@ -3,7 +3,7 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 3.3
+Version: 3.3.1
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
@@ -114,6 +114,7 @@ function relevanssi_check_old_data() {
 
 			delete_option('relevanssi_enable_cache');
 			delete_option('relevanssi_cache_seconds');
+			wp_clear_scheduled_hook('relevanssi_truncate_cache');
 		}	
 	
 		// Version 3.1.4 combined taxonomy indexing options
@@ -260,8 +261,6 @@ function _relevanssi_install() {
 	add_option('relevanssi_index_limit', '500');
 	add_option('relevanssi_disable_or_fallback', 'off');
 	add_option('relevanssi_respect_exclude', 'on');
-	add_option('relevanssi_cache_seconds', '172800');
-	add_option('relevanssi_enable_cache', 'off');
 	add_option('relevanssi_min_word_length', 3);
 	add_option('relevanssi_wpml_only_current', 'on');
 	add_option('relevanssi_word_boundaries', 'on');
