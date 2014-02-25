@@ -54,20 +54,21 @@ function relevanssi_build_index($extend = false) {
 				relevanssi_index_users();
 			}
 		}
-		
-        $q = "SELECT DISTINCT(post.ID)
-		FROM $wpdb->posts parent, $wpdb->posts post WHERE
-        (parent.post_status IN ($valid_status))
-        AND (
-            (post.post_status='inherit'
-            AND post.post_parent=parent.ID)
-            OR
-            (parent.ID=post.ID)
-            OR
+
+        $q = "SELECT post.ID
+		FROM $wpdb->posts post
+		LEFT JOIN $wpdb->posts parent ON (post.post_parent=parent.ID)
+		WHERE
+			(((parent.ID is null OR parent.ID=post.ID) AND (post.post_status IN ($valid_status)))
+			OR
 			(post.post_status='inherit'
-            AND post.post_parent=0)
-        )
+				AND(
+					(parent.ID is not null AND (parent.post_status IN ($valid_status)))
+					OR (post.post_parent=0)
+				)
+			))
 		$restriction";
+
 		update_option('relevanssi_index', '');
 	}
 	else {
@@ -77,19 +78,23 @@ function relevanssi_build_index($extend = false) {
 			$size = $limit;
 			$limit = " LIMIT $limit";
 		}
-        $q = "SELECT DISTINCT(post.ID)
-		FROM $wpdb->posts parent, $wpdb->posts post WHERE
-        (parent.post_status IN ($valid_status))
-        AND (
-            (post.post_status='inherit'
-            AND post.post_parent=parent.ID)
-            OR
-            (parent.ID=post.ID)
-            OR
+        $q = "SELECT post.ID
+		FROM $wpdb->posts post
+		LEFT JOIN $wpdb->posts parent ON (post.post_parent=parent.ID)
+		LEFT JOIN $relevanssi_table r ON (post.ID=r.doc)
+		WHERE
+		r.doc is null
+		AND(
+			((parent.ID is null OR parent.ID=post.ID) AND (post.post_status IN ($valid_status)))
+			OR
 			(post.post_status='inherit'
-            AND post.post_parent=0)
-        )
-		AND post.ID NOT IN (SELECT DISTINCT(doc) FROM $relevanssi_table) $restriction $limit";
+				AND(
+					(parent.ID is not null AND (parent.post_status IN ($valid_status)))
+					OR (post.post_parent=0)
+				)
+			)
+		)
+		$restriction $limit";
 	}
 
 	$custom_fields = relevanssi_get_custom_fields();
@@ -675,6 +680,7 @@ function relevanssi_get_comments($postID) {
 		}
 		$from += $to;
 	}
+	
 	return $comment_string;
 }
 
