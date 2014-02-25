@@ -396,6 +396,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 	$type = 'post';
 	if ($post->post_type == 'attachment') $type = 'attachment';
 	
+	$insert_data = apply_filters('relevanssi_indexing_data', $insert_data, $post);
+
 	$values = array();
 	foreach ($insert_data as $term => $data) {
 		$content = 0;

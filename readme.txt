@@ -401,6 +401,7 @@ removing those words helps to make the index smaller and searching faster.
 * Indexing is faster, thanks to some improved code from Tom Novelli.
 * MySQL injection attack vulnerability removed.
 * The cache feature is now removed. Relevanssi should automatically drop the cache tables.
+* New filter: `relevanssi_indexing_data` lets you modify the data before it's indexed.
 
 = 3.2 =
 * Fixed a bug in the TablePress support.
