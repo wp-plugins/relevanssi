@@ -384,6 +384,10 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 3.3.3 =
+* OR fallback had problems.
+* Indexing sub pages didn't work.
+
 = 3.3.2 =
 * Fixed a warning on search results page.
 
@@ -1007,6 +1011,9 @@ removing those words helps to make the index smaller and searching faster.
 * First published version.
 
 == Upgrade notice ==
+
+= 3.3.3 =
+* OR fallback and indexing sub pages fixed.
 
 = 3.3.2 =
 * Fixes a warning on search page.

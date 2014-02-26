@@ -59,7 +59,7 @@ function relevanssi_build_index($extend = false) {
 		FROM $wpdb->posts post
 		LEFT JOIN $wpdb->posts parent ON (post.post_parent=parent.ID)
 		WHERE
-			(((parent.ID is null OR parent.ID=post.ID) AND (post.post_status IN ($valid_status)))
+			(post.post_status IN ($valid_status)
 			OR
 			(post.post_status='inherit'
 				AND(
@@ -85,7 +85,7 @@ function relevanssi_build_index($extend = false) {
 		WHERE
 		r.doc is null
 		AND(
-			((parent.ID is null OR parent.ID=post.ID) AND (post.post_status IN ($valid_status)))
+			(post.post_status IN ($valid_status)
 			OR
 			(post.post_status='inherit'
 				AND(

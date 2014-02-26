@@ -669,7 +669,9 @@ function relevanssi_search($args) {
 
 	if (count($hits) < 1) {
 		if ($operator == "AND" AND get_option('relevanssi_disable_or_fallback') != 'on') {
-			$return = relevanssi_search($args);
+			$or_args = $args;
+			$or_args['operator'] = "OR";
+			$return = relevanssi_search($or_args);
 			extract($return);
 		}
 	}
