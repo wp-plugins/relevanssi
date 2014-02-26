@@ -1300,7 +1300,7 @@ EOH;
 
 <?php if (function_exists('relevanssi_form_index_taxonomies')) relevanssi_form_index_taxonomies($index_taxonomies, $index_terms); ?>
 
-	<input type='submit' name='index' value='<?php _e(esc_attr("Save indexing options and build the index"), 'relevanssi'); ?>' class='button button-primary' />
+	<input type='submit' name='index' value='<?php _e(esc_attr("Save indexing options, erase index and rebuild the index"), 'relevanssi'); ?>' class='button button-primary' />
 
 	<input type='submit' name='index_extend' value='<?php _e(esc_attr("Continue indexing"), 'relevanssi'); ?>' class='button' />
 

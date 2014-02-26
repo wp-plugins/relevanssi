@@ -447,6 +447,8 @@ function relevanssi_remove_punct($a) {
 		$a = strip_tags($a);
 		$a = stripslashes($a);
 
+		$a = str_replace('ß', 'ss', $a);
+
 		$a = str_replace("·", '', $a);
 		$a = str_replace("…", '', $a);
 		$a = str_replace("€", '', $a);

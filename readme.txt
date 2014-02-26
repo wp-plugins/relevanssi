@@ -387,6 +387,7 @@ removing those words helps to make the index smaller and searching faster.
 = 3.3.3 =
 * OR fallback had problems.
 * Indexing sub pages didn't work.
+* Relevanssi now automatically treats 'ß' as 'ss'. If your site has 'ß' in text, reindexing the database is a good idea.
 
 = 3.3.2 =
 * Fixed a warning on search results page.

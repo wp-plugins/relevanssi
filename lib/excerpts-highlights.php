@@ -150,7 +150,7 @@ function relevanssi_create_excerpt($content, $terms, $query) {
 			$j = $i + 1; 
 			
 			$this_excerpt_terms = array();
-			$this_excerpt_terms[$term_positions[$key]] = true;
+			if (isset($term_positions[$key])) $this_excerpt_terms[$term_positions[$key]] = true;
 			
 			while (isset($positions[$j])) {
 				if (isset($positions[$j])) {
