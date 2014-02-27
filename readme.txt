@@ -4,7 +4,7 @@ Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.3
 Tested up to: 3.8.1
-Stable tag: 3.3.2
+Stable tag: 3.3.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -388,6 +388,7 @@ removing those words helps to make the index smaller and searching faster.
 * OR fallback had problems.
 * Indexing sub pages didn't work.
 * Relevanssi now automatically treats 'ß' as 'ss'. If your site has 'ß' in text, reindexing the database is a good idea.
+* Query variable `post_status` is now supported.
 
 = 3.3.2 =
 * Fixed a warning on search results page.
