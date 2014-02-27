@@ -316,8 +316,18 @@ function relevanssi_search($args) {
 		else {
 			$post_types = $post_type;
 		}
+		$post_type = count($post_types) ? "'" . implode( "', '", $post_types) . "'" : 'NULL';
+	}
 
-		$post_type = count($post_types) ? implode( ',', array_fill(1, count($post_types), "'%s'")) : 'NULL';
+	if ($post_status) {
+		if (!is_array($post_status)) {
+			$post_statuses = explode(',', $post_status);
+		}
+		else {
+			$post_statuses = $post_status;
+		}
+
+		$post_status = count($post_statuses) ? "'" . implode( "', '", $post_statuses) . "'" : 'NULL';
 	}
 
 	//Added by OdditY:
@@ -416,6 +426,14 @@ function relevanssi_search($args) {
 		$query_restrictions .= $wpdb->prepare(" AND ((relevanssi.doc IN (SELECT DISTINCT(posts.ID) FROM $wpdb->posts AS posts
 			WHERE posts.post_type IN ($post_type))) OR (doc = -1))",
 			$post_types);
+	}
+
+	if ($post_status) {
+		$query_restrictions .= $wpdb->prepare(" AND ((relevanssi.doc IN (SELECT DISTINCT(posts.ID) FROM $wpdb->posts AS posts
+			WHERE posts.post_status IN ($post_status))))",
+			$post_types);
+			
+			var_dump($query_restrictions);
 	}
 	
 	if ($phrases) {
@@ -905,7 +923,12 @@ function relevanssi_do_query(&$query) {
 		}
 	
 		if ($post_type == -1) $post_type = false;
-		
+
+		$post_status = false;	
+		if (isset($query->query_vars["post_status"]) && $query->query_vars["post_status"] != 'any') {
+			$post_status = $query->query_vars["post_status"];
+		}
+
 		$expost = get_option("relevanssi_exclude_posts");
 	
 		if (is_admin()) {
@@ -940,6 +963,7 @@ function relevanssi_do_query(&$query) {
 			'date_query' => $date_query,
 			'expost' => $expost,
 			'post_type' => $post_type,
+			'post_status' => $post_status,
 			'operator' => $operator,
 			'search_blogs' => $search_blogs,
 			'author' => $author,
