@@ -384,6 +384,9 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 3.3.5 =
+* Fixed a bug where excluding posts would cause the search to fail.
+
 = 3.3.4 =
 * Couple of bug fixes.
 
@@ -1016,6 +1019,9 @@ removing those words helps to make the index smaller and searching faster.
 * First published version.
 
 == Upgrade notice ==
+
+= 3.3.5 =
+* Fixed a bug where excluding posts would cause the search to fail.
 
 = 3.3.4 =
 * Bug fixes.

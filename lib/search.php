@@ -201,18 +201,18 @@ function relevanssi_search($args) {
 		if (!empty($post_query['in'])) {
 			$valid_values = array();
 			foreach($post_query['in'] as $post_in_id) {
-				if (is_integer($post_in_id)) $valid_values[] = $post_in_id;
+				if (is_numeric($post_in_id)) $valid_values[] = $post_in_id;
 			}
 			$posts = implode(',', $valid_values);
-			$query_restrictions .= " AND relevanssi.doc IN ($posts)";
+			if (!empty($posts)) $query_restrictions .= " AND relevanssi.doc IN ($posts)";
 		}
 		if (!empty($post_query['not in'])) {
 			$valid_values = array();
 			foreach($post_query['not in'] as $post_not_in_id) {
-				if (is_integer($post_not_in_id)) $valid_values[] = $post_not_in_id;
+				if (is_numeric($post_not_in_id)) $valid_values[] = $post_not_in_id;
 			}
 			$posts = implode(',', $valid_values);
-			$query_restrictions .= " AND relevanssi.doc NOT IN ($posts)";
+			if (!empty($posts)) $query_restrictions .= " AND relevanssi.doc NOT IN ($posts)";
 		}
 	}
 
