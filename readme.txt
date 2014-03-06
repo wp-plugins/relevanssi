@@ -386,6 +386,7 @@ removing those words helps to make the index smaller and searching faster.
 
 = 3.3.5 =
 * Fixed a bug where excluding posts would cause the search to fail.
+* Fixed a bug causing duplicate search results in WPML searches.
 
 = 3.3.4 =
 * Couple of bug fixes.
@@ -1021,7 +1022,7 @@ removing those words helps to make the index smaller and searching faster.
 == Upgrade notice ==
 
 = 3.3.5 =
-* Fixed a bug where excluding posts would cause the search to fail.
+* Fixed a bug where excluding posts would cause the search to fail and duplicate posts from WPML searches.
 
 = 3.3.4 =
 * Bug fixes.

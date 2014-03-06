@@ -13,18 +13,6 @@ function relevanssi_wpml_filter($data) {
 			}
 			global $sitepress;
 
-			if (function_exists('icl_object_id') && $sitepress->is_translated_post_type($hit->post_type)) {
-			    if ($hit->ID == icl_object_id($hit->ID, $hit->post_type, false, ICL_LANGUAGE_CODE))
-			        $filtered_hits[] = $hit;
-			}
-			elseif (function_exists('icl_object_id') && function_exists('pll_is_translated_post_type')) {
-				if (pll_is_translated_post_type($hit->post_type)) {
-				    if ($hit->ID == icl_object_id($hit->ID, $hit->post_type, false, ICL_LANGUAGE_CODE))
-				        $filtered_hits[] = $hit;
-				}
-			}
-
-
 			if (function_exists('icl_object_id') && !function_exists('pll_is_translated_post_type')) {
 				if ($sitepress->is_translated_post_type($hit->post_type)) {
 					if ($hit->ID == icl_object_id($hit->ID, $hit->post_type, false, ICL_LANGUAGE_CODE)) $filtered_hits[] = $hit;
