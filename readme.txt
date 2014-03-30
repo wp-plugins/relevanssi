@@ -3,7 +3,7 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.3
-Tested up to: 3.8.1
+Tested up to: 3.9-beta
 Stable tag: 3.3.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -16,8 +16,9 @@ Relevanssi replaces the standard WordPress search with a better search engine, w
 and configurable options. You'll get better results, better presentation of results - your users
 will thank you.
 
-This is the free version of Relevanssi. There's also Relevanssi Premium, which has added features.
-For more information about Premium, see [Relevanssi.com](http://www.relevanssi.com/).
+This is the free version of Relevanssi. There's also Relevanssi Premium, which has added features,
+including Multisite support. This free version does not work properly on Multisite. For more
+information about Premium, see [Relevanssi.com](http://www.relevanssi.com/).
 
 = Key features =
 * Search results sorted in the order of relevance, not by date.
@@ -92,6 +93,10 @@ without a deactivation, for some reason.
 None necessary! Relevanssi uses the standard search form and doesn't usually need any changes in
 the search results template.
 
+If the search does not bring any results, your theme probably has a query_posts() call in the
+search results template. That throws Relevanssi off. For more information, see [The most
+important Relevanssi debugging trick](http://www.relevanssi.com/knowledge-base/query_posts/).
+
 = How to index =
 Check the options to make sure they're to your liking, then click "Save indexing options and
 build the index". If everything's fine, you'll see the Relevanssi options screen again with a 
@@ -158,6 +163,10 @@ You can find solutions and answers at the [Relevanssi Knowledge Base](http://www
 If you the results don't change after installing and activating Relevanssi, the most likely 
 reason is that you have a call to `query_posts()` on your search results template. This confuses
 Relevanssi. Try removing the query_posts call and see what happens.
+
+= Searching for words with ampersands or hyphens doesn't work =
+Please read [Words with punctuation can't be found](http://www.relevanssi.com/knowledge-base/words-ampersands-cant-found/).
+This is a Relevanssi feature, but you can circumvent it with a simple filter function.
 
 = Where are the user search logs? =
 See the top of the admin menu. There's 'User searches'. There. If the logs are empty, please note
@@ -387,6 +396,9 @@ removing those words helps to make the index smaller and searching faster.
 = 3.3.5 =
 * Fixed a bug where excluding posts would cause the search to fail.
 * Fixed a bug causing duplicate search results in WPML searches.
+* Increased plugin safety against hackers.
+* There was a bug in `relevanssi_comment_content_to_index` filter.
+* Some people had problems with the log entry timestamps. Fixed that. (lisää vielä updateen timestamp)
 
 = 3.3.4 =
 * Couple of bug fixes.
@@ -1022,7 +1034,7 @@ removing those words helps to make the index smaller and searching faster.
 == Upgrade notice ==
 
 = 3.3.5 =
-* Fixed a bug where excluding posts would cause the search to fail and duplicate posts from WPML searches.
+* Fixed a bug where excluding posts would cause the search to fail and duplicate posts from WPML searches. Increased safety.
 
 = 3.3.4 =
 * Bug fixes.

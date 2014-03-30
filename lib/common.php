@@ -299,11 +299,12 @@ function relevanssi_recognize_phrases($q) {
 	if (count($phrases) > 0) {
 		$phrase_matches = array();
 		foreach ($phrases as $phrase) {
-			$phrase = esc_sql($phrase);
+			$phrase = like_escape(esc_sql($phrase));
 			"on" == get_option("relevanssi_index_excerpt") ? $excerpt = " OR post_excerpt LIKE '%$phrase%'" : $excerpt = "";
 			$query = "SELECT ID FROM $wpdb->posts 
 				WHERE (post_content LIKE '%$phrase%' OR post_title LIKE '%$phrase%' $excerpt)
 				AND post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit')";
+			// Clean: $phrase is escaped
 			
 			$docs = $wpdb->get_results($query);
 
@@ -319,6 +320,7 @@ function relevanssi_recognize_phrases($q) {
 			$query = "SELECT ID FROM $wpdb->posts as p, $wpdb->term_relationships as r, $wpdb->term_taxonomy as s, $wpdb->terms as t
 				WHERE r.term_taxonomy_id = s.term_taxonomy_id AND s.term_id = t.term_id AND p.ID = r.object_id
 				AND t.name LIKE '%$phrase%' AND p.post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit')";
+			// Clean: $phrase is escaped
 
 			$docs = $wpdb->get_results($query);
 			if (is_array($docs)) {
@@ -335,6 +337,7 @@ function relevanssi_recognize_phrases($q) {
               WHERE p.ID = m.post_id
               AND m.meta_value LIKE '%$phrase%'
               AND p.post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit')";
+			// Clean: $phrase is escaped
 
 			$docs = $wpdb->get_results($query);
 			if (is_array($docs)) {
