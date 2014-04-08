@@ -146,7 +146,7 @@ function relevanssi_create_database_tables($relevanssi_db_version) {
 		mysqlcolumn_detail longtext NOT NULL,
 		type varchar(210) NOT NULL DEFAULT 'post', 
 		item bigint(20) NOT NULL DEFAULT '0', 
-	    UNIQUE KEY doc_term_item (doc, term, item)) $charset_collate";
+	    UNIQUE KEY doctermitem (doc, term, item)) $charset_collate";
 		
 		dbDelta($sql);
 
