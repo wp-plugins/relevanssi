@@ -894,6 +894,10 @@ function relevanssi_do_query(&$query) {
 			if (!empty($query->query_vars['tag_slug__and'])) {
 				$tax_query[] = array('taxonomy' => 'post_tag', 'field' => 'slug', 'terms' => $query->query_vars['tag_slug__and'], 'operator' => 'AND');
 			}
+			$extag = get_option('relevanssi_extag');
+			if (isset($extag) && $extag != 0) {
+				$tax_query[] = array('taxonomy' => 'post_tag', 'field' => 'id', 'terms' => $extag, 'operator' => 'NOT IN');
+			}
 			
 			if (isset($query->query_vars["taxonomy"])) {
 				if (function_exists('relevanssi_process_taxonomies')) {
@@ -980,6 +984,7 @@ function relevanssi_do_query(&$query) {
 		if (is_admin()) {
 			// in admin search, search everything
 			$excat = null;
+			$extag = null;
 			$expost = null;
 		}
 

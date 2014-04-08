@@ -74,9 +74,12 @@ function relevanssi_build_index($extend = false) {
 	else {
 		// extending, so no truncate and skip the posts already in the index
 		$limit = get_option('relevanssi_index_limit', 200);
-		if ($limit > 0) {
+		if (is_numeric($limit) && $limit > 0) {
 			$size = $limit;
 			$limit = " LIMIT $limit";
+		}
+		else {
+			$limit = "";
 		}
         $q = "SELECT post.ID
 		FROM $wpdb->posts post
