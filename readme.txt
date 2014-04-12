@@ -3,7 +3,7 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.3
-Tested up to: 3.9-beta
+Tested up to: 3.9-RC
 Stable tag: 3.3.5
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -385,6 +385,10 @@ removing those words helps to make the index smaller and searching faster.
 * Mohib Ebrahim for relentless bug hunting.
 
 == Changelog ==
+
+= 3.3.6 =
+* Setting the relation between taxonomy queries didn't work.
+* Indexing is now more compatible with other plugins, for example Cookie Law Info.
 
 = 3.3.5 =
 * Fixed a bug where excluding posts would cause the search to fail.

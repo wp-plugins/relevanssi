@@ -106,7 +106,7 @@ function relevanssi_build_index($extend = false) {
 	$content = $wpdb->get_results($q);
 	
 	foreach ($content as $post) {
-		$n += relevanssi_index_doc($post->ID, false, $custom_fields);
+		$n += relevanssi_index_doc($post->ID, true, $custom_fields);
 		// n calculates the number of insert queries
 	}
 	
@@ -129,7 +129,7 @@ function relevanssi_build_index($extend = false) {
 	Different cases:
 
 	- 	Build index:
-		global $post is NULL, $indexpost is a post object.
+		global $post is NULL, $indexpost is a post ID.
 		
 	-	Update post:
 		global $post has the original $post, $indexpost is the ID of revision.

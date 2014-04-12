@@ -56,8 +56,8 @@ function relevanssi_search($args) {
 	$hits = array();
 
 	$query_restrictions = "";
-	if (!isset($relation)) $relation = "or";
-	$relation = strtolower($relation);
+	if (!isset($tax_query_relation)) $tax_query_relation = "or";
+	$tax_query_relation = strtolower($tax_query_relation);
 	$term_tax_id = array();
 	$term_tax_ids = array();	
 	$not_term_tax_ids = array();	
@@ -152,7 +152,7 @@ function relevanssi_search($args) {
 				$tq_operator = 'IN';
 				if (isset($row['operator'])) $tq_operator = strtoupper($row['operator']);
 				if ($tq_operator != 'IN' && $tq_operator != 'NOT IN' && $tq_operator != 'AND') $tq_operator = 'IN';
-				if ($relation == 'and') {
+				if ($tax_query_relation == 'and') {
 					if ($tq_operator == 'AND') {
 						$query_restrictions .= " AND relevanssi.doc IN (
 							SELECT ID FROM $wpdb->posts WHERE 1=1 
@@ -181,7 +181,7 @@ function relevanssi_search($args) {
 				$wp_query->is_category = false;
 			}
 		}
-		if ($relation == 'or') {
+		if ($tax_query_relation == 'or') {
 			$term_tax_ids = array_unique($term_tax_ids);
 			if (count($term_tax_ids) > 0) {
 				$term_tax_ids = implode(',', $term_tax_ids);
@@ -470,8 +470,9 @@ function relevanssi_search($args) {
 	}
 
 	if ($post_status) {
+		// the -1 is there to get user profiles and category pages
 		$query_restrictions .= " AND ((relevanssi.doc IN (SELECT DISTINCT(posts.ID) FROM $wpdb->posts AS posts
-			WHERE posts.post_status IN ($post_status))))";
+			WHERE posts.post_status IN ($post_status))) OR (doc = -1))";
 		// Clean: $post_status is escaped
 	}
 	
