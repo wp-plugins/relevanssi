@@ -133,7 +133,7 @@ function relevanssi_create_excerpt($content, $terms, $query) {
 				$pos = relevanssi_stripos($content, $term, $pos);
 				if (false !== $pos) {
 					$term_positions[$pos] = $term_key;
-					$pos = $pos + strlen($term);
+					function_exists('mb_strlen') ? $pos = $pos + mb_strlen($term) : $pos = $pos + strlen(utf8_decode($term));
 				}
 			}
 		}
