@@ -433,7 +433,10 @@ function relevanssi_prevent_default_request( $request, $query ) {
 			  	return $request;
 			}
 		}
-		if (is_array($query->query_vars['post_type']) && in_array('forum', $query->query_vars['post_type'])) {
+		$bbpress = false;
+		if ($query->query_vars['post_type'] == 'topic') $bbpress = true;
+		if (is_array($query->query_vars['post_type']) && in_array('topic', $query->query_vars['post_type'])) $bbpress = true;
+		if ($bbpress) {
 			// this is a BBPress search; do not meddle
 			return $request;
 		}		
