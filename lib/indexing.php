@@ -358,7 +358,8 @@ function relevanssi_index_doc($indexpost, $remove_first = false, $custom_fields 
 				remove_shortcode('starrater');				// GD Star Rating rater shortcode causes problems
 				remove_shortcode('responsive-flipbook');	// Responsive Flipbook causes problems
 				remove_shortcode('avatar_upload');			// WP User Avatar is incompatible
-				
+				remove_shortcode('product_categories');		// A problematic WooCommerce shortcode
+								
 				$post_before_shortcode = $post;
 				$contents = do_shortcode($contents);
 				$post = $post_before_shortcode;
