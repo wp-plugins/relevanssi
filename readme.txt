@@ -3,8 +3,8 @@ Contributors: msaari
 Donate link: http://www.relevanssi.com/buy-premium/
 Tags: search, relevance, better search
 Requires at least: 3.3
-Tested up to: 3.9-RC
-Stable tag: 3.3.5
+Tested up to: 4.0.1
+Stable tag: 3.3.8
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -386,9 +386,37 @@ removing those words helps to make the index smaller and searching faster.
 
 == Changelog ==
 
+= 3.3.8 =
+* Fixed a bug that caused the results to change depending of the order of words in a multi-word search query.
+* Added `product_categories` and `recent_products` from WooCommerce to the list of blocked shortcodes.
+* There are improvements in excerpt-building and highlighting, especially when fuzzy search is enabled.
+* Fixed a possible (if quite unlikely) XSS vulnerability.
+* Improved search performance (thanks to MikeNGarrett).
+* Sometimes highlights in documents make the document content disappear. I don't know why, but I've added a fix that should make the content visible (without the highlights) if a problem appears.
+
+= 3.3.7.1 =
+* Fixed bbPress compatibility.
+
+= 3.3.7 =
+* Fixed bbPress compatibility.
+
 = 3.3.6 =
-* Setting the relation between taxonomy queries didn't work.
-* Indexing is now more compatible with other plugins, for example Cookie Law Info.
+* Relevanssi handles taxonomy terms in search better. The change requires a reindexing.
+* Fix in indexing: Relevanssi will now bypass the global $post when indexing. This should help with problems with the Cookie Law Info plugin, for example.
+* Tax query relation setting didn't work properly. It is now fixed.
+* Word-based excerpt building sometimes created too short excerpts. That is now fixed.
+* Synonyms are now highlighted.
+* Phrase matching had issues where searching for a too common phrase crashed the search. That has been fixed.
+* LIKE operator didn't work properly in meta_queries.
+* Problems with Avatar Upload plugin are fixed.
+* Offset errors with mb_stripos() shouldn't happen anymore.
+* A small problem in taxonomy search MySQL fixed, also a small problem with AND operator in tax_queries.
+* New filter: `relevanssi_post_to_index` lets you access the post object before the post is indexed.
+* New filter: `relevanssi_orderby` lets you modify the $orderby value before Relevanssi sorts posts.
+* New filter: `relevanssi_order` lets you modify the $order value before Relevanssi sorts posts.
+* New filter: `relevanssi_post_title_before_tokenize` lets you modify post titles before indexing.
+* New filter: `relevanssi_private_cap` lets you adjust the capability setting for private posts in custom post types.
+* Deprecated use of `like_escape` has been fixed.
 
 = 3.3.5 =
 * Fixed a bug where excluding posts would cause the search to fail.
@@ -1032,6 +1060,18 @@ removing those words helps to make the index smaller and searching faster.
 * First published version.
 
 == Upgrade notice ==
+
+= 3.3.8 =
+* Bug fixes, fix for a possible XSS vulnerability, improved performance.
+
+= 3.3.7.1 =
+* Improved bbPress compatibility.
+
+= 3.3.7 =
+* Fixed bbPress compatibility.
+
+= 3.3.6 =
+* Many new features, small bug fixes and WP 4.0 compatibility.
 
 = 3.3.5 =
 * Bug fixes and security updates.
