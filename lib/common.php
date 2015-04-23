@@ -180,7 +180,7 @@ function relevanssi_default_post_ok($post_ok, $doc) {
 	}
 	
 	// only show drafts, pending and future posts in admin search
-	if (in_array($status, array('draft', 'pending', 'future')) && is_admin()) {
+	if (in_array($status, apply_filters('relevanssi_valid_admin_status', array('draft', 'pending', 'future'))) && is_admin()) {
 		$post_ok = true;
 	}
 	
@@ -279,106 +279,60 @@ function relevanssi_extract_phrases($q) {
 		else
 			$phrase = substr($q, $start + 1, $end - $start - 1);
 		
-		$phrases[] = $phrase;
+		$phrase = trim($phrase);
+		
+		if (!empty($phrase)) $phrases[] = $phrase;
 		$pos = $end;
 	}
 	return $phrases;
 }
 
-/* If no phrase hits are made, this function returns false
- * If phrase matches are found, the function presents a comma-separated list of doc id's.
- * If phrase matches are found, but no matching documents, function returns -1.
+/* If no phrase hits are made, this function returns an empty string
+ * If phrase matches are found, the function returns MySQL queries
  */
 function relevanssi_recognize_phrases($q) {
 	global $wpdb;
 	
 	$phrases = relevanssi_extract_phrases($q);
 	
+	$all_queries = array();
 	if (count($phrases) > 0) {
-		$phrase_matches = array();
 		foreach ($phrases as $phrase) {
-			$phrase = like_escape(esc_sql($phrase));
+			$queries = array();
+			$phrase = esc_sql($phrase);
 			"on" == get_option("relevanssi_index_excerpt") ? $excerpt = " OR post_excerpt LIKE '%$phrase%'" : $excerpt = "";
-			$query = "SELECT ID FROM $wpdb->posts 
+			$query = "(SELECT ID FROM $wpdb->posts 
 				WHERE (post_content LIKE '%$phrase%' OR post_title LIKE '%$phrase%' $excerpt)
-				AND post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit')";
-			// Clean: $phrase is escaped
+				AND post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit'))";
 			
-			$docs = $wpdb->get_results($query);
+			$queries[] = $query;
 
-			if (is_array($docs)) {
-				foreach ($docs as $doc) {
-					if (!isset($phrase_matches[$phrase])) {
-						$phrase_matches[$phrase] = array();
-					}
-					$phrase_matches[$phrase][] = $doc->ID;
-				}
-			}
-
-			$query = "SELECT ID FROM $wpdb->posts as p, $wpdb->term_relationships as r, $wpdb->term_taxonomy as s, $wpdb->terms as t
+			$query = "(SELECT ID FROM $wpdb->posts as p, $wpdb->term_relationships as r, $wpdb->term_taxonomy as s, $wpdb->terms as t
 				WHERE r.term_taxonomy_id = s.term_taxonomy_id AND s.term_id = t.term_id AND p.ID = r.object_id
-				AND t.name LIKE '%$phrase%' AND p.post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit')";
-			// Clean: $phrase is escaped
+				AND t.name LIKE '%$phrase%' AND p.post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit'))";
 
-			$docs = $wpdb->get_results($query);
-			if (is_array($docs)) {
-				foreach ($docs as $doc) {
-					if (!isset($phrase_matches[$phrase])) {
-						$phrase_matches[$phrase] = array();
-					}
-					$phrase_matches[$phrase][] = $doc->ID;
-				}
-			}
-
-			$query = "SELECT ID
+			$queries[] = $query;
+			
+			$query = "(SELECT ID
               FROM $wpdb->posts AS p, $wpdb->postmeta AS m
               WHERE p.ID = m.post_id
               AND m.meta_value LIKE '%$phrase%'
-              AND p.post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit')";
-			// Clean: $phrase is escaped
+              AND p.post_status IN ('publish', 'draft', 'private', 'pending', 'future', 'inherit'))";
 
-			$docs = $wpdb->get_results($query);
-			if (is_array($docs)) {
-				foreach ($docs as $doc) {
-					if (!isset($phrase_matches[$phrase])) {
-						$phrase_matches[$phrase] = array();
-					}
-					$phrase_matches[$phrase][] = $doc->ID;
-				}
-			}
-		}
-		
-		if (count($phrase_matches) < 1) {
-			$phrases = "-1";
-		}
-		else {
-			// Complicated mess, but necessary...
-			$i = 0;
-			$phms = array();
-			foreach ($phrase_matches as $phm) {
-				$phms[$i++] = $phm;
-			}
-			
-			$phrases = $phms[0];
-			if ($i > 1) {
-				for ($i = 1; $i < count($phms); $i++) {
-					$phrases =  array_intersect($phrases, $phms[$i]);
-				}
-			}
-			
-			if (count($phrases) < 1) {
-				$phrases = "-1";
-			}
-			else {
-				$phrases = implode(",", $phrases);
-			}
+			$queries[] = $query;
+
+			$queries = implode(' OR relevanssi.doc IN ', $queries);
+			$queries = "AND (relevanssi.doc IN $queries)";
+			$all_queries[] = $queries;
 		}
 	}
 	else {
-		$phrases = false;
+		$phrases = "";
 	}
 	
-	return $phrases;
+	$all_queries = implode(" ", $all_queries);
+
+	return $all_queries;
 }
 
 // found here: http://forums.digitalpoint.com/showthread.php?t=1106745
@@ -479,7 +433,13 @@ function relevanssi_prevent_default_request( $request, $query ) {
 			  	return $request;
 			}
 		}
-		if (is_array($query->query_vars['post_type']) && in_array('forum', $query->query_vars['post_type'])) {
+		$bbpress = false;
+		if ($query->query_vars['post_type'] == 'topic' || $query->query_vars['post_type'] == 'reply') $bbpress = true;
+		if (is_array($query->query_vars['post_type'])) {
+		 	if (in_array('topic', $query->query_vars['post_type'])) $bbpress = true;
+		 	if (in_array('reply', $query->query_vars['post_type'])) $bbpress = true;
+		}
+		if ($bbpress) {
 			// this is a BBPress search; do not meddle
 			return $request;
 		}		
@@ -488,6 +448,11 @@ function relevanssi_prevent_default_request( $request, $query ) {
 		
 		$prevent = true;
 		$prevent = apply_filters('relevanssi_prevent_default_request', $prevent, $query );
+
+		if (empty($query->query_vars['s'])) {
+			$prevent = false;
+			$admin_search_ok = false;
+		}
 		
 		if (!is_admin() && $prevent )
 			$request = "SELECT * FROM $wpdb->posts WHERE 1=2";		
@@ -567,7 +532,7 @@ function relevanssi_get_post_status($id) {
 	global $relevanssi_post_array;
 	
 	$type = substr($id, 0, 2);
-	if ($type == 't_') {
+	if ($type == '**') {
 		return 'publish';
 	}
 	if ($type == 'u_') {
@@ -673,6 +638,12 @@ function relevanssi_add_synonyms($q) {
  * if that cannot be found, and falls back to just strpos if even that is not possible.
  */
 function relevanssi_stripos($content, $term, $offset) {
+	if (function_exists('mb_strlen')) {
+		if ($offset > mb_strlen($content)) return false;
+	}
+	else {
+		if ($offset > strlen($content)) return false;
+	}
 	if (function_exists('mb_stripos')) {
 		$pos = ("" == $content) ? false : mb_stripos($content, $term, $offset);
 	}
@@ -724,4 +695,12 @@ function relevanssi_get_the_title($post_id) {
 	return $post->post_highlighted_title;
 }
 
+function relevanssi_update_doc_count( $values, $post ) {
+	$D = get_option( 'relevanssi_doc_count');
+	$count = count($values);
+	if ($values && $count > 0) {
+		update_option( 'relevanssi_doc_count', $D + $count);
+	}
+	return $values;
+}
 ?>
