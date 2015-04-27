@@ -465,6 +465,7 @@ function relevanssi_search($args) {
 
 	$query_restrictions = apply_filters('relevanssi_where', $query_restrictions); // Charles St-Pierre
 	if (!empty($meta_join)) $query_join = $meta_join;
+	if (!isset($query_join)) { $query_join =  ''; } //David Stein
 	$query_join = apply_filters('relevanssi_join', $query_join);
 
 	$no_matches = true;
