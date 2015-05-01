@@ -16,19 +16,20 @@ add_action('edit_attachment', 'relevanssi_edit');
 add_action('transition_post_status', 'relevanssi_update_child_posts',99,3);
 // END added by renaissancehack
 add_action('init', 'relevanssi_init');
-add_action('init', 'relevanssi_check_old_data', 99);
+add_action('admin_head', 'relevanssi_check_old_data', 99);
 add_filter('relevanssi_hits_filter', 'relevanssi_wpml_filter');
 add_filter('posts_request', 'relevanssi_prevent_default_request', 10, 2 );
 add_filter('relevanssi_remove_punctuation', 'relevanssi_remove_punct');
 add_filter('relevanssi_post_ok', 'relevanssi_default_post_ok', 9, 2);
 add_filter('relevanssi_query_filter', 'relevanssi_limit_filter');
 add_filter('query_vars', 'relevanssi_query_vars');
+add_filter('relevanssi_indexing_values', 'relevanssi_update_doc_count', 98, 2);
 
 global $relevanssi_variables;
 register_activation_hook($relevanssi_variables['file'], 'relevanssi_install');
 
 function relevanssi_init() {
-	global $pagenow, $relevanssi_variables;
+	global $pagenow, $relevanssi_variables, $wpdb;
 	$plugin_dir = dirname(plugin_basename($relevanssi_variables['file']));
 	load_plugin_textdomain('relevanssi', false, $plugin_dir);
 
@@ -36,17 +37,23 @@ function relevanssi_init() {
 	if (!get_option('relevanssi_indexed') && !$index) {
 		function relevanssi_warning() {
 			RELEVANSSI_PREMIUM ? $plugin = 'relevanssi-premium' : $plugin = 'relevanssi';
-			echo "<div id='relevanssi-warning' class='updated fade'><p><strong>"
-			   . sprintf(__('Relevanssi needs attention: Remember to build the index (you can do it at <a href="%1$s">the
-			   settings page</a>), otherwise searching won\'t work.'), "options-general.php?page=" . $plugin . "/relevanssi.php")
+			echo "<div id='relevanssi-warning' class='update-nag'><p><strong>"
+			   . __('You do not have an index! Remember to build the index (click the "Build the index" button), otherwise searching won\'t work.')
 			   . "</strong></p></div>";
 		}
-		add_action('admin_notices', 'relevanssi_warning');
-	}
+		if ( 'options-general.php' == $pagenow and isset( $_GET['page'] ) and plugin_basename($relevanssi_variables['file']) == $_GET['page'] ) {
+			add_action('admin_notices', 'relevanssi_warning');
+		} else {
+			// We always want to run this on init, if the index is finishd building.
+			$relevanssi_table = $relevanssi_variables['relevanssi_table'];
+			$D = $wpdb->get_var("SELECT COUNT(DISTINCT(relevanssi.doc)) FROM $relevanssi_table AS relevanssi");
+			update_option( 'relevanssi_doc_count', $D);
+ 		}
+ 	}
 	
 	if (!function_exists('mb_internal_encoding')) {
 		function relevanssi_mb_warning() {
-			echo "<div id='relevanssi-warning' class='updated fade'><p><strong>"
+			echo "<div id='relevanssi-warning' class='error'><p><strong>"
 			   . "Multibyte string functions are not available. Relevanssi may not work well without them. "
 			   . "Please install (or ask your host to install) the mbstring extension."
 			   . "</strong></p></div>";
