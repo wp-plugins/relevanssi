@@ -3,12 +3,12 @@
 Plugin Name: Relevanssi
 Plugin URI: http://www.relevanssi.com/
 Description: This plugin replaces WordPress search with a relevance-sorting search.
-Version: 3.3.5
+Version: 3.4.2
 Author: Mikko Saari
 Author URI: http://www.mikkosaari.fi/
 */
 
-/*  Copyright 2014 Mikko Saari  (email: mikko@mikkosaari.fi)
+/*  Copyright 2015 Mikko Saari  (email: mikko@mikkosaari.fi)
 
     This file is part of Relevanssi, a search plugin for WordPress.
 
@@ -224,7 +224,7 @@ function relevanssi_check_old_data() {
 }
 
 function _relevanssi_install() {
-	global $wpdb, $relevanssi_variables;
+	global $relevanssi_variables;
 	
 	add_option('relevanssi_title_boost', $relevanssi_variables['title_boost_default']);
 	add_option('relevanssi_comment_boost', $relevanssi_variables['comment_boost_default']);
@@ -235,10 +235,11 @@ function _relevanssi_install() {
 	add_option('relevanssi_css', 'text-decoration: underline; text-color: #ff0000');
 	add_option('relevanssi_class', 'relevanssi-query-term');
 	add_option('relevanssi_excerpts', 'on');
-	add_option('relevanssi_excerpt_length', '450');
-	add_option('relevanssi_excerpt_type', 'chars');
+	add_option('relevanssi_excerpt_length', '30');
+	add_option('relevanssi_excerpt_type', 'words');
 	add_option('relevanssi_excerpt_allowable_tags', '');
 	add_option('relevanssi_log_queries', 'off');
+	add_option('relevanssi_log_queries_with_ip', 'off');
 	add_option('relevanssi_cat', '0');
 	add_option('relevanssi_excat', '0');
 	add_option('relevanssi_extag', '0');
@@ -249,7 +250,7 @@ function _relevanssi_install() {
 	add_option('relevanssi_highlight_comments', 'off');
 	add_option('relevanssi_index_comments', 'none');	//added by OdditY
 	add_option('relevanssi_show_matches', '');
-	add_option('relevanssi_show_matches_txt', '(Search hits: %body% in body, %title% in title, %tags% in tags, %comments% in comments. Score: %score%)');
+	add_option('relevanssi_show_matches_text', '(Search hits: %body% in body, %title% in title, %tags% in tags, %comments% in comments. Score: %score%)');
 	add_option('relevanssi_fuzzy', 'sometimes');
 	add_option('relevanssi_indexed', '');
 	add_option('relevanssi_expand_shortcodes', 'on');
@@ -258,11 +259,11 @@ function _relevanssi_install() {
 	add_option('relevanssi_implicit_operator', 'OR');
 	add_option('relevanssi_omit_from_logs', '');
 	add_option('relevanssi_synonyms', '');
-	add_option('relevanssi_index_excerpt', '');
+	add_option('relevanssi_index_excerpt', 'off');
 	add_option('relevanssi_index_limit', '500');
 	add_option('relevanssi_disable_or_fallback', 'off');
 	add_option('relevanssi_respect_exclude', 'on');
-	add_option('relevanssi_min_word_length', 3);
+	add_option('relevanssi_min_word_length', '3');
 	add_option('relevanssi_wpml_only_current', 'on');
 	add_option('relevanssi_word_boundaries', 'on');
 	add_option('relevanssi_default_orderby', 'relevance');
@@ -296,8 +297,15 @@ function relevanssi_get_post($id) {
 function relevanssi_remove_doc($id) {
 	global $wpdb, $relevanssi_variables;
 	
-	$q = "DELETE FROM " . $relevanssi_variables['relevanssi_table'] . " WHERE doc=$id";
+	$D = get_option( 'relevanssi_doc_count');
+
+ 	$q = "DELETE FROM " . $relevanssi_variables['relevanssi_table'] . " WHERE doc=$id";
 	$wpdb->query($q);
+	$rows_updated = $wpdb->query($q);
+
+	if($rows_updated && $rows_updated > 0) {
+		update_option('relevanssi_doc_count', $D - $rows_updated);
+	}
 }
 
 /*****
@@ -371,6 +379,43 @@ comparison</a> and <a href="http://www.relevanssi.com/buy-premium/?utm_source=pl
 	</div>
 
 		<div class="meta-box-sortables" style="min-height: 0">
+			<div id="relevanssi_list" class="postbox">
+			<!-- Begin MailChimp Signup Form -->
+<div id="mc_embed_signup">
+<form action="//painavasana.us11.list-manage.com/subscribe/post?u=33d7be02c521d776357962ad2&amp;id=ef7d31c98a" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+    <div id="mc_embed_signup_scroll">
+	<h3 class="hndle"><span>Subscribe to our mailing list</span></h3>
+
+			<div class="inside">
+
+<div class="mc-field-group">
+	<label for="mce-EMAIL">Email Address
+</label>
+	<input type="email" value="" name="EMAIL" class="required email" id="mce-EMAIL">
+</div>
+	<div id="mce-responses" class="clear">
+		<div class="response" id="mce-error-response" style="display:none"></div>
+		<div class="response" id="mce-success-response" style="display:none"></div>
+	</div>    <!-- real people should not fill this in and expect good things - do not remove this or risk form bot signups-->
+    <div style="position: absolute; left: -5000px;"><input type="text" name="b_33d7be02c521d776357962ad2_ef7d31c98a" tabindex="-1" value=""></div>
+    <div class="clear"><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button-primary"></div>
+
+<p>Subscribe to our mailing list to get updates on Relevanssi development. As a thank you for subscribing, you'll
+get a <strong>20% discount</strong> for Relevanssi Premium.</p>
+
+    </div>
+
+</div>
+
+</form>
+
+</div>
+
+<!--End mc_embed_signup-->
+			</div>
+		</div>
+
+		<div class="meta-box-sortables" style="min-height: 0">
 			<div id="relevanssi_premium" class="postbox">
 			<h3 class="hndle"><span>Sample Premium features</span></h3>
 			<div class="inside">
@@ -380,7 +425,6 @@ comparison</a> and <a href="http://www.relevanssi.com/buy-premium/?utm_source=pl
 - Hiding Relevanssi branding from the User Searches page on a client installation<br />
 - Adjust weights separately for each post type and taxonomy<br />
 - Give extra weight to recent posts<br />
-- Highlight search terms for visitors from Google and other external search sources<br />
 - Make Relevanssi understand thousand separators to handle big numbers better<br />
 - Index and search any columns in the wp_posts database<br />
 - Index and search user profile pages<br />
